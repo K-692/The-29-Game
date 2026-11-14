@@ -412,7 +412,9 @@ export class RoomManager {
     this.broadcastRoomUpdate(room);
     this.broadcastGameState(room);
     this.startTurnTimer(room);
-    this.checkAndExecuteBotTurn(room);
+    setTimeout(() => {
+      this.checkAndExecuteBotTurn(room);
+    }, 2100);
 
     return { success: true };
   }
@@ -667,7 +669,9 @@ export class RoomManager {
     room.gameState = startNewRound(room.gameState, nextDealer);
     this.broadcastGameState(room);
     this.startTurnTimer(room);
-    this.checkAndExecuteBotTurn(room);
+    setTimeout(() => {
+      this.checkAndExecuteBotTurn(room);
+    }, 2100);
 
     return { success: true };
   }
@@ -743,24 +747,11 @@ export class RoomManager {
         ? room.gameState.rules.minBid 
         : 'PASS';
 
-      const timeoutMsg = fallbackBid === 'PASS'
-        ? `Time expired — ${seat.playerName} automatically passed.`
-        : `Time expired — Forced dealer minimum bid of 16 placed for ${seat.playerName}.`;
-
-      this.broadcastNotification(
-        room, 
-        'TIMEOUT_AUTO_PLAY', 
-        timeoutMsg
-      );
-
+      // Silent authoritative timeout execution
       this.handleBid(room.code, seat.sessionToken, fallbackBid);
     } else if (room.gameState.phase === 'TRUMP_SELECTION') {
       const bestChoice = getBotTrumpSelection(playerHand);
-      this.broadcastNotification(
-        room, 
-        'TIMEOUT_AUTO_PLAY', 
-        `Time expired — Secret trump automatically selected for ${seat.playerName}.`
-      );
+      // Silent authoritative timeout execution
       this.handleSelectTrump(room.code, seat.sessionToken, bestChoice);
     } else if (room.gameState.phase === 'TRICK_PLAY') {
       const leadCardId = room.gameState.currentTrickCards.length > 0 
@@ -777,15 +768,7 @@ export class RoomManager {
         room.gameState.trumpMode
       );
 
-      const cardInfo = CARD_MANIFEST[chosenCard];
-      const cardLabel = cardInfo ? `${cardInfo.rank} of ${cardInfo.suit}` : chosenCard;
-
-      this.broadcastNotification(
-        room, 
-        'TIMEOUT_AUTO_PLAY', 
-        `Time expired — ${seat.playerName} automatically played ${cardLabel}.`
-      );
-
+      // Silent authoritative timeout execution
       this.handlePlayCard(room.code, seat.sessionToken, chosenCard);
     }
   }

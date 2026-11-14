@@ -122,8 +122,11 @@ export const startNewRound = (state: GameState, nextDealer?: PlayerPosition): Ga
     3: sortHand(round1[3]),
   };
 
+  const roundNumber = state.phase === 'WAITING_LOBBY' ? 1 : (state.roundNumber || 0) + 1;
+
   return {
     ...state,
+    roundNumber,
     phase: 'BIDDING',
     dealerIndex,
     currentTurn: firstBidder,

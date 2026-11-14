@@ -77,10 +77,9 @@ export default function App() {
     });
 
     const unsubNotif = lanClient.onInTableNotification((notif) => {
+      if (notif.type === 'TIMEOUT_AUTO_PLAY') return; // Silent timeout handling (strictly no popups)
       setNotification(notif);
-      if (notif.type === 'TIMEOUT_AUTO_PLAY') {
-        soundManager.playError();
-      } else if (notif.type === 'TRUMP_REVEALED') {
+      if (notif.type === 'TRUMP_REVEALED') {
         soundManager.playTrump();
       } else if (notif.type === 'PAIR_DECLARED') {
         soundManager.playWin();

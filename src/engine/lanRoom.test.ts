@@ -358,4 +358,78 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     expect(room.gameState?.phase).toBe('BIDDING');
     expect(room.gameState?.bids).toHaveLength(0);
   });
+
+  it('should increment roundNumber and rotate dealer across three consecutive deals', () => {
+    const io = createMockIo();
+    const mgr = new RoomManager(io);
+    const hostSocket = createMockSocket('host_consecutive_deals');
+    const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
+
+    // Deal 1: Start Match
+    mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
+    expect(room.gameState?.roundNumber).toBe(1);
+    const deal1Dealer = room.gameState!.dealerIndex;
+
+    // Simulate round 1 completion
+    room.gameState!.playerPoints = { 0: 12, 1: 5, 2: 7, 3: 4 };
+    room.gameState!.phase = 'ROUND_ENDED';
+
+    // Deal 2: Next Round
+    const nextRes1 = mgr.handleNextRound(room.code, hostSeat.sessionToken);
+    expect(nextRes1.success).toBe(true);
+    expect(room.gameState?.roundNumber).toBe(2);
+    expect(room.gameState?.dealerIndex).toBe(((deal1Dealer + 1) % 4));
+    expect(room.gameState?.phase).toBe('BIDDING');
+    // Points must reset to 0 for the new deal!
+    expect(room.gameState?.playerPoints).toEqual({ 0: 0, 1: 0, 2: 0, 3: 0 });
+    // Hand must have 4 initial cards
+    expect(room.gameState?.hands[0]).toHaveLength(4);
+
+    // Simulate round 2 completion
+    room.gameState!.playerPoints = { 0: 8, 1: 15, 2: 3, 3: 2 };
+    room.gameState!.phase = 'ROUND_ENDED';
+
+    // Deal 3: Next Round
+    const nextRes2 = mgr.handleNextRound(room.code, hostSeat.sessionToken);
+    expect(nextRes2.success).toBe(true);
+    expect(room.gameState?.roundNumber).toBe(3);
+    expect(room.gameState?.dealerIndex).toBe(((deal1Dealer + 2) % 4));
+    expect(room.gameState?.phase).toBe('BIDDING');
+    expect(room.gameState?.playerPoints).toEqual({ 0: 0, 1: 0, 2: 0, 3: 0 });
+    expect(room.gameState?.hands[0]).toHaveLength(4);
+  });
+
+  it('should execute timeout fallbacks silently without broadcasting TIMEOUT_AUTO_PLAY notifications', () => {
+    const io = createMockIo();
+    const mgr = new RoomManager(io);
+    const hostSocket = createMockSocket('host_timeout_silent');
+    const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
+
+    mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
+    room.seats.forEach((s) => { s.isCpu = false; });
+
+    room.gameState!.dealerIndex = 0;
+    room.gameState!.currentTurn = 1;
+    room.gameState!.biddingOrder = [1, 2, 3, 0];
+    room.gameState!.bids = [];
+    room.gameState!.phase = 'BIDDING';
+
+    // Clear messages
+    io.roomMessages[room.code] = [];
+
+    // Trigger timeout fallback on Seat 1
+    (mgr as any).executeTimeoutFallback(room, 1);
+
+    // Bidding turn must advance to Seat 2
+    expect(room.gameState?.currentTurn).toBe(2);
+    expect(room.gameState?.bids).toHaveLength(1);
+    expect(room.gameState?.bids[0].bid).toBe('PASS');
+
+    // Verify ZERO TIMEOUT_AUTO_PLAY notifications were broadcast!
+    const roomEvents: Array<{ event: string; data: any }> = io.roomMessages[room.code] || [];
+    const timeoutNotifs = roomEvents.filter(
+      (e) => e.event === 'in_table_notification' && e.data?.type === 'TIMEOUT_AUTO_PLAY'
+    );
+    expect(timeoutNotifs).toHaveLength(0);
+  });
 });

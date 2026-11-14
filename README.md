@@ -7,14 +7,32 @@
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-black.svg?logo=socketdotio)](https://socket.io/)
 [![Express](https://img.shields.io/badge/Express-5.3-green.svg?logo=express)](https://expressjs.com/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-38bdf8.svg?logo=tailwind-css)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Vitest-39%2F39%20Passing-brightgreen.svg?logo=vitest)](https://vitest.dev/)
+[![Tests](https://img.shields.io/badge/Vitest-41%2F41%20Passing-brightgreen.svg?logo=vitest)](https://vitest.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> A modern, zero-install, real-time **LAN (Local Area Network)** multiplayer implementation of the traditional Indian **29 (Twenty-Nine)** trick-taking card game. Features authentic traditional Indian rules, edge-to-edge full-screen table felt (`table.jpg`), original vector playing-card artwork extracted directly from an EPS collection (`poker-cards-icons-collection/OIUGSZ1.eps`), larger cards with gentle horizontal overlap, bright minimalistic UI, consistent partnership colour schemes (Soft Blue & Soft Coral), animal emoji avatars, bottom-right individual trick-point counters beside the 30-second turn timer, active bidder top-bar synchronization (`🦊 Aarav is bidding`), clean 3-element direct-click bidding with authoritative PASS button, card-playing face-up flight animations matching dealer-distribution quality, bottom-left Ask to Reveal Trump button, top-right persistent revealed trump indicator, 3-second deal transition with sequential 16-card dealer distribution animation, 1-second trick collection animation, floating utility controls (zero reserved navbar height), non-scrollable landing page (`100dvh`), original sound effects (`sound-effects/`), physical drag-and-drop card playing, single-round auction with forced dealer opening, six trump options (including Joker / No Trump and 7th Card), first-bidder point-card eligibility redeals, and authentic Indian AI players.
+> A modern, zero-install, real-time **LAN (Local Area Network)** multiplayer implementation of the traditional Indian **29 (Twenty-Nine)** trick-taking card game. Features authentic traditional Indian rules, edge-to-edge full-screen table felt (`table.jpg`), original vector playing-card artwork extracted directly from an EPS collection (`poker-cards-icons-collection/OIUGSZ1.eps`), larger cards with gentle horizontal overlap, bright minimalistic UI, consistent partnership colour schemes (Soft Blue & Soft Coral), animal emoji avatars, bottom-left Krish (You) player seat, fully visible top partner seat, bottom-right individual trick-point counters beside the 30-second turn timer, active bidder top-bar synchronization (`🦊 Aarav is bidding`), clean 3-element direct-click bidding with authoritative PASS button, card-playing face-up flight animations matching dealer-distribution quality, bottom-left Ask to Reveal Trump button, top-right persistent revealed trump indicator, 3-second deal transition with sequential 16-card dealer distribution animation running at the start of **every new deal**, 1-second trick collection animation, floating utility controls (zero reserved navbar height), non-scrollable landing page (`100dvh`), original sound effects (`sound-effects/`), physical drag-and-drop card playing, single-round auction with forced dealer opening, six trump options (including Joker / No Trump and 7th Card), first-bidder point-card eligibility redeals, and authentic Indian AI players.
 
 ---
 
 ## 🌟 Key Highlights
+
+- **Bottom-Left "Krish (You)" Seat Positioning**:
+  - The local player's information box (`Krish (You)`) is positioned neatly in the **bottom-left corner** of the window, adjacent to the Ask to Reveal Trump button.
+  - Leaves the central bottom area 100% unobstructed for the horizontally spread player hand, eliminating card overlap.
+  - Displays avatar, name, point counter, dealer badge `D`, bidder badge, partnership dot, and active `TURN` highlight.
+- **Fully Visible Partner Information Box at Top**:
+  - Partner seat is centered at the top of the table felt (`top-14 sm:top-16`), completely clear of the top floating scoreboard.
+  - All four player information boxes (Top Partner, Left Opponent, Right Opponent, Bottom-Left You) are simultaneously visible without clipping or overlapping.
+- **Silent Authoritative Timeouts (Zero Intrusive Popups)**:
+  - Eliminated all timeout popup announcements, blocking modals, and alerts.
+  - Timeout actions (auto-pass, auto-card play, auto-trump selection) execute authoritatively and silently on the server, advancing the game state without interrupting the players.
+- **Top-Right Persistent Revealed Trump Indicator**:
+  - Positioned at the **top-right** corner of the screen, completely hidden before reveal to ensure strict privacy.
+  - Once officially revealed, clearly displays the trump suit, `NO TRUMP` for Joker mode, or the actual revealed 7th card artwork and suit for 7th Card mode.
+  - Remains visible for the remainder of the deal across all connected clients and cleanly resets between deals.
+- **Recurring Card Distribution Animation at Start of Every Deal**:
+  - The sequential 16-card dealer distribution animation runs at the beginning of **every deal** in the match, not just the initial round.
+  - Increments `roundNumber` on every deal, rotates the dealer clockwise, respects the 3-second transition, delivers 4 initial cards to all players, checks first-bidder eligibility, and synchronizes seamlessly across all LAN clients.
 
 - **Active Bidder Display in Top Information Bar**:
   - During the bidding phase, the name and avatar of the player whose bidding turn is currently active is displayed cleanly in the floating top area (e.g. `🦊 Aarav is bidding` or `🦊 Your Turn to Bid`).

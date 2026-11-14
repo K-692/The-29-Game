@@ -72,8 +72,19 @@ export const DealerDealingAnimation: React.FC<DealerDealingAnimationProps> = ({
       }
 
       let targetX = window.innerWidth / 2;
-      let targetY = window.innerHeight * 0.8;
-      if (targetEl) {
+      let targetY = window.innerHeight * 0.85;
+      if (recipientRel === 'bottom') {
+        const handEl = document.querySelector('#player-hand');
+        if (handEl) {
+          const r = handEl.getBoundingClientRect();
+          targetX = r.left + r.width / 2;
+          targetY = r.top + r.height / 2;
+        } else if (targetEl) {
+          const r = targetEl.getBoundingClientRect();
+          targetX = r.left + r.width / 2;
+          targetY = r.top + r.height / 2;
+        }
+      } else if (targetEl) {
         const r = targetEl.getBoundingClientRect();
         targetX = r.left + r.width / 2;
         targetY = r.top + r.height / 2;

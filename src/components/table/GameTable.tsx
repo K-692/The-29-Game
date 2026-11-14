@@ -328,9 +328,7 @@ export const GameTable: React.FC<GameTableProps> = ({
         {/* Right Section: Revealed Trump (Top-Right) & Audio Controls & Help */}
         <div className="flex items-center gap-2 pointer-events-auto">
           {/* Revealed Trump Suit indicator at Top-Right */}
-          <div className="hidden xs:block">
-            <RevealedTrumpTopRight publicState={publicState} />
-          </div>
+          <RevealedTrumpTopRight publicState={publicState} />
 
           {/* Sound Controls */}
           <div className="flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md px-2 py-1.5 rounded-2xl text-slate-700">
@@ -369,14 +367,12 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
       </div>
 
-      {/* Floating In-Table Notification Toast (Non-winner alerts only) */}
-      {notification && (
+      {/* Floating In-Table Notification Toast (Silent on timeouts) */}
+      {notification && notification.type !== 'TIMEOUT_AUTO_PLAY' && (
         <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 max-w-md w-11/12 animate-fade-in pointer-events-none">
           <div
             className={`px-4 py-2 rounded-2xl border shadow-xl text-xs font-bold text-center flex items-center justify-center gap-2 ${
-              notification.type === 'TIMEOUT_AUTO_PLAY'
-                ? 'bg-rose-50 border-rose-300 text-rose-800'
-                : notification.type === 'TRUMP_REVEALED'
+              notification.type === 'TRUMP_REVEALED'
                 ? 'bg-amber-50 border-amber-300 text-amber-900'
                 : notification.type === 'PAIR_DECLARED'
                 ? 'bg-purple-50 border-purple-300 text-purple-900'
@@ -391,9 +387,9 @@ export const GameTable: React.FC<GameTableProps> = ({
 
       {/* 3. Full-Screen Table Canvas: Relative distribution of 4 seats and center */}
       <main className="relative flex-1 w-full h-full overflow-hidden">
-        {/* Top Seat: Partner (Seat 3) */}
+        {/* Top Seat: Partner (Seat 3) - Centered below top controls, 100% visible */}
         {partner && (
-          <div className="absolute top-2 sm:top-4 left-1/2 -translate-x-1/2 z-20">
+          <div className="absolute top-14 sm:top-16 left-1/2 -translate-x-1/2 z-25">
             <OpponentSeat
               player={partner}
               seatPosition="top"
@@ -519,66 +515,7 @@ export const GameTable: React.FC<GameTableProps> = ({
             </div>
           )}
 
-          {/* Bottom Seat (Seat 1 - You) Pill with Blue Partnership accent */}
-          {me && (
-            <div
-              id="seat-bottom"
-              data-seat="bottom"
-              className={`relative flex items-center gap-2 px-3 py-1.5 rounded-2xl transition-all duration-200 select-none shadow-md mb-1 ${
-                isBottomTurn
-                  ? 'bg-sky-50/95 border-2 border-sky-400 ring-2 ring-sky-300/60 shadow-[0_0_18px_rgba(56,189,248,0.5)] text-slate-900'
-                  : 'bg-white/95 border border-sky-200/90 text-slate-800'
-              }`}
-            >
-              {/* Dealer Badge */}
-              {publicState.dealerIndex === myPosition && (
-                <span
-                  className="absolute -top-2 -left-2 bg-amber-400 text-slate-950 font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-md border border-amber-300 z-10"
-                  title="Dealer"
-                >
-                  D
-                </span>
-              )}
-
-              {/* Bidder Badge */}
-              {publicState.highestBidder === myPosition && publicState.highestBid && (
-                <span
-                  className="absolute -top-2 -right-2 bg-emerald-600 text-white font-black text-[10px] px-1.5 py-0.5 rounded-full shadow-md z-10"
-                  title={`Winning Bidder: ${publicState.highestBid}`}
-                >
-                  {publicState.highestBid}
-                </span>
-              )}
-
-              {/* Turn Indicator Tag */}
-              {isBottomTurn && (
-                <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider text-white bg-sky-500 shadow-xs z-10">
-                  TURN
-                </span>
-              )}
-
-              {/* Partnership 1 Blue Dot */}
-              <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" title="Your Partnership" />
-
-              {/* Avatar */}
-              <span className="text-xl sm:text-2xl leading-none" role="img" aria-label="Avatar">
-                {me.avatar || '🦊'}
-              </span>
-
-              {/* Name and Trick Points */}
-              <div className="flex items-center gap-1.5 text-xs font-bold leading-tight">
-                <span className="text-slate-900 truncate max-w-[100px] sm:max-w-[130px]">
-                  {me.name} (You)
-                </span>
-                <span className="text-slate-400 font-normal">·</span>
-                <span className="text-amber-700 font-black whitespace-nowrap">
-                  {publicState.playerPoints ? publicState.playerPoints[myPosition] : 0} pts
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Horizontally Spread Player Hand */}
+          {/* Horizontally Spread Player Hand in Bottom Center */}
           <PlayerHand
             cardIds={publicState.myHand}
             playableCardIds={playableCardIds}
@@ -591,12 +528,70 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
       </main>
 
-      {/* 5. Bottom-Left Control: ASK TO REVEAL TRUMP (Item 10) */}
-      <div className="fixed bottom-3 left-3 sm:bottom-4 sm:left-5 z-40">
+      {/* 5. Bottom-Left Area: Ask to Reveal Trump + Krish (You) Player Seat */}
+      <div className="fixed bottom-3 left-3 sm:bottom-4 sm:left-5 z-40 flex flex-col items-start gap-2 select-none pointer-events-auto">
         <AskToRevealTrumpButton
           canRevealTrump={canRevealTrump}
           onRevealTrump={onRevealTrump}
         />
+
+        {me && (
+          <div
+            id="seat-bottom"
+            data-seat="bottom"
+            className={`relative flex items-center gap-2 px-3 py-1.5 rounded-2xl transition-all duration-200 select-none shadow-md ${
+              isBottomTurn
+                ? 'bg-sky-50/95 border-2 border-sky-400 ring-2 ring-sky-300/60 shadow-[0_0_18px_rgba(56,189,248,0.5)] text-slate-900'
+                : 'bg-white/95 border border-sky-200/90 text-slate-800'
+            }`}
+          >
+            {/* Dealer Badge */}
+            {publicState.dealerIndex === myPosition && (
+              <span
+                className="absolute -top-2 -left-2 bg-amber-400 text-slate-950 font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-md border border-amber-300 z-10"
+                title="Dealer"
+              >
+                D
+              </span>
+            )}
+
+            {/* Bidder Badge */}
+            {publicState.highestBidder === myPosition && publicState.highestBid && (
+              <span
+                className="absolute -top-2 -right-2 bg-emerald-600 text-white font-black text-[10px] px-1.5 py-0.5 rounded-full shadow-md z-10"
+                title={`Winning Bidder: ${publicState.highestBid}`}
+              >
+                {publicState.highestBid}
+              </span>
+            )}
+
+            {/* Turn Indicator Tag */}
+            {isBottomTurn && (
+              <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider text-white bg-sky-500 shadow-xs z-10">
+                TURN
+              </span>
+            )}
+
+            {/* Partnership 1 Blue Dot */}
+            <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" title="Your Partnership" />
+
+            {/* Avatar */}
+            <span className="text-xl sm:text-2xl leading-none shrink-0" role="img" aria-label="Avatar">
+              {me.avatar || '🦊'}
+            </span>
+
+            {/* Name and Trick Points */}
+            <div className="flex items-center gap-1.5 text-xs font-bold leading-tight">
+              <span className="text-slate-900 truncate max-w-[95px] sm:max-w-[125px]">
+                {me.name} (You)
+              </span>
+              <span className="text-slate-400 font-normal">·</span>
+              <span className="text-amber-700 font-black whitespace-nowrap">
+                {publicState.playerPoints ? publicState.playerPoints[myPosition] : 0} pts
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 6. Bottom-Right Controls: 30-Second Turn Timer + Active Player Points Box (Item 2) */}
