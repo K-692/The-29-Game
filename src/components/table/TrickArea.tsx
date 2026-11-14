@@ -8,25 +8,28 @@ interface TrickAreaProps {
   players: PlayerInfo[];
   myPosition: PlayerPosition;
   completedTricks: CompletedTrick[];
+  lastCompletedTrick?: CompletedTrick | null;
   dropZoneRef?: React.Ref<HTMLDivElement>;
 }
 
 // Fixed slight rotation angles for natural card feel
-const CARD_ROTATIONS = [-2, 3, -3, 2];
+const CARD_ROTATIONS = [-2, 3, -2, 2];
 
 export const TrickArea: React.FC<TrickAreaProps> = ({
   playedCards,
   players,
   myPosition,
   completedTricks,
+  lastCompletedTrick,
   dropZoneRef,
 }) => {
-  // Animation state for 1-second pause & smooth collection towards winning seat
-  const [animatingCards, setAnimatingCards] = useState<PlayedCard[] | null>(null);
-  const [collectTarget, setCollectTarget] = useState<'bottom' | 'left' | 'top' | 'right' | null>(null);
+  // State for freeze-frame and collection animation
+  const [frozenCards, setFrozenCards] = useState<PlayedCard[] | null>(null);
   const [isCollecting, setIsCollecting] = useState<boolean>(false);
+  const [collectionVectors, setCollectionVectors] = useState<Record<string, { x: number; y: number }>>({});
 
-  const prevCompletedCountRef = useRef(completedTricks.length);
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const lastAnimatedTrickIdRef = useRef<number | null>(null);
 
   // Map player absolute position (0..3) to relative table position (bottom, left, top, right)
   const getRelativePosition = (pos: PlayerPosition): 'bottom' | 'left' | 'top' | 'right' => {
@@ -40,47 +43,79 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
     }
   };
 
-  // When a trick completes (completedTricks count increases), execute the 1-second pause & collection animation
+  // Check if a 4-card trick is present (either currently played 4 cards or freshly completed trick)
+  const isFourCards = playedCards.length === 4;
+
   useEffect(() => {
-    if (completedTricks.length > prevCompletedCountRef.current) {
-      const lastTrick = completedTricks[completedTricks.length - 1];
-      if (lastTrick && lastTrick.cards && lastTrick.cards.length === 4) {
-        // Step 1: Keep all 4 cards visible for exactly 1 second
-        setAnimatingCards(lastTrick.cards);
+    // Determine completed trick info
+    const latestTrick = lastCompletedTrick || (completedTricks.length > 0 ? completedTricks[completedTricks.length - 1] : null);
+
+    if (isFourCards && latestTrick && lastAnimatedTrickIdRef.current !== latestTrick.trickNumber) {
+      lastAnimatedTrickIdRef.current = latestTrick.trickNumber;
+      const cardsToAnimate = [...playedCards];
+      setFrozenCards(cardsToAnimate);
+      setIsCollecting(false);
+
+      const targetRelPos = getRelativePosition(latestTrick.winner);
+
+      // Step 1: Wait exactly 1 second (1000ms) with all 4 cards displayed clearly in center
+      const timer1 = setTimeout(() => {
+        // Step 2: Calculate destination coordinates using getBoundingClientRect()
+        const targetSeatEl = document.querySelector(`[data-seat="${targetRelPos}"]`);
+        const targetRect = targetSeatEl?.getBoundingClientRect();
+
+        const vectors: Record<string, { x: number; y: number }> = {};
+        cardsToAnimate.forEach((pc) => {
+          const key = `${pc.cardId}_${pc.playerIndex}`;
+          const cardEl = cardRefs.current[key];
+          if (cardEl && targetRect) {
+            const cardRect = cardEl.getBoundingClientRect();
+            const targetCenterX = targetRect.left + targetRect.width / 2;
+            const targetCenterY = targetRect.top + targetRect.height / 2;
+            const cardCenterX = cardRect.left + cardRect.width / 2;
+            const cardCenterY = cardRect.top + cardRect.height / 2;
+            vectors[key] = {
+              x: targetCenterX - cardCenterX,
+              y: targetCenterY - cardCenterY,
+            };
+          } else {
+            // High-visibility fallback offsets towards winning seat
+            switch (targetRelPos) {
+              case 'bottom': vectors[key] = { x: 0, y: 340 }; break;
+              case 'top': vectors[key] = { x: 0, y: -340 }; break;
+              case 'left': vectors[key] = { x: -420, y: 0 }; break;
+              case 'right': vectors[key] = { x: 420, y: 0 }; break;
+            }
+          }
+        });
+
+        setCollectionVectors(vectors);
+        setIsCollecting(true);
+        soundManager.playTrickShove();
+      }, 1000);
+
+      // Step 3: At 1550ms, animation completes
+      const timer2 = setTimeout(() => {
+        setFrozenCards(null);
         setIsCollecting(false);
-        setCollectTarget(getRelativePosition(lastTrick.winner));
+        setCollectionVectors({});
+      }, 1550);
 
-        // Step 2: At 1000ms, start collection animation towards winning player's seat
-        const collectTimer = setTimeout(() => {
-          setIsCollecting(true);
-          soundManager.playCardShove();
-        }, 1000);
-
-        // Step 3: At 1500ms, complete the animation and clear trick area
-        const endTimer = setTimeout(() => {
-          setAnimatingCards(null);
-          setIsCollecting(false);
-          setCollectTarget(null);
-        }, 1550);
-
-        prevCompletedCountRef.current = completedTricks.length;
-        return () => {
-          clearTimeout(collectTimer);
-          clearTimeout(endTimer);
-        };
-      }
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+      };
     }
-    prevCompletedCountRef.current = completedTricks.length;
-  }, [completedTricks.length, myPosition]);
+  }, [playedCards.length, isFourCards, lastCompletedTrick, completedTricks.length, myPosition]);
 
-  const cardsToRender = animatingCards || playedCards;
+  const cardsToRender = frozenCards || playedCards;
 
   const getPositionStyles = (relPos: 'bottom' | 'left' | 'top' | 'right') => {
     switch (relPos) {
       case 'bottom':
-        return 'bottom-2 left-1/2 -translate-x-1/2';
+        return 'bottom-1 left-1/2 -translate-x-1/2';
       case 'top':
-        return 'top-2 left-1/2 -translate-x-1/2';
+        return 'top-1 left-1/2 -translate-x-1/2';
       case 'left':
         return 'left-2 top-1/2 -translate-y-1/2';
       case 'right':
@@ -88,55 +123,46 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
     }
   };
 
-  const getCollectionTransform = (target: 'bottom' | 'left' | 'top' | 'right') => {
-    switch (target) {
-      case 'bottom':
-        return 'translate3d(0, 260px, 0) scale(0.15) opacity(0)';
-      case 'top':
-        return 'translate3d(0, -260px, 0) scale(0.15) opacity(0)';
-      case 'left':
-        return 'translate3d(-320px, 0, 0) scale(0.15) opacity(0)';
-      case 'right':
-        return 'translate3d(320px, 0, 0) scale(0.15) opacity(0)';
-    }
-  };
-
   return (
     <div
       ref={dropZoneRef}
-      className="relative w-72 h-56 sm:w-96 sm:h-72 md:w-[28rem] md:h-80 flex items-center justify-center select-none pointer-events-none"
+      className="relative w-80 h-64 sm:w-96 sm:h-72 md:w-[28rem] md:h-80 flex items-center justify-center select-none pointer-events-none"
     >
-      {/* Invisible drop target hitbox (no visible border, no highlight, no background) */}
+      {/* Invisible drop target hitbox */}
       <div className="absolute inset-0 pointer-events-auto" />
 
-      {/* Played Cards in Trick */}
+      {/* Played Cards in Trick (Strictly NO player name text underneath cards) */}
       {cardsToRender.map((pc, idx) => {
         const relPos = getRelativePosition(pc.playerIndex);
         const posClass = getPositionStyles(relPos);
         const rotation = CARD_ROTATIONS[idx % CARD_ROTATIONS.length];
+        const key = `${pc.cardId}_${pc.playerIndex}`;
 
-        let collectStyle = '';
-        if (isCollecting && collectTarget) {
-          collectStyle = getCollectionTransform(collectTarget);
-        }
+        const vector = collectionVectors[key];
+        const isCurrentlyGliding = isCollecting && vector !== undefined;
 
         return (
           <div
-            key={`${pc.cardId}_${pc.playerIndex}`}
+            key={key}
+            ref={(el) => { cardRefs.current[key] = el; }}
             style={{
-              transform: collectStyle || undefined,
-              transition: isCollecting
-                ? 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.45s ease-in'
+              transform: isCurrentlyGliding
+                ? `translate3d(${vector.x}px, ${vector.y}px, 0) scale(0.18)`
+                : undefined,
+              opacity: isCurrentlyGliding ? 0 : 1,
+              transition: isCurrentlyGliding
+                ? 'transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.45s ease-in'
                 : 'none',
+              zIndex: isCurrentlyGliding ? 50 : 10 + idx,
             }}
-            className={`absolute ${posClass} z-10`}
+            className={`absolute ${posClass}`}
           >
             <PlayingCard
               cardId={pc.cardId}
               faceDown={false}
               size="md"
               rotation={rotation}
-              className="shadow-2xl rounded-xl"
+              className="shadow-2xl rounded-xl ring-1 ring-slate-900/10"
             />
           </div>
         );

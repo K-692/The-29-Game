@@ -50,7 +50,7 @@ export const MatchOverModal: React.FC<MatchOverModalProps> = ({
             {isMyTeamWinner ? 'VICTORY!' : 'MATCH OVER'}
           </h2>
           <p className="text-sm font-bold text-amber-600">
-            {winnerTeam === 0 ? 'Team A (Seats 1 & 3)' : 'Team B (Seats 2 & 4)'} Wins the Match!
+            {winnerTeam === myTeam ? 'Your Partnership Wins the Match!' : 'Opponents Win the Match!'}
           </p>
         </div>
 
@@ -61,15 +61,21 @@ export const MatchOverModal: React.FC<MatchOverModalProps> = ({
           </span>
           <div className="flex items-center justify-center gap-6 text-xl font-mono font-bold">
             <div className="text-center">
-              <span className="text-xs text-slate-500 block font-sans">Team A</span>
-              <span className={finalScore.team0 >= 6 ? 'text-emerald-600 font-black' : 'text-slate-800'}>
+              <span className="text-xs text-sky-700 block font-sans font-bold flex items-center justify-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-sky-500" />
+                {myTeam === 0 ? 'Your Side' : 'Opponents'}
+              </span>
+              <span className={finalScore.team0 >= 6 ? 'text-sky-700 font-black' : 'text-slate-800'}>
                 {finalScore.team0 > 0 ? `+${finalScore.team0}` : finalScore.team0}
               </span>
             </div>
             <span className="text-slate-300">vs</span>
             <div className="text-center">
-              <span className="text-xs text-slate-500 block font-sans">Team B</span>
-              <span className={finalScore.team1 >= 6 ? 'text-blue-600 font-black' : 'text-slate-800'}>
+              <span className="text-xs text-rose-700 block font-sans font-bold flex items-center justify-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-rose-500" />
+                {myTeam === 1 ? 'Your Side' : 'Opponents'}
+              </span>
+              <span className={finalScore.team1 >= 6 ? 'text-rose-700 font-black' : 'text-slate-800'}>
                 {finalScore.team1 > 0 ? `+${finalScore.team1}` : finalScore.team1}
               </span>
             </div>

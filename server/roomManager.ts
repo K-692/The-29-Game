@@ -19,6 +19,7 @@ import {
   applyPairDeclaration, 
   applyTrumpReveal, 
   applyTrumpSelection, 
+  completeTrickTransition,
   createInitialGame, 
   getPublicGameState, 
   startNewRound 
@@ -594,19 +595,22 @@ export class RoomManager {
 
     if (res.trickCompleted) {
       const lastTrick = res.trickCompleted;
-      const winnerPlayer = res.state.players.find((p) => p.position === lastTrick.winner);
-      this.broadcastNotification(
-        room, 
-        'INFO', 
-        `Trick won by ${winnerPlayer?.name} (+${lastTrick.points} pts)`
-      );
+
+      // Broadcast trick completed event so all connected clients synchronize the collection
+      this.io.to(room.code).emit('TRICK_COMPLETED', { trick: lastTrick });
 
       // Delay next turn timer & bot action by 1600ms so all connected clients observe
       // the complete 4-card trick for 1 second, followed by smooth collection animation
       setTimeout(() => {
-        if (!room.gameState || room.gameState.phase !== 'TRICK_PLAY') return;
-        this.startTurnTimer(room);
-        this.checkAndExecuteBotTurn(room);
+        if (!room.gameState) return;
+        // Authoritatively finalize trick transition, point counters, and next trick / round end
+        room.gameState = completeTrickTransition(room.gameState, lastTrick);
+        this.broadcastGameState(room);
+
+        if (room.gameState.phase === 'TRICK_PLAY') {
+          this.startTurnTimer(room);
+          this.checkAndExecuteBotTurn(room);
+        }
       }, 1600);
     } else {
       this.startTurnTimer(room);

@@ -61,6 +61,7 @@ export const createInitialGame = (
     currentTrickLead: firstBidder,
     currentTrickCards: [],
     completedTricks: [],
+    lastCompletedTrick: null,
     pairDeclaration: null,
     playerPoints: { 0: 0, 1: 0, 2: 0, 3: 0 },
     roundNumber: 1,
@@ -143,6 +144,7 @@ export const startNewRound = (state: GameState, nextDealer?: PlayerPosition): Ga
     currentTrickLead: firstBidder,
     currentTrickCards: [],
     completedTricks: [],
+    lastCompletedTrick: null,
     pairDeclaration: null,
     playerPoints: { 0: 0, 1: 0, 2: 0, 3: 0 },
     version: state.version + 1,
@@ -456,7 +458,35 @@ export const applyCardPlay = (
     state.trumpMode
   );
 
+  // Return state keeping all 4 cards displayed for the 1-second pause and collection animation
+  return {
+    success: true,
+    trickCompleted: completedTrick,
+    state: {
+      ...state,
+      hands: newHands,
+      currentTrickCards: newTrickCards,
+      lastCompletedTrick: completedTrick,
+      version: state.version + 1,
+      lastActionTimestamp: Date.now(),
+    },
+  };
+};
+
+/**
+ * Completes the transition after the 1-second display pause and collection animation.
+ * Updates completedTricks, playerPoints, matchScore, and advances to the next trick or ROUND_ENDED.
+ */
+export const completeTrickTransition = (
+  state: GameState,
+  completedTrick: CompletedTrick
+): GameState => {
   const newCompletedTricks = [...state.completedTricks, completedTrick];
+
+  const updatedPlayerPoints = {
+    ...state.playerPoints,
+    [completedTrick.winner]: (state.playerPoints?.[completedTrick.winner] || 0) + completedTrick.points,
+  };
 
   // If this was the 8th trick, the round has finished!
   if (state.currentTrickNumber === 8) {
@@ -490,52 +520,33 @@ export const applyCardPlay = (
 
     const nextPhase: GamePhase = roundResult.isMatchOver ? 'MATCH_ENDED' : 'ROUND_ENDED';
 
-    const updatedPlayerPoints = {
-      ...state.playerPoints,
-      [completedTrick.winner]: (state.playerPoints?.[completedTrick.winner] || 0) + completedTrick.points,
-    };
-
     return {
-      success: true,
-      trickCompleted: completedTrick,
-      state: {
-        ...state,
-        phase: nextPhase,
-        hands: newHands,
-        currentTrickCards: newTrickCards,
-        completedTricks: newCompletedTricks,
-        playerPoints: updatedPlayerPoints,
-        matchScore: roundResult.newMatchScore,
-        roundHistory: [...state.roundHistory, roundSummary],
-        winnerTeam: roundResult.winnerTeam,
-        version: state.version + 1,
-        lastActionTimestamp: Date.now(),
-      },
+      ...state,
+      phase: nextPhase,
+      currentTrickCards: [],
+      completedTricks: newCompletedTricks,
+      playerPoints: updatedPlayerPoints,
+      matchScore: roundResult.newMatchScore,
+      roundHistory: [...state.roundHistory, roundSummary],
+      winnerTeam: roundResult.winnerTeam,
+      version: state.version + 1,
+      lastActionTimestamp: Date.now(),
     };
   }
 
   // Next trick begins: winner of this trick leads next trick
   const nextTrickLead = completedTrick.winner;
-  const updatedPlayerPoints = {
-    ...state.playerPoints,
-    [completedTrick.winner]: (state.playerPoints?.[completedTrick.winner] || 0) + completedTrick.points,
-  };
 
   return {
-    success: true,
-    trickCompleted: completedTrick,
-    state: {
-      ...state,
-      hands: newHands,
-      currentTrickNumber: state.currentTrickNumber + 1,
-      currentTrickLead: nextTrickLead,
-      currentTurn: nextTrickLead,
-      currentTrickCards: [],
-      completedTricks: newCompletedTricks,
-      playerPoints: updatedPlayerPoints,
-      version: state.version + 1,
-      lastActionTimestamp: Date.now(),
-    },
+    ...state,
+    currentTrickNumber: state.currentTrickNumber + 1,
+    currentTrickLead: nextTrickLead,
+    currentTurn: nextTrickLead,
+    currentTrickCards: [],
+    completedTricks: newCompletedTricks,
+    playerPoints: updatedPlayerPoints,
+    version: state.version + 1,
+    lastActionTimestamp: Date.now(),
   };
 };
 

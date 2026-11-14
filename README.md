@@ -7,10 +7,10 @@
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-black.svg?logo=socketdotio)](https://socket.io/)
 [![Express](https://img.shields.io/badge/Express-5.3-green.svg?logo=express)](https://expressjs.com/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-38bdf8.svg?logo=tailwind-css)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Vitest-36%2F36%20Passing-brightgreen.svg?logo=vitest)](https://vitest.dev/)
+[![Tests](https://img.shields.io/badge/Vitest-37%2F37%20Passing-brightgreen.svg?logo=vitest)](https://vitest.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> A modern, zero-install, real-time **LAN (Local Area Network)** multiplayer implementation of the traditional Indian **29 (Twenty-Nine)** trick-taking card game. Features authentic traditional Indian rules, edge-to-edge full-screen table felt (`table.jpg`), original vector playing-card artwork extracted directly from an EPS collection (`poker-cards-icons-collection/OIUGSZ1.eps`), larger cards with gentle horizontal overlap, bright minimalistic UI, animal emoji avatars, individual trick-point counters, clean 3-element direct-click bidding, uniform 30-second turns, minimal scoreboard (+6 to win), 1-second trick collection animation, original sound effects (`sound-effects/`), physical drag-and-drop card playing, single-round auction with forced dealer opening, six trump options (including Joker / No Trump and 7th Card), first-bidder point-card eligibility redeals, and authentic Indian AI players.
+> A modern, zero-install, real-time **LAN (Local Area Network)** multiplayer implementation of the traditional Indian **29 (Twenty-Nine)** trick-taking card game. Features authentic traditional Indian rules, edge-to-edge full-screen table felt (`table.jpg`), original vector playing-card artwork extracted directly from an EPS collection (`poker-cards-icons-collection/OIUGSZ1.eps`), larger cards with gentle horizontal overlap, bright minimalistic UI, consistent partnership colour schemes (Soft Blue & Soft Coral), animal emoji avatars, individual trick-point counters, clean 3-element direct-click bidding with prominent PASS button, bottom-right 30-second turn timer, bottom-left Ask to Reveal Trump button, top-right persistent revealed trump indicator, 3-second deal transition with sequential 16-card dealer distribution animation, 1-second trick collection animation, original sound effects (`sound-effects/`), physical drag-and-drop card playing, single-round auction with forced dealer opening, six trump options (including Joker / No Trump and 7th Card), first-bidder point-card eligibility redeals, and authentic Indian AI players.
 
 ---
 
@@ -20,35 +20,44 @@
   - The game table occupies **100% of the browser viewport width and height** without outer containers, black bars, or constrained aspect boxes.
   - The authentic wooden-rimmed green felt (`table.jpg`) acts as the full-screen canvas with edge-to-edge rendering.
   - All four player positions (Seat 1 Bottom, Seat 2 Left, Seat 3 Top, Seat 4 Right) and the central trick area adapt responsively to any screen size.
+- **Consistent Partnership Colour Schemes (Replacing Team A & Team B Text)**:
+  - **Partnership 1 (Seats 1 & 3 - South & North)**: Identifiable by **Soft Sky Blue** accents (`border-sky-300`, `bg-sky-500` dot indicator, `text-sky-700`).
+  - **Partnership 2 (Seats 2 & 4 - West & East)**: Identifiable by **Soft Coral / Rose** accents (`border-rose-300`, `bg-rose-500` dot indicator, `text-rose-700`).
+  - Scoreboard and player seats use these high-contrast partnership colors instead of cluttered Team A / Team B text.
+- **Reliable 4-Card Trick Visibility & Collection Animation**:
+  - Every trick reliably renders all 4 played cards in a clear diamond/cross formation without clipping or overlapping.
+  - Cards stay visible in the centre for **exactly 1.0 second**.
+  - All four cards then smoothly glide directly into the winning player's seat using dynamic layout coordinates (`getBoundingClientRect()`), accompanied by authentic `card-shove-1.ogg`.
+  - The 8th/final trick of the deal visibly renders all 4 cards and plays the full collection animation before displaying the round summary.
+  - Removed jumping "Your Turn" boxes and per-trick winner popups for an uninterrupted, elegant gameplay flow.
+- **Dedicated Bottom-Right 30-Second Turn Timer**:
+  - Human-player turn timer is positioned neatly at the **bottom-right** of the screen, separate from the card hand.
+  - Formats cleanly as `00:30` down to `00:00` with an urgent pulse during the final 5 seconds.
+  - Does not show misleading countdowns during CPU player turns.
+- **Bottom-Left "Ask to Reveal Trump" Control**:
+  - Compact, light-themed button positioned at the **lower-left** of the table.
+  - Displays `ASK TO REVEAL TRUMP` only when legally permitted by 29 game rules (human turn, trick play, concealed trump, unable to follow suit).
+- **Top-Right Persistent Revealed Trump Indicator**:
+  - Positioned at the **top-right** corner of the screen.
+  - Completely hidden before trump is officially revealed.
+  - Once revealed, displays the trump suit (Hearts, Spades, Clubs, Diamonds) or `NO TRUMP` for Joker mode, or the actual 7th card artwork and its suit for 7th Card mode.
+- **3-Second Transition & 16-Card Dealer Distribution Animation**:
+  - After a round ends, a clear 3-second transition countdown elapses before dealing.
+  - Dealer visibly deals 16 card-backs sequentially around the table clockwise starting from the player to the dealer's left ($D+1 \to D+2 \to D+3 \to D$), accompanied by rhythmic dealing audio (`cards-pack-take-out-1.ogg`).
+  - Initial 4 cards land smoothly in each player's hand before bidding begins.
+- **Restored Prominent PASS Button in Bidding**:
+  - Clean 3-element bidding panel: bidder info + legal bid grid (16–28) + prominent `PASS` button.
+  - A single tap on any bid or PASS immediately submits the action without extra confirmation dialogs.
+  - When dealer is forced to open, clearly displays `Dealer Forced Opening (Must bid 16+)`.
 - **Larger Horizontally Spread Playing Cards**:
   - Playing cards are rendered significantly larger across all desktop and mobile viewports (`w-22 h-[7.7rem] sm:w-26 md:w-30 lg:w-32`) with crisp vector illustrations, high contrast, and drop-shadows.
   - All 8 cards spread out horizontally across the bottom with gentle, reduced overlap.
   - Cards lift upward ($-32\text{px}$) and scale up ($1.12\times$) on hover without clipping.
   - Physical drag-and-drop targeting a generous central invisible table hitbox (or direct click to play).
-- **Uniform 30-Second Turn Timers**:
-  - Standardized **30-second timers** across all player turns: Bidding, Trump Selection, and Card Play.
-  - Synchronized via epoch `turnDeadline` timestamps with server-authoritative auto-pass or auto-play fallback.
-  - Displays a live countdown badge (`00:30` down to `00:00`) on the active player's seat with urgent pulse during the final 5 seconds.
-- **Bright, Light Minimalistic Aesthetic**:
-  - Replaced dark mode panels with bright, light, modern UI elements (`bg-white/95`, light borders, and subtle shadows).
-  - High-contrast typography and clean lines keep the authentic table artwork as the central focus while cleaning up surrounding controls.
-- **Distinct Animal Emoji Avatars & Individual Trick-Point Counters**:
-  - Each player is assigned a unique animal emoji avatar (🦊, 🐼, 🐯, 🐸, 🦁, 🐻, 🐵, 🐺, 🐨, 🦉, 🐧, 🐱, 🐰, 🦄, 🦖, 🦋).
-  - Individual point counters display live trick points won (e.g. `· 7 pts`) next to each player.
-  - Removed "Left Opponent" and "Right Opponent" text labels and card-back rows for a clean, uncluttered presentation.
-- **Clean 3-Element In-Table Bidding Panel**:
-  - **Element 1 (Header)**: Active bidder's animal avatar, name, current bid status (`Target: 18` or `Opening: 16 min`), and 30-second timer.
-  - **Element 2 (Legal Bid Grid)**: Clean grid of clickable bid buttons starting from the next legal bid value up to 28. Single tap immediately places the bid (no second confirmation or tedious steppers).
-  - **Element 3 (Action)**: Single prominent `PASS` button (or locked indicator when dealer is forced to open).
 - **Minimal Scoreboard (+6 Match Win Condition)**:
-  - Clean light pill at the top displaying match points for Team A (Seats 1 & 3) and Team B (Seats 2 & 4), e.g. `Team A: +3 | Team B: +2`.
-  - Once bidding completes, permanent target and bidding team info is displayed: `Target: 20 · Bidding: Team A`.
-  - First team to reach **+6 points** wins the match; reaching **-6 points** loses.
-  - No trick counter watermarks or redundant clutter.
-- **1-Second Trick Collection Animation**:
-  - When all 4 cards of a trick are played, cards pause in place for **exactly 1 second** so players can clearly see who played what and who won.
-  - Cards then smoothly glide (`transform: translate3d(...) scale(0.15) opacity(0)`) directly into the winning player's seat (Bottom, Left, Top, or Right), accompanied by `card-shove-1.ogg`.
-  - Removed trick counters and player name tags under trick cards.
+  - Minimal light pill displaying match points for both partnerships with visual color dots.
+  - Once bidding completes, displays permanent target contract and bidding partnership.
+  - First partnership to reach **+6 points** wins the match; reaching **-6 points** loses.
 - **Original Playing-Card Vector Artwork**: Extracted directly from vector EPS artwork (`poker-cards-icons-collection/OIUGSZ1.eps`) at 1440 DPI with corner-seeded flood-fill background removal. High-resolution SVGs and PNGs render hand-illustrated Kings, Queens, Jacks, traditional suit symbols, and geometric card-backs with true vector sharpness on retina displays.
 - **Authentic Sound Effects (`sound-effects/`)**:
   - `card-shuffle.ogg`: Played at the start of a new deal.

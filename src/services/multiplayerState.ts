@@ -13,6 +13,7 @@ import {
   applyPairDeclaration, 
   applyTrumpReveal, 
   applyTrumpSelection, 
+  completeTrickTransition,
   createInitialGame, 
   getPublicGameState, 
   startNewRound 
@@ -202,10 +203,13 @@ export const initMultiplayerSession = (
         const playRes = applyCardPlay(currentGameState, cpuPos, cardToPlay);
         if (playRes.success) {
           soundManager.playCardPlay();
-          if (playRes.trickCompleted) {
-            soundManager.playTrickWon();
-          }
           emitState(playRes.state);
+          if (playRes.trickCompleted) {
+            setTimeout(() => {
+              const completedState = completeTrickTransition(playRes.state, playRes.trickCompleted!);
+              emitState(completedState);
+            }, 1600);
+          }
         }
       }
     }, 650);
@@ -287,10 +291,13 @@ export const initMultiplayerSession = (
     const res = applyCardPlay(currentGameState, myPosition, cardId);
     if (res.success) {
       soundManager.playCardPlay();
-      if (res.trickCompleted) {
-        soundManager.playTrickWon();
-      }
       emitState(res.state);
+      if (res.trickCompleted) {
+        setTimeout(() => {
+          const completedState = completeTrickTransition(res.state, res.trickCompleted!);
+          emitState(completedState);
+        }, 1600);
+      }
     }
   };
 

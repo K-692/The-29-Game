@@ -261,6 +261,12 @@ class LanClientService {
     this.socket?.on('in_table_notification', callback);
     return () => this.socket?.off('in_table_notification', callback);
   }
+
+  public onTrickCompleted(callback: (data: { trick: any }) => void): () => void {
+    if (!this.socket) this.connect();
+    this.socket?.on('TRICK_COMPLETED', callback);
+    return () => this.socket?.off('TRICK_COMPLETED', callback);
+  }
 }
 
 export const lanClient = new LanClientService();

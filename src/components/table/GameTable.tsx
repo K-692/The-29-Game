@@ -14,12 +14,13 @@ import { Scoreboard } from './Scoreboard';
 import { OpponentSeat } from './OpponentSeat';
 import { PlayerHand } from './PlayerHand';
 import { TrickArea } from './TrickArea';
-import { TrumpIndicator } from './TrumpIndicator';
+import { RevealedTrumpTopRight, AskToRevealTrumpButton } from './TrumpIndicator';
 import { InTableBidding } from './InTableBidding';
 import { InTableTrumpSelector } from './InTableTrumpSelector';
 import { InTableRoundSummary } from './InTableRoundSummary';
 import { MatchOverModal } from './MatchOverModal';
 import { RulesDrawer } from './RulesDrawer';
+import { DealerDealingAnimation } from './DealerDealingAnimation';
 import { InTableNotification } from '../../services/lanClient';
 import { 
   ArrowLeft, 
@@ -27,7 +28,6 @@ import {
   HelpCircle, 
   Volume2, 
   VolumeX, 
-  Eye, 
   Clock,
   Sparkles,
   Wifi
@@ -68,6 +68,18 @@ export const GameTable: React.FC<GameTableProps> = ({
   const [isMuted, setIsMuted] = useState(soundManager.getMuted());
   const [volume, setVolumeState] = useState(soundManager.getVolume());
   const [showRulesDrawer, setShowRulesDrawer] = useState(false);
+  const [showDealingAnimation, setShowDealingAnimation] = useState(false);
+
+  // Track round for dealer distribution animation
+  const lastDealtRoundRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    // When a deal starts in BIDDING phase and hasn't animated yet, run dealer animation
+    if (publicState.phase === 'BIDDING' && lastDealtRoundRef.current !== publicState.roundNumber) {
+      lastDealtRoundRef.current = publicState.roundNumber;
+      setShowDealingAnimation(true);
+    }
+  }, [publicState.phase, publicState.roundNumber]);
 
   // Drag-and-drop state coordinates between Table and Player Hand
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -203,6 +215,17 @@ export const GameTable: React.FC<GameTableProps> = ({
 
   const latestSummary = publicState.roundHistory[publicState.roundHistory.length - 1];
 
+  // Determine if it is a human turn for the bottom-right timer
+  const isHumanTurn = Boolean(
+    publicState.phase !== 'ROUND_ENDED' &&
+    publicState.phase !== 'MATCH_ENDED' &&
+    (
+      (publicState.phase === 'BIDDING' && isMyTurn) ||
+      (publicState.phase === 'TRUMP_SELECTION' && publicState.highestBidder === myPosition) ||
+      (publicState.phase === 'TRICK_PLAY' && isMyTurn)
+    )
+  );
+
   return (
     <div className="fixed inset-0 w-screen h-screen overflow-hidden flex flex-col select-none bg-slate-900">
       {/* 1. Full-screen Edge-to-Edge Table Background */}
@@ -232,19 +255,16 @@ export const GameTable: React.FC<GameTableProps> = ({
           </div>
         </div>
 
-        {/* Minimal Scoreboard in Center */}
+        {/* Minimal Scoreboard in Center (Partnership colors, no Team A/B text) */}
         <div className="hidden sm:flex items-center">
           <Scoreboard publicState={publicState} myTeam={myTeam} />
         </div>
 
-        {/* Right Section: Trump Indicator & Controls */}
+        {/* Right Section: Revealed Trump (Top-Right) & Audio Controls */}
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Revealed Trump Suit indicator at Top-Right (Only visible when officially revealed!) */}
           <div className="hidden xs:block">
-            <TrumpIndicator
-              publicState={publicState}
-              onRevealTrump={onRevealTrump}
-              canRevealTrump={canRevealTrump}
-            />
+            <RevealedTrumpTopRight publicState={publicState} />
           </div>
 
           {/* Sound Controls */}
@@ -255,7 +275,7 @@ export const GameTable: React.FC<GameTableProps> = ({
               title={isMuted ? 'Unmute' : 'Mute'}
             >
               {isMuted || volume === 0 ? (
-                <VolumeX className="w-4 h-4 text-red-500" />
+                <VolumeX className="w-4 h-4 text-rose-500" />
               ) : (
                 <Volume2 className="w-4 h-4 text-emerald-600" />
               )}
@@ -284,17 +304,13 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
       </header>
 
-      {/* Floating Scoreboard & Trump Indicator for Small Mobile Screens */}
+      {/* Floating Scoreboard & Revealed Trump for Small Mobile Screens */}
       <div className="sm:hidden relative z-20 flex items-center justify-between px-3 pt-2 gap-2">
         <Scoreboard publicState={publicState} myTeam={myTeam} />
-        <TrumpIndicator
-          publicState={publicState}
-          onRevealTrump={onRevealTrump}
-          canRevealTrump={canRevealTrump}
-        />
+        <RevealedTrumpTopRight publicState={publicState} />
       </div>
 
-      {/* Floating In-Table Notification Toast */}
+      {/* Floating In-Table Notification Toast (Non-winner alerts only) */}
       {notification && (
         <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 max-w-md w-11/12 animate-fade-in pointer-events-none">
           <div
@@ -321,12 +337,12 @@ export const GameTable: React.FC<GameTableProps> = ({
           <div className="absolute top-2 sm:top-4 left-1/2 -translate-x-1/2 z-20">
             <OpponentSeat
               player={partner}
+              seatPosition="top"
               isCurrentTurn={publicState.currentTurn === partnerPos}
               isDealer={publicState.dealerIndex === partnerPos}
               isBidder={publicState.highestBidder === partnerPos}
               bidAmount={publicState.highestBid || undefined}
               playerPoints={publicState.playerPoints ? publicState.playerPoints[partnerPos] : 0}
-              remainingSeconds={remainingSeconds}
             />
           </div>
         )}
@@ -336,12 +352,12 @@ export const GameTable: React.FC<GameTableProps> = ({
           <div className="absolute left-2 sm:left-6 top-[44%] -translate-y-1/2 z-20">
             <OpponentSeat
               player={leftOpponent}
+              seatPosition="left"
               isCurrentTurn={publicState.currentTurn === leftOpponentPos}
               isDealer={publicState.dealerIndex === leftOpponentPos}
               isBidder={publicState.highestBidder === leftOpponentPos}
               bidAmount={publicState.highestBid || undefined}
               playerPoints={publicState.playerPoints ? publicState.playerPoints[leftOpponentPos] : 0}
-              remainingSeconds={remainingSeconds}
             />
           </div>
         )}
@@ -351,19 +367,19 @@ export const GameTable: React.FC<GameTableProps> = ({
           <div className="absolute right-2 sm:right-6 top-[44%] -translate-y-1/2 z-20">
             <OpponentSeat
               player={rightOpponent}
+              seatPosition="right"
               isCurrentTurn={publicState.currentTurn === rightOpponentPos}
               isDealer={publicState.dealerIndex === rightOpponentPos}
               isBidder={publicState.highestBidder === rightOpponentPos}
               bidAmount={publicState.highestBid || undefined}
               playerPoints={publicState.playerPoints ? publicState.playerPoints[rightOpponentPos] : 0}
-              remainingSeconds={remainingSeconds}
             />
           </div>
         )}
 
         {/* IN-TABLE ACTIVE OVERLAYS (STRICTLY NO MODALS!) */}
-        {/* A. Bidding Panel */}
-        {publicState.phase === 'BIDDING' && (
+        {/* A. Bidding Panel with Restored PASS button */}
+        {publicState.phase === 'BIDDING' && !showDealingAnimation && (
           <div className="absolute top-[44%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-full max-w-lg px-2">
             <InTableBidding
               currentHighestBid={publicState.highestBid}
@@ -401,7 +417,7 @@ export const GameTable: React.FC<GameTableProps> = ({
           </div>
         )}
 
-        {/* C. Round Summary */}
+        {/* C. Round Summary with 3s transition */}
         {publicState.phase === 'ROUND_ENDED' && latestSummary && (
           <div className="absolute top-[44%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-full max-w-lg px-2">
             <InTableRoundSummary
@@ -422,29 +438,17 @@ export const GameTable: React.FC<GameTableProps> = ({
               players={publicState.players}
               myPosition={myPosition}
               completedTricks={publicState.completedTricks}
+              lastCompletedTrick={publicState.lastCompletedTrick}
               dropZoneRef={dropZoneRef}
             />
           </div>
         )}
 
-        {/* 4. Bottom Area: Player Seat 1 (You), Action Buttons, and Hand */}
+        {/* 4. Bottom Area: Player Seat 1 (You) and Hand */}
         <div className="absolute bottom-1 sm:bottom-2 left-0 right-0 z-30 flex flex-col items-center pointer-events-auto">
-          {/* Action Buttons Row */}
-          <div className="flex items-center gap-2.5 mb-1">
-            {/* Trump Reveal Button */}
-            {canRevealTrump && (
-              <button
-                type="button"
-                onClick={onRevealTrump}
-                className="px-4 py-1.5 rounded-2xl bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-bold text-xs shadow-lg flex items-center gap-2 animate-bounce transition-transform"
-              >
-                <Eye className="w-4 h-4 text-slate-950" />
-                Ask for Trump!
-              </button>
-            )}
-
-            {/* Pair Declaration Button */}
-            {pairCheck.canDeclare && (
+          {/* Pair Declaration Action Button (if legal) */}
+          {pairCheck.canDeclare && (
+            <div className="mb-1">
               <button
                 type="button"
                 onClick={onDeclarePair}
@@ -453,16 +457,18 @@ export const GameTable: React.FC<GameTableProps> = ({
                 <Crown className="w-4 h-4 text-amber-300" />
                 Declare Pair / Royals (±4 pts)!
               </button>
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* Bottom Seat (Seat 1 - You) Pill */}
+          {/* Bottom Seat (Seat 1 - You) Pill with Blue Partnership accent */}
           {me && (
             <div
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-2xl transition-all duration-200 select-none shadow-md mb-1 ${
+              id="seat-bottom"
+              data-seat="bottom"
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-2xl transition-all duration-150 select-none shadow-md mb-1 ${
                 isMyTurn
-                  ? 'bg-amber-50 border-2 border-amber-400 ring-4 ring-amber-300/40 scale-105'
-                  : 'bg-white/95 border border-slate-200/90 text-slate-800'
+                  ? 'bg-amber-50/90 border-2 border-amber-400 ring-2 ring-amber-300/60 shadow-lg'
+                  : 'bg-white/95 border border-sky-200/90 text-slate-800'
               }`}
             >
               {/* Dealer Badge */}
@@ -485,41 +491,24 @@ export const GameTable: React.FC<GameTableProps> = ({
                 </span>
               )}
 
+              {/* Partnership 1 Blue Dot */}
+              <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" title="Your Partnership" />
+
               {/* Avatar */}
               <span className="text-xl sm:text-2xl leading-none" role="img" aria-label="Avatar">
                 {me.avatar || '🦊'}
               </span>
 
-              {/* Name and Team */}
-              <div className="flex flex-col text-left">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-xs sm:text-sm text-slate-900 leading-tight">
-                    {me.name} (You)
-                  </span>
-                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1 rounded border border-emerald-200">
-                    Team A
-                  </span>
-                </div>
-
-                {/* Points */}
-                <div className="flex items-center gap-1 text-[11px] text-slate-500 font-medium">
-                  <span>{publicState.playerPoints ? publicState.playerPoints[myPosition] : 0} pts</span>
-                </div>
+              {/* Name and Trick Points */}
+              <div className="flex items-center gap-1.5 text-xs font-bold leading-tight">
+                <span className="text-slate-900 truncate max-w-[100px] sm:max-w-[130px]">
+                  {me.name} (You)
+                </span>
+                <span className="text-slate-400 font-normal">·</span>
+                <span className="text-amber-700 font-black whitespace-nowrap">
+                  {publicState.playerPoints ? publicState.playerPoints[myPosition] : 0} pts
+                </span>
               </div>
-
-              {/* 30-Second Turn Countdown */}
-              {isMyTurn && publicState.phase !== 'ROUND_ENDED' && publicState.phase !== 'MATCH_ENDED' && (
-                <div
-                  className={`ml-1 flex items-center gap-1 px-2 py-0.5 rounded-xl font-mono text-xs font-bold ${
-                    remainingSeconds <= 5
-                      ? 'bg-red-500 text-white animate-pulse'
-                      : 'bg-amber-400 text-slate-950'
-                  }`}
-                >
-                  <Clock className="w-3 h-3" />
-                  <span>00:{remainingSeconds.toString().padStart(2, '0')}</span>
-                </div>
-              )}
             </div>
           )}
 
@@ -535,6 +524,41 @@ export const GameTable: React.FC<GameTableProps> = ({
           />
         </div>
       </main>
+
+      {/* 5. Bottom-Left Control: ASK TO REVEAL TRUMP (Item 10) */}
+      <div className="fixed bottom-3 left-3 sm:bottom-4 sm:left-5 z-40">
+        <AskToRevealTrumpButton
+          canRevealTrump={canRevealTrump}
+          onRevealTrump={onRevealTrump}
+        />
+      </div>
+
+      {/* 6. Bottom-Right Control: 30-Second Human Turn Timer (Item 8) */}
+      {isHumanTurn && (
+        <div
+          className={`fixed bottom-3 right-3 sm:bottom-4 sm:right-5 z-40 bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl px-3.5 sm:px-4 py-2 rounded-2xl flex items-center gap-2 select-none text-xs sm:text-sm font-bold transition-all ${
+            remainingSeconds <= 5
+              ? 'bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-300 animate-pulse'
+              : 'text-slate-800'
+          }`}
+          title="30-Second Human Turn Countdown"
+        >
+          <Clock className={`w-4 h-4 ${remainingSeconds <= 5 ? 'text-rose-600' : 'text-amber-500'}`} />
+          <div className="flex flex-col text-left leading-none">
+            <span className="text-[9px] sm:text-[10px] text-slate-400 uppercase tracking-wider font-extrabold">Turn Timer</span>
+            <span className="font-mono text-sm sm:text-base font-black">00:{remainingSeconds.toString().padStart(2, '0')}</span>
+          </div>
+        </div>
+      )}
+
+      {/* 7. Dealer Distribution Animation (Item 12: 16 sequential deliveries from dealer) */}
+      {showDealingAnimation && (
+        <DealerDealingAnimation
+          dealerIndex={publicState.dealerIndex}
+          myPosition={myPosition}
+          onDealingComplete={() => setShowDealingAnimation(false)}
+        />
+      )}
 
       {/* Match Over Modal (Shown only when full match concludes at ±6 game points) */}
       {publicState.phase === 'MATCH_ENDED' && publicState.winnerTeam !== null && (

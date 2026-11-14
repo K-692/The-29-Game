@@ -177,16 +177,9 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
 
   return (
     <div className="relative flex flex-col items-center w-full max-w-5xl mx-auto select-none overflow-visible">
-      {/* Click / Drag Helper Banner (Clean Light Styling) */}
-      {isMyTurn && !disabled && (
-        <div className="mb-1 flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 text-slate-950 font-black text-xs shadow-md animate-bounce z-20">
-          <Hand className="w-3.5 h-3.5 text-slate-950" />
-          <span>{clickHint || 'Your Turn — Drag a Card to Center of Table'}</span>
-        </div>
-      )}
-
-      {clickHint && (!isMyTurn || disabled) && (
-        <div className="mb-1 px-3 py-1 rounded-full bg-white/95 border border-slate-200 text-slate-800 font-bold text-xs shadow-md z-20 animate-fade-in">
+      {/* Subtle feedback message only when user attempts an illegal click */}
+      {clickHint && (
+        <div className="mb-1 px-3 py-0.5 rounded-full bg-white/95 border border-slate-200 text-slate-700 font-semibold text-xs shadow-sm z-20 animate-fade-in">
           {clickHint}
         </div>
       )}

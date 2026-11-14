@@ -145,6 +145,7 @@ export interface GameState {
   currentTrickLead: PlayerPosition;
   currentTrickCards: PlayedCard[];
   completedTricks: CompletedTrick[];
+  lastCompletedTrick?: CompletedTrick | null;
   
   // Pair declaration
   pairDeclaration: PairDeclaration | null;

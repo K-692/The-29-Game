@@ -230,4 +230,49 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     expect(room.gameState?.trumpMode).toBe('no-trump');
     expect(room.gameState?.phase).toBe('TRICK_PLAY');
   });
+
+  it('should retain all 4 cards on trick completion and not emit trick-won popups', () => {
+    const io = createMockIo();
+    const mgr = new RoomManager(io);
+    const hostSocket = createMockSocket('host_socket_trick');
+    const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
+
+    mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
+    room.seats.forEach((s) => { s.isCpu = false; });
+
+    // Transition straight to trick play with controlled hands
+    room.gameState!.phase = 'TRICK_PLAY';
+    room.gameState!.currentTurn = 0;
+    room.gameState!.currentTrickLead = 0;
+    room.gameState!.currentTrickCards = [];
+    room.gameState!.trumpMode = 'suit';
+    room.gameState!.trumpSuit = 'SPADES';
+    room.gameState!.isTrumpRevealed = false;
+
+    room.gameState!.hands[0] = ['J_HEARTS'];
+    room.gameState!.hands[1] = ['9_HEARTS'];
+    room.gameState!.hands[2] = ['A_HEARTS'];
+    room.gameState!.hands[3] = ['10_HEARTS'];
+
+    // Play 4 cards
+    mgr.handlePlayCard(room.code, room.seats[0].sessionToken, 'J_HEARTS');
+    mgr.handlePlayCard(room.code, room.seats[1].sessionToken, '9_HEARTS');
+    mgr.handlePlayCard(room.code, room.seats[2].sessionToken, 'A_HEARTS');
+    const play4 = mgr.handlePlayCard(room.code, room.seats[3].sessionToken, '10_HEARTS');
+
+    expect(play4.success).toBe(true);
+    // All 4 cards must remain visible in currentTrickCards for the 1-second pause & collection animation!
+    expect(room.gameState?.currentTrickCards).toHaveLength(4);
+
+    // Verify TRICK_COMPLETED socket event was broadcast to all clients
+    const roomEvents: Array<{ event: string; data: any }> = io.roomMessages[room.code] || [];
+    const trickCompletedEvent = roomEvents.find((e: { event: string; data: any }) => e.event === 'TRICK_COMPLETED');
+    expect(trickCompletedEvent).toBeDefined();
+    expect(trickCompletedEvent?.data.trick.winner).toBe(0); // Jack of Hearts wins!
+
+    // Verify NO trick-won notification popup was broadcast
+    const notifEvents = roomEvents.filter((e: { event: string; data: any }) => e.event === 'in_table_notification');
+    const hasTrickWonNotif = notifEvents.some((e: { event: string; data: any }) => e.data.message?.includes('Trick won'));
+    expect(hasTrickWonNotif).toBe(false);
+  });
 });
