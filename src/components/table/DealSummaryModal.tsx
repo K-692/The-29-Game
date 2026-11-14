@@ -110,3 +110,4 @@ export const DealSummaryModal: React.FC<DealSummaryModalProps> = ({
     </div>
   );
 };
+

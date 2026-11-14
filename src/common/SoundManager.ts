@@ -208,6 +208,51 @@ class SoundManager {
       });
     } catch {}
   }
+
+  public playTick() {
+    this.playCardFlip();
+  }
+
+  public playError() {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(150, now);
+      osc.frequency.exponentialRampToValueAtTime(80, now + 0.2);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.2);
+    } catch {}
+  }
+
+  public playTrump() {
+    this.playTrumpReveal();
+  }
+
+  public playWin() {
+    this.playTrickWon();
+  }
+
+  public playChip() {
+    this.playBid();
+  }
+
+  public playDeal() {
+    this.playCardFlip();
+  }
+
+  public playCard() {
+    this.playCardPlay();
+  }
 }
 
 export const soundManager = new SoundManager();
+

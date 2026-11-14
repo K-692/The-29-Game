@@ -88,3 +88,4 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ publicState, myTeam }) =
     </div>
   );
 };
+

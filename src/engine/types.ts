@@ -153,3 +153,4 @@ export interface PublicGameState extends Omit<GameState, 'hands' | 'trumpSuit'> 
   revealedTrumpSuit: Suit | null;
   isTrumpConcealed: boolean;
 }
+

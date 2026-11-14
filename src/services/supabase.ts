@@ -76,3 +76,4 @@ export const updateUserProfileName = (newName: string): LocalUserProfile => {
   }
   return current;
 };
+

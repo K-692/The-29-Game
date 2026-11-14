@@ -134,3 +134,4 @@ export const getCardPngUrl = (cardId: string): string => {
   const card = CARD_MANIFEST[cardId];
   return card ? getCardAssetPath(card.pngAsset) : getCardAssetPath(CARD_BACK.pngAsset);
 };
+

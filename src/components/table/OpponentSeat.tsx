@@ -90,3 +90,4 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
     </div>
   );
 };
+

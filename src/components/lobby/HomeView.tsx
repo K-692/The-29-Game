@@ -5,11 +5,12 @@ import {
   Layers, 
   LogIn, 
   PlusCircle, 
-  Settings, 
   Sparkles, 
   Users, 
   Volume2, 
-  VolumeX 
+  VolumeX,
+  Wifi,
+  Radio
 } from 'lucide-react';
 import { PlayingCard } from '../card/PlayingCard';
 import { soundManager } from '../../common/SoundManager';
@@ -68,7 +69,12 @@ export const HomeView: React.FC<HomeViewProps> = ({
           <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center font-black text-slate-950 font-serif text-lg shadow-md">
             29
           </div>
-          <span className="font-bold text-sm tracking-wide text-slate-300">Indian Twenty-Nine</span>
+          <div className="flex items-center gap-1.5">
+            <span className="font-bold text-sm tracking-wide text-slate-300">Indian Twenty-Nine</span>
+            <span className="text-[10px] font-mono bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+              <Radio className="w-2.5 h-2.5 animate-pulse" /> LAN HOST
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
@@ -105,7 +111,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             Twenty-Nine Card Game
           </p>
           <p className="text-xs text-slate-400 max-w-xs mx-auto">
-            Play online with your friend as partners against real players or intelligent computer bots
+            Play locally over LAN / Wi-Fi with friends as partners against intelligent computer bots or human opponents
           </p>
         </div>
 
@@ -151,20 +157,20 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
         {/* Primary Action Buttons */}
         <div className="space-y-3">
-          {/* Create Private Room */}
+          {/* Create LAN Room */}
           <button
             onClick={onCreateRoom}
             className="w-full py-4 rounded-2xl font-black text-sm bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-xl shadow-amber-500/25 transition-all transform active:scale-95 flex items-center justify-center gap-2.5"
           >
-            <PlusCircle className="w-5 h-5" /> Create Private Online Room
+            <PlusCircle className="w-5 h-5" /> Host New LAN Room
           </button>
 
-          {/* Join Room */}
+          {/* Join LAN Room */}
           <button
             onClick={onJoinRoom}
             className="w-full py-3.5 rounded-2xl font-bold text-sm bg-slate-900 hover:bg-slate-800 border border-slate-700/80 text-slate-100 shadow-lg transition-all flex items-center justify-center gap-2.5"
           >
-            <LogIn className="w-5 h-5 text-amber-400" /> Join Room by Code / Link
+            <LogIn className="w-5 h-5 text-amber-400" /> Join LAN Game (Code / IP)
           </button>
 
           {/* Play with Computer */}
@@ -172,7 +178,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             onClick={onPlayWithComputer}
             className="w-full py-3.5 rounded-2xl font-bold text-sm bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-500/50 text-emerald-300 shadow-lg transition-all flex items-center justify-center gap-2.5"
           >
-            <Bot className="w-5 h-5 text-emerald-400" /> Play with Computer (Instant Match)
+            <Bot className="w-5 h-5 text-emerald-400" /> Play with Computer (Instant 1P + 3 Bots)
           </button>
         </div>
 
@@ -182,14 +188,14 @@ export const HomeView: React.FC<HomeViewProps> = ({
             onClick={onOpenGallery}
             className="inline-flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-amber-400 transition-colors py-1 px-3 rounded-lg hover:bg-slate-900"
           >
-            <Layers className="w-4 h-4 text-amber-500" /> View 32 Card Assets Gallery (EPS Vector)
+            <Layers className="w-4 h-4 text-amber-500" /> View 32 Original Card Assets (EPS Vector)
           </button>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="max-w-5xl mx-auto w-full text-center text-xs text-slate-400 py-4 border-t border-slate-900 z-10">
-        <p>Traditional Indian 29 Rules • Authentic Vector Card Artwork • Deployable on GitHub Pages</p>
+      <footer className="max-w-5xl mx-auto w-full text-center text-xs text-slate-500 py-4 border-t border-slate-900 z-10">
+        <p>Traditional Indian 29 Rules • Original EPS Playing Cards • LAN Local Multiplayer</p>
       </footer>
     </div>
   );

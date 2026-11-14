@@ -189,3 +189,4 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({ onClose }) => {
     </div>
   );
 };
+

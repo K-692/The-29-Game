@@ -71,3 +71,4 @@ export const TrumpIndicator: React.FC<TrumpIndicatorProps> = ({
     </div>
   );
 };
+

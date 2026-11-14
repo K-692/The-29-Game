@@ -80,3 +80,4 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
     </div>
   );
 };
+

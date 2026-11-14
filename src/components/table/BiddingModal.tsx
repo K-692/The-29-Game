@@ -150,3 +150,4 @@ export const BiddingModal: React.FC<BiddingModalProps> = ({
     </div>
   );
 };
+

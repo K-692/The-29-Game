@@ -100,3 +100,4 @@ export const TrumpModal: React.FC<TrumpModalProps> = ({
     </div>
   );
 };
+

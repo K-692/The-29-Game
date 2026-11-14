@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { LogIn, X } from 'lucide-react';
+import { LogIn, X, Server, Wifi, Users } from 'lucide-react';
+import { PlayerPosition } from '../../engine/types';
+import { lanClient } from '../../services/lanClient';
 
 interface JoinRoomModalProps {
   initialRoomCode?: string;
   initialName: string;
   onClose: () => void;
-  onJoin: (roomCode: string, playerName: string) => void;
+  onJoin: (roomCode: string, playerName: string, hostAddress: string, preferredSeat?: PlayerPosition) => void;
 }
 
 export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({
@@ -15,12 +17,14 @@ export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({
   onJoin,
 }) => {
   const [code, setCode] = useState(initialRoomCode.toUpperCase());
-  const [name, setName] = useState(initialName || 'Player 2');
+  const [name, setName] = useState(initialName || 'Player');
+  const [hostAddress, setHostAddress] = useState(() => lanClient.getDefaultHostUrl());
+  const [preferredSeat, setPreferredSeat] = useState<PlayerPosition>(2); // Default to Seat 3 (Partner)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!code.trim() || !name.trim()) return;
-    onJoin(code.trim().toUpperCase(), name.trim());
+    onJoin(code.trim().toUpperCase(), name.trim(), hostAddress.trim(), preferredSeat);
   };
 
   return (
@@ -29,8 +33,10 @@ export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({
         {/* Header */}
         <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
           <div>
-            <h2 className="text-xl font-black text-slate-100">Join Online Room</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Enter the 6-character room code or join via invite link</p>
+            <h2 className="text-xl font-black text-slate-100 flex items-center gap-2">
+              <Wifi className="w-5 h-5 text-emerald-400" /> Join LAN Game
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">Connect to a host running on your local Wi-Fi / network</p>
           </div>
           <button
             onClick={onClose}
@@ -41,24 +47,26 @@ export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Room Code */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
-              Room Code
+              6-Digit Room Code
             </label>
             <input
               type="text"
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
               placeholder="e.g. TN8492"
-              maxLength={10}
+              maxLength={8}
               required
               className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-4 py-2.5 text-base font-mono font-bold tracking-widest text-amber-400 outline-none uppercase transition-colors"
             />
           </div>
 
+          {/* Player Name */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
-              Your Display Name
+              Your Player Name
             </label>
             <input
               type="text"
@@ -71,11 +79,45 @@ export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({
             />
           </div>
 
+          {/* Preferred Seat */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 text-amber-400" /> Preferred Seat
+            </label>
+            <select
+              value={preferredSeat}
+              onChange={(e) => setPreferredSeat(parseInt(e.target.value, 10) as PlayerPosition)}
+              className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-3 py-2 text-xs font-bold text-slate-200 outline-none transition-colors"
+            >
+              <option value={2}>Seat 3: Top (Team A - Partner to Host)</option>
+              <option value={1}>Seat 2: Left (Team B - Opponent)</option>
+              <option value={3}>Seat 4: Right (Team B - Opponent)</option>
+              <option value={0}>Seat 1: Bottom (Team A)</option>
+            </select>
+          </div>
+
+          {/* Host LAN Server Address */}
+          <div className="space-y-1.5 pt-1">
+            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block flex items-center gap-1.5">
+              <Server className="w-3.5 h-3.5 text-slate-500" /> Host LAN Server Address
+            </label>
+            <input
+              type="text"
+              value={hostAddress}
+              onChange={(e) => setHostAddress(e.target.value)}
+              placeholder="http://192.168.1.x:3000"
+              className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-4 py-2 text-xs font-mono text-slate-300 outline-none transition-colors"
+            />
+            <span className="text-[10px] text-slate-500 block">
+              Auto-filled if playing from the host computer or connected browser.
+            </span>
+          </div>
+
           <button
             type="submit"
             className="w-full py-3.5 rounded-xl font-black text-sm bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-xl shadow-amber-500/25 transition-all transform active:scale-95 flex items-center justify-center gap-2 mt-2"
           >
-            <LogIn className="w-4 h-4" /> Join Room
+            <LogIn className="w-4 h-4" /> Join Room on LAN
           </button>
         </form>
       </div>
