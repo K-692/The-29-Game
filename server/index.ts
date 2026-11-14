@@ -10,7 +10,7 @@ import {
   printHostBanner 
 } from './lanUtils.js';
 import { RoomManager } from './roomManager.js';
-import { GameRulesConfig, PlayerPosition } from '../src/engine/types.js';
+import { GameRulesConfig, PlayerPosition, TrumpSelectionChoice } from '../src/engine/types.js';
 import { Suit } from '../src/assets/cardManifest.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -196,10 +196,11 @@ io.on('connection', (socket: Socket) => {
   socket.on(
     'select_trump',
     (
-      data: { roomCode: string; sessionToken: string; suit: Suit },
+      data: { roomCode: string; sessionToken: string; choice?: TrumpSelectionChoice; suit?: TrumpSelectionChoice },
       callback?: (res: { success: boolean; error?: string }) => void
     ) => {
-      const res = roomManager.handleSelectTrump(data.roomCode, data.sessionToken, data.suit);
+      const choice = data.choice || data.suit;
+      const res = roomManager.handleSelectTrump(data.roomCode, data.sessionToken, choice as TrumpSelectionChoice);
       if (callback) callback(res);
     }
   );

@@ -1,10 +1,12 @@
 import { BidEntry, GameRulesConfig, PlayerPosition } from './types';
+import { getBiddingOrder } from './biddingOrder';
 
 export interface BiddingStatus {
   isComplete: boolean;
   highestBid: number;
   highestBidder: PlayerPosition | null;
   nextTurn: PlayerPosition;
+  biddingTurnIndex: number;
   passedPlayers: Set<PlayerPosition>;
 }
 
@@ -19,7 +21,10 @@ export const isLegalBid = (
 ): { legal: boolean; reason?: string } => {
   if (bid === 'PASS') {
     if (isForcedDealerBid) {
-      return { legal: false, reason: 'Dealer is forced to bid minimum when all players pass' };
+      return { 
+        legal: false, 
+        reason: 'Dealer is required to make the minimum opening bid (16) when the first three players pass' 
+      };
     }
     return { legal: true };
   }
@@ -63,13 +68,16 @@ export const getLegalBidOptions = (
 };
 
 /**
- * Evaluate bidding history to determine current state, next player, or if bidding has concluded
+ * Evaluate single-round bidding history.
+ * Bidding travels around the table exactly once:
+ * Dealer's left -> Next -> Next -> Dealer (4 turns total).
  */
 export const evaluateBiddingState = (
   bids: BidEntry[],
   dealerIndex: PlayerPosition,
   rules: GameRulesConfig
 ): BiddingStatus => {
+  const order = getBiddingOrder(dealerIndex);
   const passedPlayers = new Set<PlayerPosition>();
   let highestBid = 0;
   let highestBidder: PlayerPosition | null = null;
@@ -83,53 +91,52 @@ export const evaluateBiddingState = (
     }
   }
 
-  // All 4 players passed without any bid
-  if (passedPlayers.size === 4 && highestBid === 0) {
-    if (rules.forcedDealerBid) {
-      // Dealer is assigned minimum bid
-      return {
-        isComplete: true,
-        highestBid: rules.minBid,
-        highestBidder: dealerIndex,
-        nextTurn: dealerIndex,
-        passedPlayers,
-      };
-    } else {
-      // Re-deal required (if forcedDealerBid is disabled)
-      return {
-        isComplete: true,
-        highestBid: 0,
-        highestBidder: null,
-        nextTurn: (dealerIndex + 1) % 4 as PlayerPosition,
-        passedPlayers,
-      };
-    }
-  }
+  const turnIndex = bids.length;
 
-  // If there is an active highest bidder and the other 3 players have passed, bidding is complete
-  if (highestBidder !== null && passedPlayers.size === 3 && !passedPlayers.has(highestBidder)) {
+  // Single-round complete: all 4 scheduled turns executed
+  if (turnIndex >= 4) {
+    // If all 4 players passed without a bid
+    if (highestBid === 0) {
+      if (rules.forcedDealerBid) {
+        return {
+          isComplete: true,
+          highestBid: rules.minBid,
+          highestBidder: dealerIndex,
+          nextTurn: dealerIndex,
+          biddingTurnIndex: 4,
+          passedPlayers,
+        };
+      } else {
+        return {
+          isComplete: true,
+          highestBid: 0,
+          highestBidder: null,
+          nextTurn: order[0],
+          biddingTurnIndex: 4,
+          passedPlayers,
+        };
+      }
+    }
+
     return {
       isComplete: true,
       highestBid,
       highestBidder,
-      nextTurn: highestBidder,
+      nextTurn: highestBidder ?? dealerIndex,
+      biddingTurnIndex: 4,
       passedPlayers,
     };
   }
 
-  // Calculate next turn (clockwise to the next player who has not passed)
-  const lastPlayer = bids.length > 0 ? bids[bids.length - 1].playerIndex : dealerIndex;
-  let next = ((lastPlayer + 1) % 4) as PlayerPosition;
-  while (passedPlayers.has(next)) {
-    next = ((next + 1) % 4) as PlayerPosition;
-  }
+  // Next player in single-round sequence
+  const nextPlayer = order[turnIndex];
 
   return {
     isComplete: false,
     highestBid,
     highestBidder,
-    nextTurn: next,
+    nextTurn: nextPlayer,
+    biddingTurnIndex: turnIndex,
     passedPlayers,
   };
 };
-

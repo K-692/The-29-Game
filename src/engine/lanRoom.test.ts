@@ -168,4 +168,66 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     expect(room.seats[2].socketId).toBe('client_socket_reconnect');
     expect(reconnectRes.gameState).toBeDefined();
   });
+
+  it('should assign authentic Indian human names to auto-filled CPU players with no bot tags', () => {
+    const io = createMockIo();
+    const mgr = new RoomManager(io);
+    const hostSocket = createMockSocket('host_socket_names');
+    const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Aarav', DEFAULT_RULES_CONFIG, 0);
+
+    mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
+
+    // Seats 1, 2, 3 are CPU
+    const cpuSeats = room.seats.filter((s) => s.isCpu);
+    expect(cpuSeats).toHaveLength(3);
+    for (const s of cpuSeats) {
+      expect(s.playerName).not.toMatch(/bot/i);
+      expect(s.playerName).not.toMatch(/cpu/i);
+      expect(s.playerName).not.toMatch(/computer/i);
+      expect(s.playerName.length).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('should accept Joker / No Trump and 7th Card options in LAN handleSelectTrump', () => {
+    const io = createMockIo();
+    const mgr = new RoomManager(io);
+    const hostSocket = createMockSocket('host_socket_trump');
+    const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
+
+    mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
+    expect(room.gameState).toBeDefined();
+
+    // Set all seats to human for deterministic step-by-step auction testing
+    room.seats.forEach((s) => {
+      s.isCpu = false;
+    });
+
+    // Force dealer to Seat 3 so Seat 0 (Alice) is first bidder:
+    room.gameState!.dealerIndex = 3;
+    room.gameState!.biddingOrder = [0, 1, 2, 3];
+    room.gameState!.biddingTurnIndex = 0;
+    room.gameState!.currentTurn = 0;
+
+    // Alice bids 16
+    const bid1 = mgr.handleBid(room.code, hostSeat.sessionToken, 16);
+    expect(bid1.success).toBe(true);
+
+    // Other 3 seats pass (via session tokens)
+    const pass1 = mgr.handleBid(room.code, room.seats[1].sessionToken, 'PASS');
+    const pass2 = mgr.handleBid(room.code, room.seats[2].sessionToken, 'PASS');
+    const pass3 = mgr.handleBid(room.code, room.seats[3].sessionToken, 'PASS');
+    expect(pass1.success).toBe(true);
+    expect(pass2.success).toBe(true);
+    expect(pass3.success).toBe(true);
+
+    // Bidding phase should now be complete, phase = TRUMP_SELECTION
+    expect(room.gameState?.phase).toBe('TRUMP_SELECTION');
+    expect(room.gameState?.highestBidder).toBe(0);
+
+    // Alice selects NO_TRUMP
+    const trumpRes = mgr.handleSelectTrump(room.code, hostSeat.sessionToken, 'NO_TRUMP');
+    expect(trumpRes.success).toBe(true);
+    expect(room.gameState?.trumpMode).toBe('no-trump');
+    expect(room.gameState?.phase).toBe('TRICK_PLAY');
+  });
 });

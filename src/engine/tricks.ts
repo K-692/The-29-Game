@@ -1,5 +1,5 @@
 import { CARD_MANIFEST, CardIdentity, Suit, RANK_POINTS, RANK_HIERARCHY } from '../assets/cardManifest';
-import { CompletedTrick, PlayedCard, PlayerPosition, Team } from './types';
+import { CompletedTrick, PlayedCard, PlayerPosition, Team, TrumpMode } from './types';
 
 /**
  * Returns all playable card IDs for the active player based on authentic 29 rules
@@ -8,7 +8,8 @@ export const getPlayableCards = (
   handCardIds: string[],
   leadCardId: string | null,
   trumpSuit: Suit | null,
-  isTrumpRevealed: boolean
+  isTrumpRevealed: boolean,
+  trumpMode: TrumpMode = 'suit'
 ): string[] => {
   if (handCardIds.length === 0) return [];
 
@@ -34,14 +35,12 @@ export const getPlayableCards = (
   }
 
   // Player cannot follow suit
-  if (isTrumpRevealed && trumpSuit) {
+  if (trumpMode !== 'no-trump' && isTrumpRevealed && trumpSuit) {
     // Trump is revealed: player can play ANY card in hand (either trump to cut, or sluff/discard)
     return [...handCardIds];
   }
 
-  // Trump is NOT revealed yet:
-  // Player cannot follow suit. They can either ask to reveal trump (then play trump or sluff),
-  // or if they don't reveal, they can play any non-trump card (or any card).
+  // Trump is NOT revealed yet or No-Trump mode:
   return [...handCardIds];
 };
 
@@ -53,13 +52,14 @@ export const isLegalCardPlay = (
   handCardIds: string[],
   leadCardId: string | null,
   trumpSuit: Suit | null,
-  isTrumpRevealed: boolean
+  isTrumpRevealed: boolean,
+  trumpMode: TrumpMode = 'suit'
 ): { legal: boolean; reason?: string } => {
   if (!handCardIds.includes(cardId)) {
     return { legal: false, reason: 'Card is not in player hand' };
   }
 
-  const playable = getPlayableCards(handCardIds, leadCardId, trumpSuit, isTrumpRevealed);
+  const playable = getPlayableCards(handCardIds, leadCardId, trumpSuit, isTrumpRevealed, trumpMode);
   if (!playable.includes(cardId)) {
     const leadCard = leadCardId ? CARD_MANIFEST[leadCardId] : null;
     return { 
@@ -97,7 +97,8 @@ export const evaluateTrickWinner = (
   trumpSuit: Suit | null,
   isTrumpRevealed: boolean,
   trickNumber: number,
-  lastTrickBonus: boolean = true
+  lastTrickBonus: boolean = true,
+  trumpMode: TrumpMode = 'suit'
 ): CompletedTrick => {
   if (playedCards.length !== 4) {
     throw new Error(`A completed trick must have exactly 4 cards, got ${playedCards.length}`);
@@ -113,15 +114,20 @@ export const evaluateTrickWinner = (
 
   let bestPlayed = playedCards[0];
   let bestCard = leadCard;
-  let trumpWasPlayed = (isTrumpRevealed && trumpSuit && leadCard.suit === trumpSuit);
+  let trumpWasPlayed = (trumpMode !== 'no-trump' && isTrumpRevealed && trumpSuit && leadCard.suit === trumpSuit);
 
   for (let i = 1; i < playedCards.length; i++) {
     const pc = playedCards[i];
     const card = CARD_MANIFEST[pc.cardId];
     if (!card) continue;
 
-    // Check if this card is trump (and trump is revealed)
-    const isThisTrump = Boolean(isTrumpRevealed && trumpSuit && card.suit === trumpSuit);
+    // Check if this card is trump (and trump is revealed and trumpMode is not no-trump)
+    const isThisTrump = Boolean(
+      trumpMode !== 'no-trump' && 
+      isTrumpRevealed && 
+      trumpSuit && 
+      card.suit === trumpSuit
+    );
 
     if (isThisTrump) {
       if (!trumpWasPlayed) {

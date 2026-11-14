@@ -10,7 +10,8 @@ import {
   PlayerInfo, 
   PlayerPosition, 
   PublicGameState, 
-  Team 
+  Team,
+  TrumpSelectionChoice
 } from '../src/engine/types.js';
 import { 
   applyBid, 
@@ -31,6 +32,7 @@ import {
 } from '../src/engine/bot.js';
 import { getPlayableCards } from '../src/engine/tricks.js';
 import { isLegalBid } from '../src/engine/bidding.js';
+import { getRandomBotNames } from '../src/engine/botNames.js';
 
 export interface SeatInfo {
   position: PlayerPosition;
@@ -339,17 +341,24 @@ export class RoomManager {
     const hostSeat = room.seats.find((s) => s.sessionToken === sessionToken && s.isHost);
     if (!hostSeat) return { success: false, error: 'Only the room host can start the match.' };
 
-    // Fill all unoccupied seats with CPU bots
+    // Fill all unoccupied seats with realistic CPU bots (random human names)
+    const existingHumanNames = room.seats
+      .filter((s) => s.connected && s.socketId && !s.isCpu)
+      .map((s) => s.playerName);
+
+    const vacantSeats = room.seats.filter((s) => !s.connected || !s.socketId);
+    const botNames = getRandomBotNames(vacantSeats.length, existingHumanNames);
+
+    let botIdx = 0;
     const players: PlayerInfo[] = [];
 
     room.seats.forEach((seat) => {
       if (!seat.connected || !seat.socketId) {
         seat.isCpu = true;
         seat.connected = true;
-        seat.playerId = `cpu_${seat.position}`;
-        seat.playerName = seat.position === 2 
-          ? 'Bot Partner' 
-          : (seat.position === 1 ? 'Bot Left (B)' : 'Bot Right (B)');
+        seat.sessionToken = `tok_cpu_${seat.position}_${Math.random().toString(36).substring(2, 9)}`;
+        seat.playerId = `cpu_${seat.position}_${Math.random().toString(36).substring(2, 6)}`;
+        seat.playerName = botNames[botIdx++] || `Player ${seat.position + 1}`;
       }
 
       players.push({
@@ -377,7 +386,7 @@ export class RoomManager {
   }
 
   /**
-   * Handles a player or bot bid.
+   * Handles a player or bot bid in the single-round auction.
    */
   public handleBid(
     code: string,
@@ -394,8 +403,16 @@ export class RoomManager {
       return { success: false, error: 'Not your turn to bid.' };
     }
 
-    if (!isLegalBid(bid, room.gameState.highestBid, room.gameState.rules)) {
-      return { success: false, error: 'Illegal bid value.' };
+    const turnIndex = room.gameState.bids.length;
+    const isForcedDealer = 
+      turnIndex === 3 &&
+      room.gameState.bids.every((b) => b.bid === 'PASS') &&
+      seat.position === room.gameState.dealerIndex &&
+      room.gameState.rules.forcedDealerBid;
+
+    const validation = isLegalBid(bid, room.gameState.highestBid, room.gameState.rules, isForcedDealer);
+    if (!validation.legal) {
+      return { success: false, error: validation.reason };
     }
 
     const res = applyBid(room.gameState, seat.position, bid);
@@ -412,12 +429,13 @@ export class RoomManager {
   }
 
   /**
-   * Handles secret trump selection by the highest bidder.
+   * Handles trump selection from the six options:
+   * Hearts, Spades, Clubs, Diamonds, Joker (No Trump), 7th Card.
    */
   public handleSelectTrump(
     code: string,
     sessionToken: string,
-    suit: Suit
+    choice: TrumpSelectionChoice
   ): { success: boolean; error?: string } {
     const room = this.rooms.get(code);
     if (!room || !room.gameState) return { success: false, error: 'Game not active.' };
@@ -429,16 +447,23 @@ export class RoomManager {
       return { success: false, error: 'You are not the designated trump chooser.' };
     }
 
-    const res = applyTrumpSelection(room.gameState, seat.position, suit);
+    const res = applyTrumpSelection(room.gameState, seat.position, choice);
     if (!res.success) {
       return { success: false, error: res.error };
     }
     room.gameState = res.state;
 
+    let notifMsg = `${seat.playerName} has selected and concealed the secret Trump suit.`;
+    if (choice === 'NO_TRUMP') {
+      notifMsg = `${seat.playerName} selected Joker / No Trump mode!`;
+    } else if (choice === 'SEVENTH_CARD') {
+      notifMsg = `${seat.playerName} selected 7th Card Trump mode (7th dealt card reserved)!`;
+    }
+
     this.broadcastNotification(
       room, 
       'INFO', 
-      `${seat.playerName} has selected and concealed the secret Trump suit.`
+      notifMsg
     );
 
     this.broadcastGameState(room);
@@ -471,10 +496,19 @@ export class RoomManager {
     }
     room.gameState = res.state;
 
+    let revealMsg = `⚡ ${seat.playerName} revealed the secret Trump suit: ${res.state.trumpSuit}!`;
+    if (res.state.trumpMode === 'no-trump') {
+      revealMsg = `⚡ ${seat.playerName} revealed: Joker / No Trump mode! No suit has trump priority.`;
+    } else if (res.state.trumpMode === 'seventh-card' && res.state.seventhCard) {
+      const cardInfo = CARD_MANIFEST[res.state.seventhCard.cardId];
+      const cardName = cardInfo ? `${cardInfo.rank} of ${cardInfo.suit}` : res.state.seventhCard.cardId;
+      revealMsg = `⚡ ${seat.playerName} revealed the 7th Card Trump: ${cardName}! Trump is ${res.state.trumpSuit} and card returned to hand.`;
+    }
+
     this.broadcastNotification(
       room, 
       'TRUMP_REVEALED', 
-      `⚡ ${seat.playerName} revealed the secret Trump suit: ${res.state.trumpSuit}!`
+      revealMsg
     );
 
     this.broadcastGameState(room);
@@ -574,6 +608,7 @@ export class RoomManager {
 
   /**
    * Deals the next round when previous deal ends.
+   * Rotates dealer by one seat clockwise for subsequent deals.
    */
   public handleNextRound(
     code: string,
@@ -585,7 +620,8 @@ export class RoomManager {
     const hostSeat = room.seats.find((s) => s.sessionToken === sessionToken && s.isHost);
     if (!hostSeat) return { success: false, error: 'Only the host can deal the next round.' };
 
-    room.gameState = startNewRound(room.gameState);
+    const nextDealer = ((room.gameState.dealerIndex + 1) % 4) as PlayerPosition;
+    room.gameState = startNewRound(room.gameState, nextDealer);
     this.broadcastGameState(room);
     this.startTurnTimer(room);
     this.checkAndExecuteBotTurn(room);
@@ -652,9 +688,10 @@ export class RoomManager {
     const playerHand = room.gameState.hands[turnPosition];
 
     if (room.gameState.phase === 'BIDDING') {
-      // Check if forced dealer
+      // Check if forced dealer on scheduled 4th turn
+      const turnIndex = room.gameState.bids.length;
       const isForcedDealer = 
-        room.gameState.bids.length === 3 &&
+        turnIndex === 3 &&
         room.gameState.bids.every((b) => b.bid === 'PASS') &&
         turnPosition === room.gameState.dealerIndex &&
         room.gameState.rules.forcedDealerBid;
@@ -675,13 +712,13 @@ export class RoomManager {
 
       this.handleBid(room.code, seat.sessionToken, fallbackBid);
     } else if (room.gameState.phase === 'TRUMP_SELECTION') {
-      const bestSuit = getBotTrumpSelection(playerHand);
+      const bestChoice = getBotTrumpSelection(playerHand);
       this.broadcastNotification(
         room, 
         'TIMEOUT_AUTO_PLAY', 
         `Time expired — Secret trump automatically selected for ${seat.playerName}.`
       );
-      this.handleSelectTrump(room.code, seat.sessionToken, bestSuit);
+      this.handleSelectTrump(room.code, seat.sessionToken, bestChoice);
     } else if (room.gameState.phase === 'TRICK_PLAY') {
       const leadCardId = room.gameState.currentTrickCards.length > 0 
         ? room.gameState.currentTrickCards[0].cardId 
@@ -693,7 +730,8 @@ export class RoomManager {
         room.gameState.trumpSuit,
         room.gameState.isTrumpRevealed,
         room.gameState.currentTrickCards,
-        turnPosition
+        turnPosition,
+        room.gameState.trumpMode
       );
 
       const cardInfo = CARD_MANIFEST[chosenCard];
@@ -735,8 +773,9 @@ export class RoomManager {
       const botHand = room.gameState.hands[currentTurn];
 
       if (room.gameState.phase === 'BIDDING') {
+        const turnIndex = room.gameState.bids.length;
         const isForcedDealer = 
-          room.gameState.bids.length === 3 &&
+          turnIndex === 3 &&
           room.gameState.bids.every((b) => b.bid === 'PASS') &&
           currentTurn === room.gameState.dealerIndex &&
           room.gameState.rules.forcedDealerBid;
@@ -750,8 +789,8 @@ export class RoomManager {
 
         this.handleBid(room.code, seat.sessionToken, bid);
       } else if (room.gameState.phase === 'TRUMP_SELECTION') {
-        const suit = getBotTrumpSelection(botHand);
-        this.handleSelectTrump(room.code, seat.sessionToken, suit);
+        const choice = getBotTrumpSelection(botHand);
+        this.handleSelectTrump(room.code, seat.sessionToken, choice);
       } else if (room.gameState.phase === 'TRICK_PLAY') {
         // Check if bot should reveal trump
         const leadCardId = room.gameState.currentTrickCards.length > 0 

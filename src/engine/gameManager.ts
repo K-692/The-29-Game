@@ -1,9 +1,11 @@
 import { CARD_MANIFEST, Suit } from '../assets/cardManifest';
 import { evaluateBiddingState, isLegalBid } from './bidding';
+import { getBiddingOrder, getLeftOfDealer, hasPointCard } from './biddingOrder';
 import { create29Deck, deal29Deck, shuffleDeck, sortHand } from './deck';
 import { canDeclarePair, evaluateRoundScore } from './scoring';
 import { evaluateTrickWinner, isLegalCardPlay } from './tricks';
 import { 
+  BidEntry,
   CompletedTrick, 
   DEFAULT_RULES_CONFIG, 
   GamePhase, 
@@ -14,36 +16,49 @@ import {
   PlayerPosition, 
   PublicGameState, 
   RoundSummary, 
-  Team 
+  SeventhCardInfo, 
+  Team, 
+  TrumpMode, 
+  TrumpSelectionChoice 
 } from './types';
 
 /**
- * Creates a new GameState initialized in WAITING_LOBBY or ready to start
+ * Creates a new GameState initialized in WAITING_LOBBY.
+ * Selects initial dealer randomly at match start.
  */
 export const createInitialGame = (
   roomCode: string,
   players: PlayerInfo[],
   rules: GameRulesConfig = DEFAULT_RULES_CONFIG
 ): GameState => {
+  // Randomly select one of the four players as initial dealer
+  const dealerIndex = Math.floor(Math.random() * 4) as PlayerPosition;
+  const biddingOrder = getBiddingOrder(dealerIndex);
+  const firstBidder = biddingOrder[0];
+
   return {
     id: `game_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     roomCode,
     phase: 'WAITING_LOBBY',
     rules,
     players,
-    dealerIndex: 0,
-    currentTurn: 1, // Traditional: player left of dealer starts bidding
+    dealerIndex,
+    currentTurn: firstBidder,
+    biddingOrder,
+    biddingTurnIndex: 0,
     bids: [],
     highestBid: 0,
     highestBidder: null,
     consecutivePasses: 0,
+    trumpMode: 'suit',
     trumpSuit: null,
     isTrumpRevealed: false,
     trumpRevealedBy: null,
     trumpRevealedAtTrick: null,
+    seventhCard: null,
     hands: { 0: [], 1: [], 2: [], 3: [] },
     currentTrickNumber: 1,
-    currentTrickLead: 1,
+    currentTrickLead: firstBidder,
     currentTrickCards: [],
     completedTricks: [],
     pairDeclaration: null,
@@ -57,17 +72,47 @@ export const createInitialGame = (
 };
 
 /**
- * Starts a new deal (round): shuffles 32-card deck, deals 4 cards to each player, initiates bidding
+ * Deals 4 cards to each player, verifying that the first bidder holds at least
+ * one point-valued card (J=3, 9=2, A=1, 10=1).
+ * If not, the entire 32-card deck is reshuffled and redistributed until satisfied.
+ */
+export const dealWithFirstBidderEligibility = (
+  dealerIndex: PlayerPosition
+): { round1: Record<PlayerPosition, string[]>; round2: Record<PlayerPosition, string[]> } => {
+  const firstBidder = getLeftOfDealer(dealerIndex);
+  for (let attempt = 0; attempt < 1000; attempt++) {
+    const shuffled = shuffleDeck(create29Deck());
+    const { round1, round2 } = deal29Deck(shuffled);
+    if (hasPointCard(round1[firstBidder])) {
+      return { round1, round2 };
+    }
+  }
+  // Extremely rare fallback: return shuffled deal
+  const fallbackShuffled = shuffleDeck(create29Deck());
+  return deal29Deck(fallbackShuffled);
+};
+
+/**
+ * Starts a new deal (round):
+ * - Rotates dealer by one seat clockwise on subsequent rounds
+ * - Deals 4 cards to each player with first-bidder minimum point-card eligibility
+ * - Initiates the single-round bidding sequence
  */
 export const startNewRound = (state: GameState, nextDealer?: PlayerPosition): GameState => {
-  const dealerIndex = nextDealer !== undefined ? nextDealer : state.dealerIndex;
-  const firstBidder = ((dealerIndex + 1) % 4) as PlayerPosition;
+  let dealerIndex: PlayerPosition;
+  if (nextDealer !== undefined) {
+    dealerIndex = nextDealer;
+  } else if (state.phase !== 'WAITING_LOBBY') {
+    dealerIndex = ((state.dealerIndex + 1) % 4) as PlayerPosition;
+  } else {
+    dealerIndex = state.dealerIndex;
+  }
 
-  const shuffled = shuffleDeck(create29Deck());
-  const { round1, round2 } = deal29Deck(shuffled);
+  const biddingOrder = getBiddingOrder(dealerIndex);
+  const firstBidder = biddingOrder[0];
 
-  // Store round2 cards temporarily on a private deal stash (or in state)
-  // For round 1, players receive only their first 4 cards
+  const { round1, round2 } = dealWithFirstBidderEligibility(dealerIndex);
+
   const hands: Record<PlayerPosition, string[]> = {
     0: sortHand(round1[0]),
     1: sortHand(round1[1]),
@@ -80,14 +125,18 @@ export const startNewRound = (state: GameState, nextDealer?: PlayerPosition): Ga
     phase: 'BIDDING',
     dealerIndex,
     currentTurn: firstBidder,
+    biddingOrder,
+    biddingTurnIndex: 0,
     bids: [],
     highestBid: 0,
     highestBidder: null,
     consecutivePasses: 0,
+    trumpMode: 'suit',
     trumpSuit: null,
     isTrumpRevealed: false,
     trumpRevealedBy: null,
     trumpRevealedAtTrick: null,
+    seventhCard: null,
     hands,
     currentTrickNumber: 1,
     currentTrickLead: firstBidder,
@@ -102,7 +151,7 @@ export const startNewRound = (state: GameState, nextDealer?: PlayerPosition): Ga
 };
 
 /**
- * Handles a bid or pass action
+ * Handles a bid or pass action in the single-round auction (4 turns total).
  */
 export const applyBid = (
   state: GameState,
@@ -117,8 +166,19 @@ export const applyBid = (
     return { success: false, state, error: 'Not your turn to bid' };
   }
 
+  const turnIndex = state.bids.length;
+  if (turnIndex >= 4) {
+    return { success: false, state, error: 'Bidding for this deal is already completed' };
+  }
+
+  const expectedBidder = state.biddingOrder[turnIndex];
+  if (expectedBidder !== playerIndex) {
+    return { success: false, state, error: 'Out-of-turn bid action' };
+  }
+
+  // Forced dealer bid applies only on the 4th turn when the first three players passed
   const isForcedDealer = 
-    state.bids.length === 3 && 
+    turnIndex === 3 && 
     state.bids.every((b) => b.bid === 'PASS') && 
     playerIndex === state.dealerIndex && 
     state.rules.forcedDealerBid;
@@ -128,7 +188,7 @@ export const applyBid = (
     return { success: false, state, error: validation.reason };
   }
 
-  const newBids = [
+  const newBids: BidEntry[] = [
     ...state.bids,
     { playerIndex, bid, timestamp: Date.now() },
   ];
@@ -136,13 +196,14 @@ export const applyBid = (
   const biddingStatus = evaluateBiddingState(newBids, state.dealerIndex, state.rules);
 
   if (biddingStatus.isComplete && biddingStatus.highestBidder !== null) {
-    // Transition to TRUMP_SELECTION with highest bidder having turn
+    // Single-round complete: transition to TRUMP_SELECTION with winning bidder
     return {
       success: true,
       state: {
         ...state,
         phase: 'TRUMP_SELECTION',
         bids: newBids,
+        biddingTurnIndex: 4,
         highestBid: biddingStatus.highestBid,
         highestBidder: biddingStatus.highestBidder,
         currentTurn: biddingStatus.highestBidder,
@@ -157,6 +218,7 @@ export const applyBid = (
     state: {
       ...state,
       bids: newBids,
+      biddingTurnIndex: newBids.length,
       highestBid: biddingStatus.highestBid,
       highestBidder: biddingStatus.highestBidder,
       currentTurn: biddingStatus.nextTurn,
@@ -167,12 +229,16 @@ export const applyBid = (
 };
 
 /**
- * Handles bidder's trump selection, deals second 4 cards, initiates trick play
+ * Handles bidder's trump selection from six options:
+ * - 4 Suits (Hearts, Spades, Clubs, Diamonds)
+ * - Joker (No Trump)
+ * - 7th Card (Special Trump reservation)
+ * Deals second 4 cards to each player and initiates trick play.
  */
 export const applyTrumpSelection = (
   state: GameState & { _pendingSecondDeal?: Record<PlayerPosition, string[]> },
   playerIndex: PlayerPosition,
-  suit: Suit
+  choice: TrumpSelectionChoice
 ): { success: boolean; state: GameState; error?: string } => {
   if (state.phase !== 'TRUMP_SELECTION') {
     return { success: false, state, error: 'Not currently in trump selection phase' };
@@ -182,23 +248,63 @@ export const applyTrumpSelection = (
     return { success: false, state, error: 'Only highest bidder can select trump' };
   }
 
-  // Deal second 4 cards to each player
   const pending = state._pendingSecondDeal || { 0: [], 1: [], 2: [], 3: [] };
-  const fullHands: Record<PlayerPosition, string[]> = {
-    0: sortHand([...state.hands[0], ...(pending[0] || [])]),
-    1: sortHand([...state.hands[1], ...(pending[1] || [])]),
-    2: sortHand([...state.hands[2], ...(pending[2] || [])]),
-    3: sortHand([...state.hands[3], ...(pending[3] || [])]),
-  };
+  const firstTrickLead = getLeftOfDealer(state.dealerIndex);
 
-  // Traditional 29 rule: Player to the left of dealer leads Trick 1
-  const firstTrickLead = ((state.dealerIndex + 1) % 4) as PlayerPosition;
+  let trumpMode: TrumpMode = 'suit';
+  let trumpSuit: Suit | null = null;
+  let seventhCard: SeventhCardInfo | null = null;
+  const fullHands: Record<PlayerPosition, string[]> = { 0: [], 1: [], 2: [], 3: [] };
+
+  if (choice === 'NO_TRUMP') {
+    trumpMode = 'no-trump';
+    trumpSuit = null;
+    seventhCard = null;
+    for (let p = 0; p < 4; p++) {
+      const pos = p as PlayerPosition;
+      fullHands[pos] = sortHand([...state.hands[pos], ...(pending[pos] || [])]);
+    }
+  } else if (choice === 'SEVENTH_CARD') {
+    trumpMode = 'seventh-card';
+    const bidderPending = pending[playerIndex] || [];
+    // The 7th card overall is the 3rd card in the second 4-card deal (index 2)
+    const seventhCardId = bidderPending[2] || bidderPending[0];
+    seventhCard = {
+      cardId: seventhCardId,
+      owner: playerIndex,
+      isRevealed: false,
+    };
+    trumpSuit = CARD_MANIFEST[seventhCardId]?.suit || 'SPADES';
+
+    // Winning bidder gets the other 3 cards added to their 4 cards (total 7 cards in hand)
+    const otherThree = bidderPending.filter((id) => id !== seventhCardId);
+    fullHands[playerIndex] = sortHand([...state.hands[playerIndex], ...otherThree]);
+
+    // Other 3 players receive all 4 cards
+    for (let p = 0; p < 4; p++) {
+      const pos = p as PlayerPosition;
+      if (pos !== playerIndex) {
+        fullHands[pos] = sortHand([...state.hands[pos], ...(pending[pos] || [])]);
+      }
+    }
+  } else {
+    // Four suits: 'HEARTS' | 'SPADES' | 'CLUBS' | 'DIAMONDS'
+    trumpMode = 'suit';
+    trumpSuit = choice as Suit;
+    seventhCard = null;
+    for (let p = 0; p < 4; p++) {
+      const pos = p as PlayerPosition;
+      fullHands[pos] = sortHand([...state.hands[pos], ...(pending[pos] || [])]);
+    }
+  }
 
   const newState = {
     ...state,
     phase: 'TRICK_PLAY' as GamePhase,
-    trumpSuit: suit,
+    trumpMode,
+    trumpSuit,
     isTrumpRevealed: false,
+    seventhCard,
     hands: fullHands,
     currentTrickNumber: 1,
     currentTrickLead: firstTrickLead,
@@ -218,7 +324,8 @@ export const applyTrumpSelection = (
 };
 
 /**
- * Handles requesting/revealing the trump suit
+ * Handles requesting/revealing the trump suit during trick play.
+ * For 7th Card mode, reveals the card and returns it to the winning bidder's hand.
  */
 export const applyTrumpReveal = (
   state: GameState,
@@ -249,10 +356,29 @@ export const applyTrumpReveal = (
     }
   }
 
+  let updatedHands = state.hands;
+  let updatedSeventhCard = state.seventhCard;
+
+  // If 7th Card mode, return the 7th card to the winning bidder's hand!
+  if (state.trumpMode === 'seventh-card' && state.seventhCard && !state.seventhCard.isRevealed) {
+    const owner = state.seventhCard.owner;
+    const cardId = state.seventhCard.cardId;
+    updatedHands = {
+      ...state.hands,
+      [owner]: sortHand([...state.hands[owner], cardId]),
+    };
+    updatedSeventhCard = {
+      ...state.seventhCard,
+      isRevealed: true,
+    };
+  }
+
   return {
     success: true,
     state: {
       ...state,
+      hands: updatedHands,
+      seventhCard: updatedSeventhCard,
       isTrumpRevealed: true,
       trumpRevealedBy: playerIndex,
       trumpRevealedAtTrick: state.currentTrickNumber,
@@ -286,7 +412,8 @@ export const applyCardPlay = (
     hand,
     leadCardId,
     state.trumpSuit,
-    state.isTrumpRevealed
+    state.isTrumpRevealed,
+    state.trumpMode
   );
 
   if (!validation.legal) {
@@ -323,7 +450,8 @@ export const applyCardPlay = (
     state.trumpSuit,
     state.isTrumpRevealed,
     state.currentTrickNumber,
-    state.rules.lastTrickBonus
+    state.rules.lastTrickBonus,
+    state.trumpMode
   );
 
   const newCompletedTricks = [...state.completedTricks, completedTrick];
@@ -345,7 +473,7 @@ export const applyCardPlay = (
       biddingTeam: (state.highestBidder === 0 || state.highestBidder === 2) ? 0 : 1,
       contractBid: state.highestBid,
       adjustedTarget: roundResult.adjustedTarget,
-      trumpSuit: state.trumpSuit!,
+      trumpSuit: state.trumpSuit || 'SPADES',
       trumpRevealedBy: state.trumpRevealedBy || undefined,
       trumpRevealedAtTrick: state.trumpRevealedAtTrick || undefined,
       team0CardPoints: roundResult.team0CardPoints,
@@ -390,7 +518,7 @@ export const applyCardPlay = (
       currentTrickNumber: state.currentTrickNumber + 1,
       currentTrickLead: nextTrickLead,
       currentTurn: nextTrickLead,
-      currentTrickCards: [], // Clear for next trick
+      currentTrickCards: [],
       completedTricks: newCompletedTricks,
       version: state.version + 1,
       lastActionTimestamp: Date.now(),
@@ -405,6 +533,11 @@ export const applyPairDeclaration = (
   state: GameState,
   playerIndex: PlayerPosition
 ): { success: boolean; state: GameState; error?: string } => {
+  // In No Trump mode, there is no trump suit and Pair cannot be declared
+  if (state.trumpMode === 'no-trump') {
+    return { success: false, state, error: 'Pair / Royals cannot be declared in No Trump mode' };
+  }
+
   const hand = state.hands[playerIndex];
   const check = canDeclarePair(
     hand,
@@ -443,7 +576,7 @@ export const applyPairDeclaration = (
 
 /**
  * Sanitizes GameState for safe public transmission to a specific client.
- * Strictly conceals opponent hands and concealed trump!
+ * Strictly conceals opponent hands, concealed trump, and unrevealed 7th card!
  */
 export const getPublicGameState = (
   state: GameState,
@@ -458,15 +591,23 @@ export const getPublicGameState = (
 
   const myHand = viewingPlayerPosition !== null ? state.hands[viewingPlayerPosition] || [] : [];
 
-  // Trump visibility:
-  // Visible if revealed, or if viewing player is the highest bidder who picked it
   const isBidder = viewingPlayerPosition !== null && state.highestBidder === viewingPlayerPosition;
   const canSeeTrump = state.isTrumpRevealed || isBidder;
 
   const revealedTrumpSuit = canSeeTrump ? state.trumpSuit : null;
-  const isTrumpConcealed = !state.isTrumpRevealed && state.trumpSuit !== null;
+  const isTrumpConcealed = !state.isTrumpRevealed && (state.trumpSuit !== null || state.trumpMode === 'seventh-card');
 
-  const { hands, trumpSuit, ...publicBase } = state;
+  // 7th card trump visibility:
+  let revealedSeventhCard: string | null = null;
+  const hasSeventhCardReserved = Boolean(state.seventhCard && !state.seventhCard.isRevealed);
+
+  if (state.seventhCard) {
+    if (state.seventhCard.isRevealed || viewingPlayerPosition === state.seventhCard.owner) {
+      revealedSeventhCard = state.seventhCard.cardId;
+    }
+  }
+
+  const { hands, trumpSuit, seventhCard, ...publicBase } = state;
 
   return {
     ...publicBase,
@@ -475,6 +616,7 @@ export const getPublicGameState = (
     otherHandCounts,
     revealedTrumpSuit,
     isTrumpConcealed,
+    revealedSeventhCard,
+    hasSeventhCardReserved,
   };
 };
-

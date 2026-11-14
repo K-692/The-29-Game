@@ -92,24 +92,27 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({ onClose }) => {
 
           {activeTab === 'bidding' && (
             <div className="space-y-4">
-              <h3 className="text-base font-bold text-amber-400">Two-Phase Dealing, Bidding & Concealed Trump</h3>
+              <h3 className="text-base font-bold text-amber-400">Two-Phase Dealing, One-Round Bidding & Six Trump Options</h3>
               <ol className="list-decimal pl-5 space-y-2">
                 <li>
-                  <strong>Phase 1 Deal:</strong> Every player receives 4 cards initially.
+                  <strong>Dealer & Initial Deal:</strong> The dealer for the first round is selected at random and rotates clockwise each subsequent deal. Every player receives 4 cards initially.
                 </li>
                 <li>
-                  <strong>Bidding Cycle:</strong> Starting clockwise from the player left of dealer, players bid for the contract.
-                  The minimum bid is <strong>16</strong> and maximum is <strong>28</strong> (or 29 with last-trick bonus).
+                  <strong>First Bidder Eligibility:</strong> The player to the dealer&apos;s left opens bidding. They must hold at least one point-valued card (J, 9, A, 10). If not, all cards are reshuffled and redealt.
                 </li>
                 <li>
-                  <strong>Passing:</strong> A player who passes cannot re-enter bidding. If everyone passes, the dealer is forced to bid 16.
+                  <strong>Strictly One Round:</strong> Exactly 4 turns in clockwise order. Each player gets one turn to bid or pass. Opening bid is minimum 16. If all 3 pass, the dealer is forced to bid 16.
                 </li>
                 <li>
-                  <strong>Concealed Trump:</strong> The highest bidder privately picks the Trump Suit from their 4 cards. 
-                  The trump is kept strictly secret from all other players!
+                  <strong>Six Trump Options:</strong> The winning bidder can choose:
+                  <ul className="list-disc pl-5 mt-1 space-y-0.5 text-xs text-slate-400">
+                    <li><strong>4 Suits (Hearts, Spades, Clubs, Diamonds):</strong> Traditional secret trump.</li>
+                    <li><strong>Joker / No Trump:</strong> No trump suit; highest lead card wins, off-suits cannot cut.</li>
+                    <li><strong>7th Card:</strong> 7th dealt card is reserved face-down on table as secret trump until revealed.</li>
+                  </ul>
                 </li>
                 <li>
-                  <strong>Phase 2 Deal:</strong> Remaining 4 cards are dealt to each player, bringing hands to 8 cards before trick play starts.
+                  <strong>Phase 2 Deal:</strong> Remaining 4 cards are dealt to each player (8 cards total) before trick play starts.
                 </li>
               </ol>
             </div>

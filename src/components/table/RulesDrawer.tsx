@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, BookOpen, Crown, Flame, Lock, Trophy, Award } from 'lucide-react';
+import { X, BookOpen, Crown, Flame, Lock, Trophy, Award, Layers } from 'lucide-react';
 
 interface RulesDrawerProps {
   isOpen: boolean;
@@ -27,14 +27,14 @@ export const RulesDrawer: React.FC<RulesDrawerProps> = ({ isOpen, onClose }) => 
       </div>
 
       {/* Rules Content (Scrollable, Non-blocking) */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-5 text-xs text-slate-300">
-        {/* Card Hierarchy & Points */}
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs text-slate-300">
+        {/* 1. Deck & Point Values */}
         <section className="space-y-2 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
           <h3 className="font-bold text-amber-400 text-sm flex items-center gap-1.5">
             <Award className="w-4 h-4 text-amber-400" /> 1. Deck & Point Values (28 pts total)
           </h3>
           <p className="text-slate-400 leading-relaxed">
-            Played with 32 cards (8 cards per suit). Hierarchy from highest to lowest:
+            Played with 32 cards (8 cards per suit). Hierarchy and point values:
           </p>
           <div className="grid grid-cols-4 gap-1.5 text-center font-mono pt-1">
             <div className="p-1.5 bg-slate-950 rounded-lg border border-amber-500/30">
@@ -75,71 +75,86 @@ export const RulesDrawer: React.FC<RulesDrawerProps> = ({ isOpen, onClose }) => 
           </p>
         </section>
 
-        {/* Bidding Phase */}
+        {/* 2. Dealing Sequence & First Bidder Eligibility */}
         <section className="space-y-2 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
           <h3 className="font-bold text-amber-400 text-sm flex items-center gap-1.5">
-            <Flame className="w-4 h-4 text-amber-400" /> 2. Bidding (16 to 28)
+            <Layers className="w-4 h-4 text-amber-400" /> 2. Dealer & 4-Card Initial Deal
           </h3>
-          <p className="text-slate-400 leading-relaxed">
-            4 cards are dealt in Round 1. Players bid clockwise starting to the dealer&apos;s right. Minimum bid is <strong>16</strong>.
-            A player can raise the bid or <strong>PASS</strong>. Once a player passes, they cannot bid again in that deal.
-            If all pass, the dealer is forced to bid 16.
-          </p>
-        </section>
-
-        {/* Trump Concealment & Revelation */}
-        <section className="space-y-2 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
-          <h3 className="font-bold text-amber-400 text-sm flex items-center gap-1.5">
-            <Lock className="w-4 h-4 text-amber-400" /> 3. Secret Trump & Trick Play
-          </h3>
-          <p className="text-slate-400 leading-relaxed">
-            The highest bidder selects a secret Trump suit and keeps it concealed face-down.
-            The remaining 4 cards are dealt (8 cards total per player).
-          </p>
-          <ul className="list-disc pl-4 space-y-1 text-slate-400">
-            <li><strong>Follow Suit:</strong> You MUST play the lead suit if you hold any card of that suit.</li>
-            <li><strong>Trump Reveal:</strong> If you cannot follow suit, you may request to reveal the secret Trump!</li>
-            <li>Once revealed, anyone unable to follow suit may play trump cards to cut the trick.</li>
+          <ul className="list-disc pl-4 space-y-1 text-slate-400 leading-relaxed">
+            <li><strong>Random Initial Dealer:</strong> The dealer for the first round is selected at random (Seats 1–4). The dealer rotates clockwise each subsequent deal.</li>
+            <li><strong>Initial Deal:</strong> Exactly 4 cards are dealt to each player before bidding starts.</li>
+            <li><strong>First Bidder:</strong> The player sitting immediately to the left of the dealer opens bidding.</li>
+            <li><strong>Point-Card Eligibility:</strong> The first bidder must hold at least one point-valued card (J, 9, A, or 10). If they hold 0 point cards, all cards are returned, reshuffled, and redealt until eligible.</li>
           </ul>
         </section>
 
-        {/* Pair / Royals Bonus */}
+        {/* 3. Single-Round Bidding */}
         <section className="space-y-2 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
           <h3 className="font-bold text-amber-400 text-sm flex items-center gap-1.5">
-            <Crown className="w-4 h-4 text-amber-400" /> 4. Pair / Royals (Royals Bonus)
+            <Flame className="w-4 h-4 text-amber-400" /> 3. One-Round Bidding (16 to 28)
           </h3>
-          <p className="text-slate-400 leading-relaxed">
-            If a player holds both the <strong>King (K)</strong> and <strong>Queen (Q)</strong> of the Trump suit, they may declare Pair after trump is revealed:
-          </p>
-          <ul className="list-disc pl-4 space-y-1 text-slate-400">
-            <li>If declared by <strong>Bidding Team</strong>: Contract target decreases by 4 points (e.g. 17 target becomes 13).</li>
-            <li>If declared by <strong>Opponents</strong>: Contract target increases by 4 points (e.g. 17 target becomes 21).</li>
+          <ul className="list-disc pl-4 space-y-1 text-slate-400 leading-relaxed">
+            <li><strong>Strictly One Round:</strong> Exactly 4 turns in clockwise order around the table. Each player gets exactly one turn to bid or pass.</li>
+            <li><strong>Opening Bid:</strong> Minimum bid is 16. Any subsequent bid must exceed the current highest bid.</li>
+            <li><strong>Forced Dealer Bid:</strong> If the first 3 players pass, the dealer is forced to place the opening bid of 16.</li>
+            <li><strong>15s Timer:</strong> Each bidder has 15 seconds. If the timer expires, an automatic PASS is submitted (or forced 16 for dealer).</li>
           </ul>
         </section>
 
-        {/* Match Scoring */}
+        {/* 4. Six Trump Options & 7th Card Mechanics */}
         <section className="space-y-2 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
           <h3 className="font-bold text-amber-400 text-sm flex items-center gap-1.5">
-            <Trophy className="w-4 h-4 text-amber-400" /> 5. Match Scoring (+6 / -6)
+            <Lock className="w-4 h-4 text-amber-400" /> 4. Six Trump Options & 2nd Deal
+          </h3>
+          <p className="text-slate-400 leading-relaxed">
+            The winning bidder chooses from 6 trump options:
+          </p>
+          <ul className="list-disc pl-4 space-y-1 text-slate-400">
+            <li><strong>Suits (Hearts, Spades, Clubs, Diamonds):</strong> Traditional secret trump suit concealed face-down.</li>
+            <li><strong>Joker / No Trump:</strong> No trump suit exists. The highest card of the lead suit always wins the trick; off-suit cards cannot cut; Royal Pairs cannot be declared.</li>
+            <li><strong>7th Card Trump:</strong> During the second deal, the bidder&apos;s 7th card is placed face-down on the table as a reserved trump card. When trump is revealed during trick play, the card flips over, its suit becomes trump, and it returns to the bidder&apos;s hand.</li>
+          </ul>
+          <p className="text-[11px] text-slate-400 pt-1">
+            After trump selection, the remaining 4 cards are dealt to all players (8 cards total per player) before trick play begins.
+          </p>
+        </section>
+
+        {/* 5. Trick Play & Following Suit */}
+        <section className="space-y-2 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
+          <h3 className="font-bold text-amber-400 text-sm flex items-center gap-1.5">
+            <Crown className="w-4 h-4 text-amber-400" /> 5. Trick Play & Trump Revelation
+          </h3>
+          <ul className="list-disc pl-4 space-y-1 text-slate-400">
+            <li><strong>Must Follow Suit:</strong> You MUST play a card of the led suit if you hold one.</li>
+            <li><strong>Trump Revelation:</strong> If unable to follow suit, you may request to reveal the secret Trump!</li>
+            <li>Once revealed, players unable to follow suit may play trump cards to cut the trick.</li>
+          </ul>
+        </section>
+
+        {/* 6. Pair / Royals */}
+        <section className="space-y-2 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
+          <h3 className="font-bold text-amber-400 text-sm flex items-center gap-1.5">
+            <Crown className="w-4 h-4 text-amber-400" /> 6. Pair / Royals (Royals Bonus)
+          </h3>
+          <p className="text-slate-400 leading-relaxed">
+            Holding both King (K) and Queen (Q) of the Trump suit allows declaring Pair after trump is revealed:
+          </p>
+          <ul className="list-disc pl-4 space-y-1 text-slate-400">
+            <li><strong>Bidding Team:</strong> Contract target decreases by 4 points (e.g. 17 target becomes 13).</li>
+            <li><strong>Defending Team:</strong> Contract target increases by 4 points (e.g. 17 target becomes 21).</li>
+          </ul>
+        </section>
+
+        {/* 7. Match Scoring */}
+        <section className="space-y-2 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
+          <h3 className="font-bold text-amber-400 text-sm flex items-center gap-1.5">
+            <Trophy className="w-4 h-4 text-amber-400" /> 7. Match Scoring (+6 / -6)
           </h3>
           <p className="text-slate-400 leading-relaxed">
             Fulfilling the contract awards <strong>+1 Game Point</strong> (+2 if bid was 21+).
             Failing contract deducts <strong>-1 Game Point</strong> (-2 if bid was 21+).
             First team to reach <strong>+6 points</strong> wins the match; reaching <strong>-6 points</strong> loses.
           </p>
-        </section>
-
-        {/* Turn Timers & Physical Controls */}
-        <section className="space-y-2 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
-          <h3 className="font-bold text-amber-400 text-sm flex items-center gap-1.5">
-            <Flame className="w-4 h-4 text-amber-400" /> 6. Turn Timers & Controls
-          </h3>
-          <ul className="list-disc pl-4 space-y-1.5 text-slate-400">
-            <li><strong>Bidding Timer (15s):</strong> Exactly 15 seconds per turn. Automatically passes on expiration (or bids 16 if forced dealer).</li>
-            <li><strong>Card Playing Timer (60s):</strong> 60 seconds per turn with server-authoritative auto-play fallback.</li>
-            <li><strong>Drag-to-Play:</strong> Drag any legal card from your hand onto the central table felt to play. Ordinary clicks alone never throw cards accidentally.</li>
-            <li><strong>Original Assets & Audio:</strong> Authentic EPS card artwork, table felt, and original sound effects with volume control and mute toggle.</li>
-          </ul>
         </section>
       </div>
 

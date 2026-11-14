@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import { GameRulesConfig, GameState, PlayerPosition, PublicGameState, Team } from '../engine/types';
+import { GameRulesConfig, GameState, PlayerPosition, PublicGameState, Team, TrumpSelectionChoice } from '../engine/types';
 import { Suit } from '../assets/cardManifest';
 
 export interface LanSeat {
@@ -198,10 +198,10 @@ class LanClientService {
     });
   }
 
-  public selectTrump(suit: Suit): Promise<{ success: boolean; error?: string }> {
+  public selectTrump(choice: TrumpSelectionChoice): Promise<{ success: boolean; error?: string }> {
     return new Promise((resolve) => {
       if (!this.socket) return resolve({ success: false, error: 'Not connected' });
-      this.socket.emit('select_trump', { roomCode: this.roomCode, sessionToken: this.sessionToken, suit }, resolve);
+      this.socket.emit('select_trump', { roomCode: this.roomCode, sessionToken: this.sessionToken, choice, suit: choice }, resolve);
     });
   }
 

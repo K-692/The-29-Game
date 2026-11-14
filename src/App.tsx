@@ -16,7 +16,8 @@ import {
   GameRulesConfig, 
   GameState, 
   PlayerPosition, 
-  PublicGameState 
+  PublicGameState,
+  TrumpSelectionChoice 
 } from './engine/types';
 import { Suit } from './assets/cardManifest';
 import { soundManager } from './common/SoundManager';
@@ -217,9 +218,9 @@ export default function App() {
     lanClient.placeBid(bid);
   };
 
-  const handleSelectTrump = (suit: Suit) => {
+  const handleSelectTrump = (choice: TrumpSelectionChoice) => {
     soundManager.playTrump();
-    lanClient.selectTrump(suit);
+    lanClient.selectTrump(choice);
   };
 
   const handleRevealTrump = () => {

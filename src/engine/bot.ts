@@ -1,7 +1,7 @@
 import { CARD_MANIFEST, CardIdentity, Suit, SUITS } from '../assets/cardManifest';
 import { canDeclarePair, hasRoyalsPair } from './scoring';
 import { getPlayableCards } from './tricks';
-import { CompletedTrick, GameRulesConfig, PairDeclaration, PlayedCard, PlayerPosition, Team } from './types';
+import { CompletedTrick, GameRulesConfig, PairDeclaration, PlayedCard, PlayerPosition, Team, TrumpMode, TrumpSelectionChoice } from './types';
 
 /**
  * Heuristic evaluation of a 4-card hand for initial bidding
@@ -79,11 +79,52 @@ export const getBotBidDecision = (
 };
 
 /**
- * Determine Bot's trump suit selection from 4 cards
+ * Determine Bot's trump choice among 6 options:
+ * Hearts, Spades, Clubs, Diamonds, Joker (No Trump), 7th Card
  */
-export const getBotTrumpSelection = (handCardIds: string[]): Suit => {
-  const { preferredSuit } = evaluateHandForBid(handCardIds);
-  return preferredSuit;
+export const getBotTrumpSelection = (handCardIds: string[]): TrumpSelectionChoice => {
+  const suitCounts: Record<Suit, number> = { DIAMONDS: 0, HEARTS: 0, CLUBS: 0, SPADES: 0 };
+  const suitPoints: Record<Suit, number> = { DIAMONDS: 0, HEARTS: 0, CLUBS: 0, SPADES: 0 };
+  let aceOrTenCount = 0;
+
+  for (const id of handCardIds) {
+    const card = CARD_MANIFEST[id];
+    if (!card) continue;
+    suitCounts[card.suit]++;
+    suitPoints[card.suit] += card.points;
+    if (card.rank === 'A' || card.rank === '10') {
+      aceOrTenCount++;
+    }
+  }
+
+  let bestSuit: Suit = 'SPADES';
+  let bestScore = -1;
+  for (const suit of SUITS) {
+    const count = suitCounts[suit];
+    const points = suitPoints[suit];
+    const score = count * 3 + points * 2;
+    if (score > bestScore) {
+      bestScore = score;
+      bestSuit = suit;
+    }
+  }
+
+  // 1. Dominant suit: at least 2 cards and 2+ points -> choose that suit
+  if (suitCounts[bestSuit] >= 2 && suitPoints[bestSuit] >= 2) {
+    return bestSuit;
+  }
+
+  // 2. Balanced high cards (Aces/Tens spread across suits, no long suit) -> choose No Trump (Joker)
+  if (aceOrTenCount >= 2 && Object.values(suitCounts).every((c) => c <= 1)) {
+    return 'NO_TRUMP';
+  }
+
+  // 3. Flat hand with no strong suit -> gamble on 7th Card
+  if (Object.values(suitCounts).every((c) => c <= 2) && bestScore <= 6) {
+    return 'SEVENTH_CARD';
+  }
+
+  return bestSuit;
 };
 
 /**
@@ -146,9 +187,10 @@ export const getBotCardPlay = (
   trumpSuit: Suit | null,
   isTrumpRevealed: boolean,
   currentTrickCards: PlayedCard[],
-  myPosition: PlayerPosition
+  myPosition: PlayerPosition,
+  trumpMode: TrumpMode = 'suit'
 ): string => {
-  const playable = getPlayableCards(handCardIds, leadCardId, trumpSuit, isTrumpRevealed);
+  const playable = getPlayableCards(handCardIds, leadCardId, trumpSuit, isTrumpRevealed, trumpMode);
   if (playable.length === 1) {
     return playable[0];
   }

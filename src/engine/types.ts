@@ -95,6 +95,22 @@ export interface RoundSummary {
   matchScore: { team0: number; team1: number };
 }
 
+export type TrumpMode = 'suit' | 'no-trump' | 'seventh-card';
+
+export type TrumpSelectionChoice = 
+  | 'HEARTS' 
+  | 'SPADES' 
+  | 'CLUBS' 
+  | 'DIAMONDS' 
+  | 'NO_TRUMP' 
+  | 'SEVENTH_CARD';
+
+export interface SeventhCardInfo {
+  cardId: string;
+  owner: PlayerPosition;
+  isRevealed: boolean;
+}
+
 export interface GameState {
   id: string;
   roomCode: string;
@@ -104,17 +120,21 @@ export interface GameState {
   dealerIndex: PlayerPosition;
   currentTurn: PlayerPosition;
   
-  // Bidding state
+  // Bidding state (Strictly one round of 4 turns)
+  biddingOrder: PlayerPosition[];
+  biddingTurnIndex: number; // 0 to 4 (4 = complete)
   bids: BidEntry[];
   highestBid: number;
   highestBidder: PlayerPosition | null;
   consecutivePasses: number;
   
-  // Trump state
+  // Trump state (6 options: 4 suits, no-trump/joker, 7th card)
+  trumpMode: TrumpMode;
   trumpSuit: Suit | null;
   isTrumpRevealed: boolean;
   trumpRevealedBy: PlayerPosition | null;
   trumpRevealedAtTrick: number | null;
+  seventhCard: SeventhCardInfo | null;
   
   // Player cards: private hands indexed by position
   hands: Record<PlayerPosition, string[]>; // string[] of card IDs (e.g. 'J_DIAMONDS')
@@ -143,14 +163,17 @@ export interface GameState {
 
 /**
  * Public/Sanitized Game State that can be safely transmitted to a player.
- * Conceals private hands of other players and concealed trump suit.
+ * Conceals private hands of other players, concealed trump suit, and unrevealed 7th card.
  */
-export interface PublicGameState extends Omit<GameState, 'hands' | 'trumpSuit'> {
+export interface PublicGameState extends Omit<GameState, 'hands' | 'trumpSuit' | 'seventhCard'> {
   myPosition: PlayerPosition | null;
   myHand: string[];
   otherHandCounts: Record<PlayerPosition, number>;
   // Concealed trump is null unless revealed or the player is the bidder
   revealedTrumpSuit: Suit | null;
   isTrumpConcealed: boolean;
+  // 7th card trump visibility: visible to bidder only before reveal; visible to all after reveal
+  revealedSeventhCard: string | null;
+  hasSeventhCardReserved: boolean;
 }
 

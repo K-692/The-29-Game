@@ -3,7 +3,8 @@ import {
   GameState, 
   PlayerPosition, 
   PublicGameState, 
-  Team 
+  Team,
+  TrumpSelectionChoice 
 } from '../../engine/types';
 import { CARD_MANIFEST, Suit } from '../../assets/cardManifest';
 import { canDeclarePair } from '../../engine/scoring';
@@ -40,7 +41,7 @@ interface GameTableProps {
   remainingSeconds?: number;
   notification?: InTableNotification | null;
   onBid: (bid: number | 'PASS') => void;
-  onSelectTrump: (suit: Suit) => void;
+  onSelectTrump: (choice: TrumpSelectionChoice) => void;
   onRevealTrump: () => void;
   onPlayCard: (cardId: string) => void;
   onDeclarePair: () => void;
@@ -171,6 +172,7 @@ export const GameTable: React.FC<GameTableProps> = ({
     isMyTurn &&
     publicState.phase === 'TRICK_PLAY' &&
     !publicState.isTrumpRevealed &&
+    publicState.trumpMode !== 'no-trump' &&
     leadCardId &&
     !publicState.myHand.some((id) => CARD_MANIFEST[id]?.suit === CARD_MANIFEST[leadCardId]?.suit)
   );
@@ -382,6 +384,7 @@ export const GameTable: React.FC<GameTableProps> = ({
                 <InTableBidding
                   currentHighestBid={publicState.highestBid}
                   highestBidder={publicState.highestBidder}
+                  activeBidder={publicState.currentTurn}
                   players={publicState.players}
                   bidsHistory={publicState.bids}
                   rules={publicState.rules}
