@@ -1,16 +1,68 @@
 /**
- * Web Audio API procedural sound effects synthesizer.
- * Zero external audio files required, instant playback on mobile and desktop.
+ * Sound Manager for The 29 Game
+ * Uses authentic OGG sound effects supplied in sound-effects/:
+ * - card-shuffle.ogg: Shuffling the deck at start of round/deal
+ * - cards-pack-take-out-1.ogg: Taking cards out / dealing phase 1 hand
+ * - card-slide-1.ogg: Card drag/slide/lift interaction
+ * - card-place-1.ogg: Card dropped/played on the table
+ * - card-shove-1.ogg: Collecting and clearing a completed trick
  */
+
+const getBasePath = (): string => {
+  const base = import.meta.env?.BASE_URL || '/';
+  return base.endsWith('/') ? base : `${base}/`;
+};
+
+export type SoundEffectType = 
+  | 'shuffle' 
+  | 'deal' 
+  | 'slide' 
+  | 'place' 
+  | 'shove';
+
+const SOUND_FILES: Record<SoundEffectType, string> = {
+  shuffle: 'card-shuffle.ogg',
+  deal: 'cards-pack-take-out-1.ogg',
+  slide: 'card-slide-1.ogg',
+  place: 'card-place-1.ogg',
+  shove: 'card-shove-1.ogg',
+};
 
 class SoundManager {
   private ctx: AudioContext | null = null;
+  private audioBuffers: Map<SoundEffectType, AudioBuffer> = new Map();
+  private audioElements: Map<SoundEffectType, HTMLAudioElement> = new Map();
   private isMuted: boolean = false;
+  private volume: number = 0.8;
+  private hasUnlockedAudio: boolean = false;
+  private playedEvents: Set<string> = new Set();
+  private isPreloading: boolean = false;
 
   constructor() {
-    // Read user mute preference from localStorage
     if (typeof window !== 'undefined') {
       this.isMuted = localStorage.getItem('twenty_nine_muted') === 'true';
+      const storedVol = localStorage.getItem('twenty_nine_volume');
+      if (storedVol !== null) {
+        const parsed = parseFloat(storedVol);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+          this.volume = parsed;
+        }
+      }
+
+      // Add auto-unlock listener on first user interaction
+      const unlock = () => {
+        this.initContext();
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+        this.hasUnlockedAudio = true;
+        this.preloadSounds();
+        window.removeEventListener('pointerdown', unlock);
+        window.removeEventListener('keydown', unlock);
+      };
+
+      window.addEventListener('pointerdown', unlock, { once: true });
+      window.addEventListener('keydown', unlock, { once: true });
     }
   }
 
@@ -21,9 +73,49 @@ class SoundManager {
         this.ctx = new AudioCtx();
       }
     }
-    if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
+  }
+
+  /**
+   * Preloads all original sound files.
+   */
+  public async preloadSounds() {
+    if (this.isPreloading || typeof window === 'undefined') return;
+    this.isPreloading = true;
+    this.initContext();
+
+    const base = getBasePath();
+
+    for (const [key, filename] of Object.entries(SOUND_FILES) as [SoundEffectType, string][]) {
+      const url = `${base}assets/sounds/${filename}`;
+
+      // 1. Attempt Web Audio API buffer decoding for low-latency playback
+      if (this.ctx && !this.audioBuffers.has(key)) {
+        try {
+          const res = await fetch(url);
+          if (res.ok) {
+            const arrayBuf = await res.arrayBuffer();
+            const decoded = await this.ctx.decodeAudioData(arrayBuf);
+            this.audioBuffers.set(key, decoded);
+            continue;
+          }
+        } catch {
+          // Fall back to HTMLAudioElement below
+        }
+      }
+
+      // 2. Fallback to HTMLAudioElement
+      if (!this.audioElements.has(key)) {
+        try {
+          const audio = new Audio(url);
+          audio.preload = 'auto';
+          this.audioElements.set(key, audio);
+        } catch {}
+      }
     }
+  }
+
+  public getMuted(): boolean {
+    return this.isMuted;
   }
 
   public toggleMute(): boolean {
@@ -34,225 +126,153 @@ class SoundManager {
     return this.isMuted;
   }
 
-  public getMuted(): boolean {
-    return this.isMuted;
+  public setMuted(muted: boolean) {
+    this.isMuted = muted;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('twenty_nine_muted', String(this.isMuted));
+    }
   }
 
-  /**
-   * Sound of sliding or flipping a card
-   */
-  public playCardFlip() {
-    if (this.isMuted) return;
-    this.initContext();
-    if (!this.ctx) return;
+  public getVolume(): number {
+    return this.volume;
+  }
 
-    try {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(320, this.ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(120, this.ctx.currentTime + 0.08);
-
-      gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
-
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-
-      osc.start();
-      osc.stop(this.ctx.currentTime + 0.08);
-    } catch {
-      // Audio playback safety
+  public setVolume(vol: number) {
+    const clamped = Math.max(0, Math.min(1, vol));
+    this.volume = clamped;
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('twenty_nine_volume', String(clamped));
     }
   }
 
   /**
-   * Sound of card thrown onto table
+   * Plays sound effect using Web Audio API buffer or HTML5 Audio fallback.
    */
+  public play(type: SoundEffectType) {
+    if (this.isMuted || this.volume <= 0 || typeof window === 'undefined') return;
+    this.initContext();
+
+    // 1. Play via Web Audio API if buffer is ready
+    if (this.ctx && this.audioBuffers.has(type)) {
+      try {
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+        const buffer = this.audioBuffers.get(type)!;
+        const source = this.ctx.createBufferSource();
+        source.buffer = buffer;
+
+        const gainNode = this.ctx.createGain();
+        gainNode.gain.setValueAtTime(this.volume, this.ctx.currentTime);
+
+        source.connect(gainNode);
+        gainNode.connect(this.ctx.destination);
+        source.start(0);
+        return;
+      } catch {}
+    }
+
+    // 2. Play via HTMLAudioElement fallback
+    const base = getBasePath();
+    const url = `${base}assets/sounds/${SOUND_FILES[type]}`;
+    try {
+      const audio = this.audioElements.get(type) || new Audio(url);
+      audio.volume = this.volume;
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+    } catch {}
+  }
+
+  /**
+   * Idempotent playback: ensures duplicate network packets or re-renders
+   * do not play the same event sound repeatedly.
+   */
+  public playEventOnce(eventId: string, type: SoundEffectType) {
+    if (this.playedEvents.has(eventId)) return;
+    this.playedEvents.add(eventId);
+    // Keep set bounded
+    if (this.playedEvents.size > 100) {
+      const first = this.playedEvents.values().next().value;
+      if (first) this.playedEvents.delete(first);
+    }
+    this.play(type);
+  }
+
+  // --- Specific Gameplay Audio Methods ---
+
+  /** Deck shuffle at start of round/deal */
+  public playShuffle() {
+    this.play('shuffle');
+  }
+
+  /** Dealing cards (taking pack out) */
+  public playDeal() {
+    this.play('deal');
+  }
+
+  /** Card sliding/dragged/lifted */
+  public playSlide() {
+    this.play('slide');
+  }
+
+  /** Card placed/dropped onto the table */
+  public playCardPlace() {
+    this.play('place');
+  }
+
+  /** Trick collected/shoved */
+  public playTrickShove() {
+    this.play('shove');
+  }
+
+  // Backward compatibility alias methods
+  public playCard() {
+    this.playCardPlace();
+  }
+
   public playCardPlay() {
-    if (this.isMuted) return;
-    this.initContext();
-    if (!this.ctx) return;
-
-    try {
-      const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(180, now);
-      osc.frequency.exponentialRampToValueAtTime(60, now + 0.12);
-
-      gain.gain.setValueAtTime(0.25, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-
-      osc.start(now);
-      osc.stop(now + 0.12);
-    } catch {}
+    this.playCardPlace();
   }
 
-  /**
-   * Pleasant chime for placed bids
-   */
+  public playCardFlip() {
+    this.playSlide();
+  }
+
   public playBid() {
-    if (this.isMuted) return;
-    this.initContext();
-    if (!this.ctx) return;
-
-    try {
-      const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(523.25, now); // C5
-      osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
-
-      gain.gain.setValueAtTime(0.12, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
-
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-
-      osc.start(now);
-      osc.stop(now + 0.25);
-    } catch {}
-  }
-
-  /**
-   * Dramatic trumpet flourish when trump is revealed
-   */
-  public playTrumpReveal() {
-    if (this.isMuted) return;
-    this.initContext();
-    if (!this.ctx) return;
-
-    try {
-      const now = this.ctx.currentTime;
-      const notes = [440, 554.37, 659.25, 880]; // A4, C#5, E5, A5
-      notes.forEach((freq, idx) => {
-        const osc = this.ctx!.createOscillator();
-        const gain = this.ctx!.createGain();
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(freq, now + idx * 0.07);
-
-        gain.gain.setValueAtTime(0.12, now + idx * 0.07);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.07 + 0.3);
-
-        osc.connect(gain);
-        gain.connect(this.ctx!.destination);
-
-        osc.start(now + idx * 0.07);
-        osc.stop(now + idx * 0.07 + 0.3);
-      });
-    } catch {}
-  }
-
-  /**
-   * Trick won sound
-   */
-  public playTrickWon() {
-    if (this.isMuted) return;
-    this.initContext();
-    if (!this.ctx) return;
-
-    try {
-      const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(440, now);
-      osc.frequency.exponentialRampToValueAtTime(880, now + 0.15);
-
-      gain.gain.setValueAtTime(0.15, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
-
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-
-      osc.start(now);
-      osc.stop(now + 0.15);
-    } catch {}
-  }
-
-  /**
-   * Victory sound fanfare
-   */
-  public playVictory() {
-    if (this.isMuted) return;
-    this.initContext();
-    if (!this.ctx) return;
-
-    try {
-      const now = this.ctx.currentTime;
-      const chord = [523.25, 659.25, 783.99, 1046.5]; // C Major
-      chord.forEach((freq) => {
-        const osc = this.ctx!.createOscillator();
-        const gain = this.ctx!.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(freq, now);
-
-        gain.gain.setValueAtTime(0.15, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
-
-        osc.connect(gain);
-        gain.connect(this.ctx!.destination);
-
-        osc.start(now);
-        osc.stop(now + 0.8);
-      });
-    } catch {}
-  }
-
-  public playTick() {
-    this.playCardFlip();
-  }
-
-  public playError() {
-    if (this.isMuted) return;
-    this.initContext();
-    if (!this.ctx) return;
-    try {
-      const now = this.ctx.currentTime;
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(150, now);
-      osc.frequency.exponentialRampToValueAtTime(80, now + 0.2);
-      gain.gain.setValueAtTime(0.12, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.2);
-    } catch {}
-  }
-
-  public playTrump() {
-    this.playTrumpReveal();
-  }
-
-  public playWin() {
-    this.playTrickWon();
+    this.playSlide();
   }
 
   public playChip() {
-    this.playBid();
+    this.playSlide();
   }
 
-  public playDeal() {
-    this.playCardFlip();
+  public playTrump() {
+    this.playSlide();
   }
 
-  public playCard() {
-    this.playCardPlay();
+  public playTrumpReveal() {
+    this.playSlide();
+  }
+
+  public playTrickWon() {
+    this.playTrickShove();
+  }
+
+  public playWin() {
+    this.playTrickShove();
+  }
+
+  public playVictory() {
+    this.playTrickShove();
+  }
+
+  public playTick() {
+    this.playSlide();
+  }
+
+  public playError() {
+    this.playSlide();
   }
 }
 
 export const soundManager = new SoundManager();
-

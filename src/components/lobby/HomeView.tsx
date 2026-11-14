@@ -65,10 +65,8 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
       {/* Top Navbar */}
       <header className="max-w-5xl mx-auto w-full flex items-center justify-between z-10">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center font-black text-slate-950 font-serif text-lg shadow-md">
-            29
-          </div>
+        <div className="flex items-center gap-2.5">
+          <img src="/assets/game_logo.png" alt="The 29 Game" className="w-9 h-9 object-contain drop-shadow" />
           <div className="flex items-center gap-1.5">
             <span className="font-bold text-sm tracking-wide text-slate-300">Indian Twenty-Nine</span>
             <span className="text-[10px] font-mono bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
@@ -100,14 +98,18 @@ export const HomeView: React.FC<HomeViewProps> = ({
       {/* Hero Center Section */}
       <main className="max-w-md mx-auto w-full my-auto py-8 text-center space-y-7 z-10">
         {/* Title & Badge */}
-        <div className="space-y-2">
+        <div className="space-y-3 flex flex-col items-center">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-400/30 text-amber-400 text-xs font-black tracking-wider uppercase">
             <Sparkles className="w-3.5 h-3.5" /> Traditional Indian Card Game
           </div>
-          <h1 className="text-5xl sm:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-amber-500 tracking-tight font-serif drop-shadow-md">
-            29
-          </h1>
-          <p className="text-base font-bold text-slate-300 tracking-wide uppercase">
+          <div className="flex justify-center py-1">
+            <img 
+              src="/assets/game_logo.png" 
+              alt="The 29 Game Logo" 
+              className="w-32 h-32 sm:w-40 sm:h-40 object-contain drop-shadow-[0_10px_25px_rgba(245,158,11,0.25)] hover:scale-105 transition-transform duration-300"
+            />
+          </div>
+          <p className="text-sm font-black text-amber-400 tracking-wider uppercase">
             Twenty-Nine Card Game
           </p>
           <p className="text-xs text-slate-400 max-w-xs mx-auto">

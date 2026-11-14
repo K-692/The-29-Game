@@ -65,7 +65,81 @@ export const GameTable: React.FC<GameTableProps> = ({
   onLeave,
 }) => {
   const [isMuted, setIsMuted] = useState(soundManager.getMuted());
+  const [volume, setVolumeState] = useState(soundManager.getVolume());
   const [showRulesDrawer, setShowRulesDrawer] = useState(false);
+
+  // Drag-and-drop state coordinates between Table and Player Hand
+  const dropZoneRef = React.useRef<HTMLDivElement>(null);
+  const [dropTargetRect, setDropTargetRect] = useState<DOMRect | null>(null);
+  const [dragState, setDragState] = useState<{
+    isDragging: boolean;
+    isOverTarget: boolean;
+    cardId: string | null;
+  }>({
+    isDragging: false,
+    isOverTarget: false,
+    cardId: null,
+  });
+
+  // Track state changes to trigger authentic sound effects
+  const prevPhaseRef = React.useRef(publicState.phase);
+  const prevTricksCountRef = React.useRef(publicState.completedTricks.length);
+  const prevCardsCountRef = React.useRef(publicState.myHand.length);
+
+  React.useEffect(() => {
+    // 1. Shuffling when round starts or bidding opens
+    if (prevPhaseRef.current !== 'BIDDING' && publicState.phase === 'BIDDING') {
+      soundManager.playShuffle();
+    }
+    // 2. Dealing when cards are dealt
+    if (publicState.myHand.length > prevCardsCountRef.current && publicState.phase === 'TRICK_PLAY') {
+      soundManager.playDeal();
+    }
+    // 3. Trick shove when a trick is completed
+    if (publicState.completedTricks.length > prevTricksCountRef.current) {
+      soundManager.playTrickShove();
+    }
+
+    // 4. Card placement sound for played cards
+    publicState.currentTrickCards.forEach((pc) => {
+      soundManager.playEventOnce(`trick_${publicState.currentTrickNumber}_card_${pc.cardId}_${pc.playerIndex}`, 'place');
+    });
+
+    prevPhaseRef.current = publicState.phase;
+    prevTricksCountRef.current = publicState.completedTricks.length;
+    prevCardsCountRef.current = publicState.myHand.length;
+  }, [
+    publicState.phase,
+    publicState.completedTricks.length,
+    publicState.currentTrickCards,
+    publicState.myHand.length,
+    publicState.currentTrickNumber,
+  ]);
+
+  // Update drop target bounding rect
+  React.useEffect(() => {
+    const updateRect = () => {
+      if (dropZoneRef.current) {
+        setDropTargetRect(dropZoneRef.current.getBoundingClientRect());
+      }
+    };
+    updateRect();
+    window.addEventListener('resize', updateRect);
+    window.addEventListener('scroll', updateRect);
+    const timer = setTimeout(updateRect, 150);
+    return () => {
+      window.removeEventListener('resize', updateRect);
+      window.removeEventListener('scroll', updateRect);
+      clearTimeout(timer);
+    };
+  }, [publicState.phase, publicState.currentTrickCards.length]);
+
+  const handleDragStateChange = (state: { isDragging: boolean; isOverTarget: boolean; cardId: string | null }) => {
+    if (state.isDragging && dropZoneRef.current) {
+      setDropTargetRect(dropZoneRef.current.getBoundingClientRect());
+    }
+    setDragState(state);
+  };
 
   const myTeam: Team = (myPosition === 0 || myPosition === 2) ? 0 : 1;
   const isMyTurn = publicState.currentTurn === myPosition;
@@ -116,8 +190,28 @@ export const GameTable: React.FC<GameTableProps> = ({
     setIsMuted(muted);
   };
 
+  const handleVolumeChange = (newVol: number) => {
+    soundManager.setVolume(newVol);
+    setVolumeState(newVol);
+    if (newVol > 0 && isMuted) {
+      soundManager.setMuted(false);
+      setIsMuted(false);
+    }
+  };
+
   const latestSummary = publicState.roundHistory[publicState.roundHistory.length - 1];
-  const isUrgentTimer = remainingSeconds <= 15 && isMyTurn;
+  const isUrgentTimer = (publicState.phase === 'BIDDING' ? remainingSeconds <= 5 : remainingSeconds <= 15) && isMyTurn;
+
+  const formatTimerLabel = () => {
+    const secStr = remainingSeconds.toString().padStart(2, '0');
+    if (publicState.phase === 'BIDDING') {
+      return `Bidding: 00:${secStr}`;
+    }
+    if (publicState.phase === 'TRUMP_SELECTION') {
+      return `Trump: 00:${secStr}`;
+    }
+    return isMyTurn ? `Your turn: 00:${secStr}` : `Turn: 00:${secStr}`;
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between overflow-x-hidden selection:bg-amber-500 selection:text-black relative">
@@ -133,7 +227,7 @@ export const GameTable: React.FC<GameTableProps> = ({
           </button>
 
           <div className="flex items-center gap-2">
-            <span className="font-black text-amber-400 text-lg tracking-tight">29</span>
+            <img src="/assets/game_logo.png" alt="The 29 Game" className="w-8 h-8 object-contain drop-shadow" />
             <div className="flex items-center gap-1 text-[11px] font-mono bg-slate-900 border border-slate-800 px-2 py-0.5 rounded-lg text-slate-300 font-bold">
               <Wifi className="w-3 h-3 text-emerald-400" />
               <span>ROOM: {publicState.roomCode}</span>
@@ -142,7 +236,7 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
 
         {/* Live Turn Notification Banner */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* Turn Timer Badge */}
           {publicState.phase !== 'ROUND_ENDED' && publicState.phase !== 'MATCH_ENDED' && (
             <div
@@ -153,18 +247,35 @@ export const GameTable: React.FC<GameTableProps> = ({
               }`}
             >
               <Clock className={`w-3.5 h-3.5 ${isUrgentTimer ? 'text-red-400' : 'text-amber-400'}`} />
-              <span>{isMyTurn ? 'YOUR TURN' : 'TURN'}: 00:{remainingSeconds.toString().padStart(2, '0')}</span>
+              <span>{formatTimerLabel()}</span>
             </div>
           )}
 
-          {/* Sound Mute Toggle */}
-          <button
-            onClick={handleToggleSound}
-            className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-900 rounded-xl transition-colors"
-            title={isMuted ? 'Unmute' : 'Mute'}
-          >
-            {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
-          </button>
+          {/* Sound Volume Slider & Mute Toggle */}
+          <div className="flex items-center gap-1.5 bg-slate-900/80 border border-slate-800 px-2 py-1 rounded-xl">
+            <button
+              onClick={handleToggleSound}
+              className="p-1 text-slate-400 hover:text-slate-200 transition-colors"
+              title={isMuted ? 'Unmute' : 'Mute'}
+            >
+              {isMuted || volume === 0 ? (
+                <VolumeX className="w-4 h-4 text-red-400" />
+              ) : (
+                <Volume2 className="w-4 h-4 text-emerald-400" />
+              )}
+            </button>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={isMuted ? 0 : volume}
+              onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+              className="w-14 sm:w-16 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-400 hidden xs:block"
+              title={`Volume: ${Math.round(volume * 100)}%`}
+              aria-label="Volume Slider"
+            />
+          </div>
 
           {/* Non-blocking Rules Drawer Toggle */}
           <button
@@ -209,119 +320,133 @@ export const GameTable: React.FC<GameTableProps> = ({
           />
         </div>
 
-        {/* Central Card Table Felt */}
-        <div className="flex-1 relative flex items-center justify-center my-1 min-h-[360px] sm:min-h-[420px] md:min-h-[460px]">
-          {/* Top Seat: Partner (Seat 3) */}
-          {partner && (
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 z-20">
-              <OpponentSeat
-                player={partner}
-                cardCount={publicState.otherHandCounts[partnerPos] || 0}
-                isCurrentTurn={publicState.currentTurn === partnerPos}
-                isDealer={publicState.dealerIndex === partnerPos}
-                isBidder={publicState.highestBidder === partnerPos}
-                bidAmount={publicState.highestBid}
-                positionLabel="Partner"
-              />
-            </div>
-          )}
-
-          {/* Left Seat: Opponent Left (Seat 2) */}
-          {leftOpponent && (
-            <div className="absolute left-0 sm:left-2 top-1/2 -translate-y-1/2 z-20">
-              <OpponentSeat
-                player={leftOpponent}
-                cardCount={publicState.otherHandCounts[leftOpponentPos] || 0}
-                isCurrentTurn={publicState.currentTurn === leftOpponentPos}
-                isDealer={publicState.dealerIndex === leftOpponentPos}
-                isBidder={publicState.highestBidder === leftOpponentPos}
-                bidAmount={publicState.highestBid}
-                positionLabel="Opponent Left"
-              />
-            </div>
-          )}
-
-          {/* Right Seat: Opponent Right (Seat 4) */}
-          {rightOpponent && (
-            <div className="absolute right-0 sm:right-2 top-1/2 -translate-y-1/2 z-20">
-              <OpponentSeat
-                player={rightOpponent}
-                cardCount={publicState.otherHandCounts[rightOpponentPos] || 0}
-                isCurrentTurn={publicState.currentTurn === rightOpponentPos}
-                isDealer={publicState.dealerIndex === rightOpponentPos}
-                isBidder={publicState.highestBidder === rightOpponentPos}
-                bidAmount={publicState.highestBid}
-                positionLabel="Opponent Right"
-              />
-            </div>
-          )}
-
-          {/* IN-TABLE ACTIVE OVERLAYS (STRICTLY NO MODALS!) */}
-          {/* 1. In-Table Bidding Panel */}
-          {publicState.phase === 'BIDDING' && (
-            <div className="z-30 w-full px-2">
-              <InTableBidding
-                currentHighestBid={publicState.highestBid}
-                highestBidder={publicState.highestBidder}
-                players={publicState.players}
-                bidsHistory={publicState.bids}
-                rules={publicState.rules}
-                isMyTurn={isMyTurn}
-                myPosition={myPosition}
-                isForcedDealer={
-                  publicState.bids.length === 3 &&
-                  publicState.bids.every((b) => b.bid === 'PASS') &&
-                  myPosition === publicState.dealerIndex &&
-                  publicState.rules.forcedDealerBid
-                }
-                remainingSeconds={remainingSeconds}
-                onPlaceBid={onBid}
-              />
-            </div>
-          )}
-
-          {/* 2. In-Table Trump Selector */}
-          {publicState.phase === 'TRUMP_SELECTION' && (
-            <div className="z-30 w-full px-2">
-              <InTableTrumpSelector
-                handCardIds={publicState.myHand}
-                highestBid={publicState.highestBid}
-                highestBidderName={
-                  publicState.players.find((p) => p.position === publicState.highestBidder)?.name || 'Bidder'
-                }
-                isMyTurn={publicState.highestBidder === myPosition}
-                remainingSeconds={remainingSeconds}
-                onSelectTrump={onSelectTrump}
-              />
-            </div>
-          )}
-
-          {/* 3. In-Table Round Summary */}
-          {publicState.phase === 'ROUND_ENDED' && latestSummary && (
-            <div className="z-30 w-full px-2">
-              <InTableRoundSummary
-                summary={latestSummary}
-                isHost={isHost}
-                myTeam={myTeam}
-                matchScore={publicState.matchScore}
-                onNextRound={onNextRound}
-              />
-            </div>
-          )}
-
-          {/* Central Trick Arena (Displayed during Trick Play) */}
-          {publicState.phase === 'TRICK_PLAY' && (
-            <TrickArea
-              playedCards={publicState.currentTrickCards}
-              players={publicState.players}
-              myPosition={myPosition}
-              trickNumber={publicState.currentTrickNumber}
+        {/* Central Card Table Arena utilizing table.jpg */}
+        <div className="relative w-full max-w-5xl mx-auto my-auto flex-1 flex flex-col justify-center items-center px-1 sm:px-2">
+          <div className="relative w-full aspect-[7/4] max-h-[58vh] min-h-[310px] sm:min-h-[380px] md:min-h-[440px] rounded-3xl overflow-visible flex items-center justify-center shadow-2xl">
+            {/* Original table.jpg background preserving colors and proportions */}
+            <img
+              src="/assets/table.jpg"
+              alt="The 29 Game Table"
+              className="absolute inset-0 w-full h-full object-cover sm:object-fill rounded-3xl pointer-events-none select-none shadow-2xl border-2 sm:border-4 border-amber-950/70"
             />
-          )}
+
+            {/* Top Seat: Partner (Seat 3) */}
+            {partner && (
+              <div className="absolute top-1 sm:top-2 left-1/2 -translate-x-1/2 z-20">
+                <OpponentSeat
+                  player={partner}
+                  cardCount={publicState.otherHandCounts[partnerPos] || 0}
+                  isCurrentTurn={publicState.currentTurn === partnerPos}
+                  isDealer={publicState.dealerIndex === partnerPos}
+                  isBidder={publicState.highestBidder === partnerPos}
+                  bidAmount={publicState.highestBid}
+                  positionLabel="Partner"
+                />
+              </div>
+            )}
+
+            {/* Left Seat: Opponent Left (Seat 2) */}
+            {leftOpponent && (
+              <div className="absolute left-1 sm:left-4 top-[44%] -translate-y-1/2 z-20">
+                <OpponentSeat
+                  player={leftOpponent}
+                  cardCount={publicState.otherHandCounts[leftOpponentPos] || 0}
+                  isCurrentTurn={publicState.currentTurn === leftOpponentPos}
+                  isDealer={publicState.dealerIndex === leftOpponentPos}
+                  isBidder={publicState.highestBidder === leftOpponentPos}
+                  bidAmount={publicState.highestBid}
+                  positionLabel="Opponent Left"
+                />
+              </div>
+            )}
+
+            {/* Right Seat: Opponent Right (Seat 4) */}
+            {rightOpponent && (
+              <div className="absolute right-1 sm:right-4 top-[44%] -translate-y-1/2 z-20">
+                <OpponentSeat
+                  player={rightOpponent}
+                  cardCount={publicState.otherHandCounts[rightOpponentPos] || 0}
+                  isCurrentTurn={publicState.currentTurn === rightOpponentPos}
+                  isDealer={publicState.dealerIndex === rightOpponentPos}
+                  isBidder={publicState.highestBidder === rightOpponentPos}
+                  bidAmount={publicState.highestBid}
+                  positionLabel="Opponent Right"
+                />
+              </div>
+            )}
+
+            {/* IN-TABLE ACTIVE OVERLAYS (STRICTLY NO MODALS!) */}
+            {/* 1. In-Table Bidding Panel */}
+            {publicState.phase === 'BIDDING' && (
+              <div className="absolute top-[44%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-full max-w-lg px-2">
+                <InTableBidding
+                  currentHighestBid={publicState.highestBid}
+                  highestBidder={publicState.highestBidder}
+                  players={publicState.players}
+                  bidsHistory={publicState.bids}
+                  rules={publicState.rules}
+                  isMyTurn={isMyTurn}
+                  myPosition={myPosition}
+                  isForcedDealer={
+                    publicState.bids.length === 3 &&
+                    publicState.bids.every((b) => b.bid === 'PASS') &&
+                    myPosition === publicState.dealerIndex &&
+                    publicState.rules.forcedDealerBid
+                  }
+                  remainingSeconds={remainingSeconds}
+                  onPlaceBid={onBid}
+                />
+              </div>
+            )}
+
+            {/* 2. In-Table Trump Selector */}
+            {publicState.phase === 'TRUMP_SELECTION' && (
+              <div className="absolute top-[44%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-full max-w-lg px-2">
+                <InTableTrumpSelector
+                  handCardIds={publicState.myHand}
+                  highestBid={publicState.highestBid}
+                  highestBidderName={
+                    publicState.players.find((p) => p.position === publicState.highestBidder)?.name || 'Bidder'
+                  }
+                  isMyTurn={publicState.highestBidder === myPosition}
+                  remainingSeconds={remainingSeconds}
+                  onSelectTrump={onSelectTrump}
+                />
+              </div>
+            )}
+
+            {/* 3. In-Table Round Summary */}
+            {publicState.phase === 'ROUND_ENDED' && latestSummary && (
+              <div className="absolute top-[44%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-full max-w-lg px-2">
+                <InTableRoundSummary
+                  summary={latestSummary}
+                  isHost={isHost}
+                  myTeam={myTeam}
+                  matchScore={publicState.matchScore}
+                  onNextRound={onNextRound}
+                />
+              </div>
+            )}
+
+            {/* Central Trick Arena (Displayed during Trick Play inside green felt) */}
+            {publicState.phase === 'TRICK_PLAY' && (
+              <div className="absolute top-[44%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
+                <TrickArea
+                  dropZoneRef={dropZoneRef}
+                  isDropTargetActive={dragState.isDragging}
+                  isHoveredOverDropTarget={dragState.isOverTarget}
+                  playedCards={publicState.currentTrickCards}
+                  players={publicState.players}
+                  myPosition={myPosition}
+                  trickNumber={publicState.currentTrickNumber}
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Bottom Area: Controls & Player Hand */}
-        <div className="w-full flex flex-col items-center z-20 space-y-1.5">
+        <div className="w-full flex flex-col items-center z-30 space-y-1.5 overflow-visible">
           {/* In-Table Action Buttons Row (Directly above hand, no modals!) */}
           <div className="flex items-center gap-2.5">
             {/* Trump Reveal Button */}
@@ -349,11 +474,13 @@ export const GameTable: React.FC<GameTableProps> = ({
             )}
           </div>
 
-          {/* Player Hand (Interactive 32-card Deck Assets) */}
+          {/* Player Hand with Horizontal Overlap & Drag-to-Table */}
           <PlayerHand
             cardIds={publicState.myHand}
             playableCardIds={playableCardIds}
             isMyTurn={isMyTurn}
+            dropTargetRect={dropTargetRect}
+            onDragStateChange={handleDragStateChange}
             onPlayCard={onPlayCard}
             disabled={publicState.phase !== 'TRICK_PLAY'}
           />

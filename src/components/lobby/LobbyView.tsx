@@ -186,12 +186,15 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-6">
       {/* Top Navbar */}
       <header className="max-w-4xl mx-auto w-full flex items-center justify-between pb-4 border-b border-slate-800">
-        <button
-          onClick={onLeave}
-          className="flex items-center gap-2 text-slate-400 hover:text-slate-100 transition-colors text-sm font-semibold"
-        >
-          <ArrowLeft className="w-4 h-4" /> Leave Lobby
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onLeave}
+            className="flex items-center gap-2 text-slate-400 hover:text-slate-100 transition-colors text-sm font-semibold"
+          >
+            <ArrowLeft className="w-4 h-4" /> Leave Lobby
+          </button>
+          <img src="/assets/game_logo.png" alt="The 29 Game" className="w-8 h-8 object-contain drop-shadow" />
+        </div>
 
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-2xl">

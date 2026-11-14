@@ -29,6 +29,7 @@ export interface InTableNotification {
 
 export interface TimerTickData {
   remainingSeconds: number;
+  turnDeadline?: number;
   turnPosition: PlayerPosition;
   phase: string;
 }

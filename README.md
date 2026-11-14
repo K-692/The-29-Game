@@ -1,3 +1,5 @@
+![The 29 Game](./public/assets/game_logo.png)
+
 # ♠️ The 29 Game — Premium LAN Multiplayer Twenty-Nine Card Game ♥️
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg?logo=typescript)](https://www.typescriptlang.org/)
@@ -8,34 +10,45 @@
 [![Tests](https://img.shields.io/badge/Vitest-22%2F22%20Passing-brightgreen.svg?logo=vitest)](https://vitest.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> A modern, zero-install, real-time **LAN (Local Area Network)** multiplayer implementation of the traditional Indian **29 (Twenty-Nine)** trick-taking card game. Features authentic traditional Indian rules, original vector playing-card artwork extracted directly from an EPS collection (`poker-cards-icons-collection/OIUGSZ1.eps`), 100% in-table gameplay without disruptive popups, an authoritative 60-second turn timer with smart fallback play, interactive seat selection, and automatic CPU bot management.
+> A modern, zero-install, real-time **LAN (Local Area Network)** multiplayer implementation of the traditional Indian **29 (Twenty-Nine)** trick-taking card game. Features authentic traditional Indian rules, original vector playing-card artwork extracted directly from an EPS collection (`poker-cards-icons-collection/OIUGSZ1.eps`), authentic wooden-rimmed oval green table felt (`table.jpg`), original sound effects (`sound-effects/`), physical drag-and-drop card playing, 100% in-table gameplay without disruptive popups, authoritative turn timers (15s Bidding / 60s Play), interactive seat selection, and automatic CPU bot backfilling.
 
 ---
 
 ## 🌟 Key Highlights
 
+- **Official Game Logo (`game_logo.png`)**: Featured across the main home screen, navigation headers, room lobby, browser favicon, and project documentation.
+- **Authentic Table Arena (`table.jpg`)**: The central card table felt is rendered using the original $700 \times 400$ oval felt artwork, preserving its natural wooden rim, green felt proportions ($[14.7\%, 84.7\%] \times [21.0\%, 67.5\%]$), and responsive aspect ratio across desktop, tablet, and mobile.
 - **Original Playing-Card Vector Artwork**: Extracted directly from vector EPS artwork (`poker-cards-icons-collection/OIUGSZ1.eps`) at 1440 DPI with corner-seeded flood-fill background removal. High-resolution SVGs and PNGs render hand-illustrated Kings, Queens, Jacks, traditional suit symbols, and geometric card-backs with true vector sharpness on retina displays.
+- **Physical Drag-and-Drop Card Play**:
+  - Horizontal overlapping hand with dynamic spacing (displaying top-left card indices clearly).
+  - Hover interaction: cards lift upward ($-28\text{px}$) and enlarge ($1.14\times$) above all neighboring cards without clipping.
+  - Dragging: Cards are dragged via touch or pointer events into the central green felt trick area.
+  - Accidental click protection: A simple click alone never plays a card; cards must be dragged past the threshold into the trick zone to play, snapping back safely if released outside.
+- **Authentic Sound Effects (`sound-effects/`)**:
+  - `card-shuffle.ogg`: Played at the start of a new deal.
+  - `cards-pack-take-out-1.ogg`: Played when cards are dealt to players.
+  - `card-slide-1.ogg`: Played during card dragging, hovering, and hand interaction.
+  - `card-place-1.ogg`: Played when a card is dropped/played onto the table.
+  - `card-shove-1.ogg`: Played when collecting and clearing a completed trick.
+  - Integrated with header volume slider (0–100%), one-click mute toggle, and `localStorage` persistence.
+- **Dual-Tier Server-Authoritative Timers**:
+  - **Bidding Phase: Exactly 15 Seconds** per turn. Formatted as `Bidding: 00:15` with an urgent pulse during the last 5 seconds. If the timer expires, the server automatically passes for the player (or bids 16 if forced dealer), showing an inline toast notification.
+  - **Card Play Phase: 60 Seconds** per turn. If the timer expires, the server executes a legal card move automatically.
+  - Synchronized via epoch `turnDeadline` timestamps so reconnection never resets deadlines.
 - **LAN-Only Architecture**: Zero reliance on public cloud services, external WebSockets, Supabase, or Firebase. Runs entirely on the host machine over local Wi-Fi / Ethernet (`0.0.0.0:3000`).
 - **Interactive 4-Seat Selection**:
-  - **Seat 1 (Bottom, Team A)**: Leader / Host
+  - **Seat 1 (Bottom, Team A)**: Leader / Host (You)
   - **Seat 2 (Left, Team B)**: Opponent Left
   - **Seat 3 (Top, Team A)**: Partner to Seat 1
   - **Seat 4 (Right, Team B)**: Opponent Right
   - Players can click any vacant seat in the lobby to switch positions or partner up.
-- **Automatic CPU Player Management**: When the host clicks **Start Match**, any vacant seats are automatically filled by intelligent CPU bots (`CPU 1`, `CPU 2`, `Bot Partner`). Seamlessly supports:
-  - 1 Human + 3 Bots (Instant Solo Play)
-  - 2 Humans + 2 Bots (Friend Partnership vs AI)
-  - 3 Humans + 1 Bot
-  - 4 Humans (Full Local Multiplayer Table)
-- **100% In-Table Gameplay (Strictly No Popups / Modals)**:
-  - **In-Table Bidding**: Integrated directly onto the felt table with live bidding history chips, quick raise buttons, and pass controls.
+- **Automatic CPU Player Management**: When the host clicks **Start Match**, any vacant seats are automatically filled by intelligent CPU bots (`CPU 1`, `CPU 2`, `Bot Partner`). Supports 1 to 4 human players with instant solo bot backfilling.
+- **100% In-Table Gameplay (Strictly No Popups / Modals During Active Play)**:
+  - **In-Table Bidding**: Embedded directly onto the green felt with live bidding history chips, quick raise buttons, and pass controls.
   - **In-Table Secret Trump Selection**: Concurrently concealed suit selection embedded in the table dock.
   - **In-Table Trump Reveal**: Action button lights up on the table when unable to follow suit.
   - **In-Table Pair / Royals Declaration**: Crown button illuminates on the felt when holding K + Q of trump.
   - **In-Table Deal Summary**: Results and match point progression dock on the table between rounds.
-- **Server-Authoritative 60-Second Timer & Smart Fallback**:
-  - 60-second countdown per turn broadcast each second with low-time warning audio.
-  - If a player runs out of time or disconnects, the server automatically executes a legal fallback move (Auto-Pass/Min-Bid in Bidding, Strongest Suit in Trump Selection, Optimal Legal Card in Trick Play).
 - **Session Reconnection**: Players receive a unique session token in `localStorage`. If a player disconnects or refreshes, they instantly reclaim their seat and hand without disrupting the match.
 - **Non-Blocking `?` Rules Drawer**: Slide-out drawer accessible at any moment without pausing the match or resetting the timer.
 - **QR Code & Mobile LAN Access**: Host screen displays a generated QR code and LAN Wi-Fi URL (`http://<HOST_IP>:3000`) for mobile phones and tablets to join instantly.
@@ -79,7 +92,9 @@ Seat 2: Opponent (Team B) <───────(FELT)───────> Sea
                             [ Bottom / South ]
 ```
 
-Partners sit opposite each other and combine card points.
+Partners sit opposite each other and combine card points:
+- **Team A**: Seat 1 (South) & Seat 3 (North)
+- **Team B**: Seat 2 (West) & Seat 4 (East)
 
 ---
 
@@ -87,10 +102,10 @@ Partners sit opposite each other and combine card points.
 
 ```mermaid
 flowchart TD
-    A["Deal Phase 1: 4 Cards Each"] --> B["In-Table Bidding (16 to 28)"]
+    A["Deal Phase 1: 4 Cards Each"] --> B["In-Table Bidding (16 to 28) - 15s Timer"]
     B --> C["Highest Bidder Chooses Secret Trump"]
     C --> D["Deal Phase 2: Remaining 4 Cards Dealt"]
-    D --> E["8 Tricks Played (Mandatory Follow-Suit)"]
+    D --> E["8 Tricks Played (Mandatory Follow-Suit) - 60s Timer"]
     E --> F{"Player Cannot Follow Suit?"}
     F -- "Yes" --> G["Reveal Secret Trump on Table"]
     G --> H["Trump Suit Active & Can Cut Tricks"]
@@ -104,10 +119,11 @@ flowchart TD
 ```
 
 1. **Phase 1 Deal**: Each player is dealt 4 cards.
-2. **Bidding**: Starts to the dealer's right. Minimum bid is 16. If all 4 players pass, the dealer is forced to bid 16.
+2. **Bidding (15s Turn Timer)**: Starts to the dealer's right. Minimum bid is 16. If all 4 players pass, the dealer is forced to bid 16. If time expires, the server automatically passes.
 3. **Secret Trump**: Highest bidder picks secret trump suit. Remains face-down.
 4. **Phase 2 Deal**: Remaining 4 cards dealt (8 cards total per player).
-5. **Trick Play**:
+5. **Trick Play (60s Turn Timer & Drag-to-Play)**:
+   - Players drag cards from hand onto the central green felt trick area.
    - Mandatory follow-suit: if holding lead suit, player must follow.
    - If unable to follow suit, player can click **Reveal Trump** to uncover the concealed suit.
    - Once revealed, trump cards can cut and win non-trump tricks.
@@ -195,46 +211,59 @@ npm run build
 
 ```
 .
+├── game_logo.png                  # Official 29 game logo
+├── table.jpg                      # Authentic 700x400 oval green table felt background
+├── sound-effects/                 # Original game sound effects
+│   ├── card-place-1.ogg          # Card played onto table
+│   ├── card-shove-1.ogg          # Trick collected & shoved
+│   ├── card-shuffle.ogg          # Deck shuffle at deal start
+│   ├── card-slide-1.ogg          # Card hover/drag slide
+│   └── cards-pack-take-out-1.ogg # Dealing cards
 ├── poker-cards-icons-collection/  # Original EPS playing card vector artwork collection
 │   └── OIUGSZ1.eps               # Authoritative vector sheet for all 32 cards + card back
-├── public/assets/cards/           # Converted pristine SVG & PNG 1440 DPI card assets
+├── public/
+│   ├── assets/
+│   │   ├── cards/                # Converted pristine SVG & PNG 1440 DPI card assets
+│   │   ├── sounds/               # Optimized OGG audio files for web audio playback
+│   │   ├── game_logo.png         # Public logo asset
+│   │   └── table.jpg             # Public table felt asset
 ├── scripts/
 │   └── extract_cards.py          # Ghostscript 1440 DPI vector extraction pipeline
 ├── server/
 │   ├── index.ts                  # Express + Socket.IO LAN server
 │   ├── lanUtils.ts               # Local network IPv4 detection & terminal banner
-│   └── roomManager.ts            # Authoritative room state, 60s timer, & bot auto-play
+│   └── roomManager.ts            # Authoritative room state, 15s/60s timers, & bot auto-play
 ├── server.js                     # Root executable server launcher (node server.js)
 ├── src/
 │   ├── assets/
 │   │   └── cardManifest.ts       # 32-card manifest, points, order, and asset paths
 │   ├── common/
-│   │   └── SoundManager.ts       # Procedural Web Audio API sound synthesizer
+│   │   └── SoundManager.ts       # Web Audio API buffer engine with volume/mute controls
 │   ├── components/
 │   │   ├── card/
 │   │   │   ├── CardPreviewGallery.tsx  # EPS card asset inspection gallery
-│   │   │   └── PlayingCard.tsx         # Responsive playing card component
+│   │   │   └── PlayingCard.tsx         # 100% opaque vector card component
 │   │   ├── lobby/
 │   │   │   ├── CreateRoomModal.tsx     # LAN room creator with rule presets
-│   │   │   ├── HomeView.tsx            # Main landing view with LAN options
+│   │   │   ├── HomeView.tsx            # Main landing view with game_logo.png
 │   │   │   ├── JoinRoomModal.tsx       # Join by code / host IP / seat selector
-│   │   │   └── LobbyView.tsx           # 4-seat interactive lobby with QR code
+│   │   │   └── LobbyView.tsx           # 4-seat interactive lobby with QR code & logo
 │   │   └── table/
-│   │       ├── GameTable.tsx           # Central 29 table felt
-│   │       ├── InTableBidding.tsx      # 100% in-table bidding dock (no popups)
+│   │       ├── GameTable.tsx           # Central 29 table with table.jpg & drop target
+│   │       ├── InTableBidding.tsx      # 100% in-table bidding dock with 15s timer
 │   │       ├── InTableRoundSummary.tsx # In-table round points breakdown
 │   │       ├── InTableTrumpSelector.tsx# In-table secret trump selector
 │   │       ├── OpponentSeat.tsx        # Opponent seats with card count & turn rings
-│   │       ├── PlayerHand.tsx          # Interactive hand with legal card lift
+│   │       ├── PlayerHand.tsx          # Overlapping hand with drag-to-play & hover lift
 │   │       ├── RulesDrawer.tsx         # Non-blocking slide-out rules reference
 │   │       ├── Scoreboard.tsx          # Team A vs Team B scoreboard
-│   │       └── TrickArea.tsx           # Center 4-card trick arena
+│   │       └── TrickArea.tsx           # Center 4-card trick arena on green felt
 │   ├── engine/
 │   │   ├── bidding.ts            # Bidding logic, legal bid options, forced dealer
 │   │   ├── bot.ts                # Autonomous CPU player decision engine
-│   │   ├── deck.ts               # 32-card deck shuffling and 2-phase dealing
+│   │   ├── deck.ts               # 32-card Fisher-Yates generator, 2-phase dealing (4+4)
 │   │   ├── gameManager.ts        # Authoritative state machine & transitions
-│   │   ├── scoring.ts            # Trick evaluation, Pair/Royals, round points
+│   │   ├── scoring.ts            # Card points accumulator (28+1=29), Royals Pair (+/-4)
 │   │   ├── tricks.ts             # Legal card filtering & follow-suit validation
 │   │   └── types.ts              # Core TypeScript interfaces & rules types
 │   ├── services/

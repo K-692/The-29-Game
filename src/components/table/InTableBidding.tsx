@@ -32,7 +32,7 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
   const [selectedBid, setSelectedBid] = useState<number>(legalOptions[0] || 16);
 
   const highestBidderPlayer = players.find((p) => p.position === highestBidder);
-  const isUrgent = remainingSeconds <= 15;
+  const isUrgent = remainingSeconds <= 5;
 
   return (
     <div className="w-full max-w-xl mx-auto bg-slate-900/95 backdrop-blur-md border-2 border-amber-500/70 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3.5 z-30 animate-fade-in">
@@ -53,17 +53,17 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
           </span>
         </div>
 
-        {/* 60s Turn Countdown Badge */}
+        {/* 15s Bidding Turn Countdown Badge */}
         <div
           className={`flex items-center gap-1.5 px-3 py-1 rounded-xl font-mono text-xs font-bold transition-all ${
             isUrgent
               ? 'bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse'
               : 'bg-slate-800 text-slate-300 border border-slate-700'
           }`}
-          title="Turn Timer"
+          title="Bidding Timer (15s)"
         >
           <Clock className={`w-3.5 h-3.5 ${isUrgent ? 'text-red-400' : 'text-amber-400'}`} />
-          <span>00:{remainingSeconds.toString().padStart(2, '0')}</span>
+          <span>Bidding: 00:{remainingSeconds.toString().padStart(2, '0')}</span>
         </div>
       </div>
 

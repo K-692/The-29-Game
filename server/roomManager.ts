@@ -53,6 +53,7 @@ export interface LanRoom {
   gameState: GameState | null;
   turnTimer: NodeJS.Timeout | null;
   remainingSeconds: number;
+  turnDeadline: number;
   botTurnTimeout: NodeJS.Timeout | null;
 }
 
@@ -154,7 +155,8 @@ export class RoomManager {
       seats,
       gameState: null,
       turnTimer: null,
-      remainingSeconds: 60,
+      remainingSeconds: 15,
+      turnDeadline: 0,
       botTurnTimeout: null,
     };
 
@@ -277,6 +279,18 @@ export class RoomManager {
     let publicState: PublicGameState | undefined = undefined;
     if (room.gameState) {
       publicState = getPublicGameState(room.gameState, seat.position);
+      if (room.turnDeadline > 0) {
+        const remaining = Math.max(0, Math.ceil((room.turnDeadline - Date.now()) / 1000));
+        const turnPos = room.gameState.phase === 'TRUMP_SELECTION' 
+          ? (room.gameState.highestBidder ?? room.gameState.currentTurn)
+          : room.gameState.currentTurn;
+        socket.emit('timer_tick', {
+          remainingSeconds: remaining,
+          turnDeadline: room.turnDeadline,
+          turnPosition: turnPos,
+          phase: room.gameState.phase,
+        });
+      }
     }
 
     this.broadcastRoomUpdate(room);
@@ -580,7 +594,8 @@ export class RoomManager {
   }
 
   /**
-   * Server-authoritative 60-second turn countdown timer.
+   * Server-authoritative turn countdown timer:
+   * Exactly 15s for BIDDING, 60s for TRUMP_SELECTION and TRICK_PLAY.
    */
   private startTurnTimer(room: LanRoom) {
     if (room.turnTimer) {
@@ -592,7 +607,11 @@ export class RoomManager {
       return;
     }
 
-    room.remainingSeconds = 60;
+    const isBidding = room.gameState.phase === 'BIDDING';
+    const totalDuration = isBidding ? 15 : 60; // 15s bidding countdown, 60s trick/trump
+    room.remainingSeconds = totalDuration;
+    room.turnDeadline = Date.now() + totalDuration * 1000;
+
     const turnPos = room.gameState.phase === 'TRUMP_SELECTION' 
       ? (room.gameState.highestBidder ?? room.gameState.currentTurn)
       : room.gameState.currentTurn;
@@ -600,15 +619,17 @@ export class RoomManager {
     // Broadcast initial tick
     this.io.to(room.code).emit('timer_tick', {
       remainingSeconds: room.remainingSeconds,
+      turnDeadline: room.turnDeadline,
       turnPosition: turnPos,
       phase: room.gameState.phase,
     });
 
     room.turnTimer = setInterval(() => {
-      room.remainingSeconds--;
+      room.remainingSeconds = Math.max(0, Math.ceil((room.turnDeadline - Date.now()) / 1000));
 
       this.io.to(room.code).emit('timer_tick', {
         remainingSeconds: room.remainingSeconds,
+        turnDeadline: room.turnDeadline,
         turnPosition: turnPos,
         phase: room.gameState?.phase || 'TRICK_PLAY',
       });
@@ -642,10 +663,14 @@ export class RoomManager {
         ? room.gameState.rules.minBid 
         : 'PASS';
 
+      const timeoutMsg = fallbackBid === 'PASS'
+        ? `Time expired — ${seat.playerName} automatically passed.`
+        : `Time expired — Forced dealer minimum bid of 16 placed for ${seat.playerName}.`;
+
       this.broadcastNotification(
         room, 
         'TIMEOUT_AUTO_PLAY', 
-        `⏱️ Time expired for ${seat.playerName}! Auto-bid: ${fallbackBid}.`
+        timeoutMsg
       );
 
       this.handleBid(room.code, seat.sessionToken, fallbackBid);
@@ -654,7 +679,7 @@ export class RoomManager {
       this.broadcastNotification(
         room, 
         'TIMEOUT_AUTO_PLAY', 
-        `⏱️ Time expired for ${seat.playerName}! Auto-selected secret trump.`
+        `Time expired — Secret trump automatically selected for ${seat.playerName}.`
       );
       this.handleSelectTrump(room.code, seat.sessionToken, bestSuit);
     } else if (room.gameState.phase === 'TRICK_PLAY') {
@@ -677,7 +702,7 @@ export class RoomManager {
       this.broadcastNotification(
         room, 
         'TIMEOUT_AUTO_PLAY', 
-        `⏱️ Time expired for ${seat.playerName}! Auto-played ${cardLabel}.`
+        `Time expired — ${seat.playerName} automatically played ${cardLabel}.`
       );
 
       this.handlePlayCard(room.code, seat.sessionToken, chosenCard);

@@ -6,10 +6,13 @@ export interface PlayingCardProps {
   faceDown?: boolean;
   isPlayable?: boolean;
   isSelected?: boolean;
+  isDragging?: boolean;
   disabled?: boolean;
   onClick?: () => void;
+  onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   className?: string;
+  style?: React.CSSProperties;
   animateThrow?: boolean;
   rotation?: number; // In degrees, for trick area natural scatter
 }
@@ -27,10 +30,13 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
   faceDown = false,
   isPlayable = false,
   isSelected = false,
+  isDragging = false,
   disabled = false,
   onClick,
+  onPointerDown,
   size = 'md',
   className = '',
+  style = {},
   animateThrow = false,
   rotation = 0,
 }) => {
@@ -45,47 +51,55 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
 
   const sizeClass = SIZE_CLASSES[size];
 
-  const handleClick = () => {
-    if (!disabled && isPlayable && onClick) {
-      onClick();
-    } else if (onClick && !disabled) {
+  const handleClick = (e: React.MouseEvent) => {
+    if (!disabled && onClick) {
       onClick();
     }
   };
 
+  const combinedTransform = [
+    rotation ? `rotate(${rotation}deg)` : '',
+    style.transform || '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <div
       onClick={handleClick}
+      onPointerDown={onPointerDown}
       style={{
-        transform: rotation ? `rotate(${rotation}deg)` : undefined,
+        ...style,
+        transform: combinedTransform || undefined,
       }}
       className={`
-        relative select-none transition-all duration-200 ease-out flex-shrink-0
+        relative select-none flex-shrink-0 bg-white opacity-100
         ${sizeClass}
-        ${isPlayable && !disabled ? 'cursor-pointer hover:-translate-y-4 hover:shadow-card-hover ring-2 ring-amber-400/90 shadow-lg' : ''}
-        ${isSelected ? '-translate-y-6 ring-4 ring-amber-400 shadow-2xl z-30' : ''}
-        ${disabled ? 'opacity-70 cursor-not-allowed filter brightness-75' : ''}
+        ${isPlayable && !disabled ? 'cursor-grab ring-2 ring-amber-400/90 shadow-lg' : ''}
+        ${isDragging ? 'cursor-grabbing shadow-2xl ring-4 ring-amber-400 z-50' : ''}
+        ${isSelected && !isDragging ? '-translate-y-6 ring-4 ring-amber-400 shadow-2xl z-30' : ''}
+        ${disabled ? 'cursor-not-allowed' : ''}
         ${animateThrow ? 'animate-throw' : ''}
         ${className}
       `}
       title={cardData ? `${cardData.name} (${cardData.points} pts)` : 'Face Down Card'}
     >
-      {/* Authentic Card Image */}
+      {/* Authentic Card Image (100% Fully Opaque) */}
       <img
         src={assetUrl}
         alt={cardData ? cardData.name : 'Card Back'}
         onError={() => setUseFallbackPng(true)}
-        className="w-full h-full object-contain filter drop-shadow-md pointer-events-none"
+        className="w-full h-full object-contain filter drop-shadow-md pointer-events-none rounded-inherit"
         loading="eager"
+        draggable={false}
       />
 
-      {/* Point badge on hover for playable cards */}
-      {isPlayable && cardData && cardData.points > 0 && (
-        <span className="absolute -top-2 -right-2 bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-md border border-amber-300">
+      {/* Point badge for scoring cards */}
+      {isPlayable && cardData && cardData.points > 0 && !isDragging && (
+        <span className="absolute -top-2 -right-2 bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-md border border-amber-300 pointer-events-none">
           +{cardData.points}
         </span>
       )}
     </div>
   );
 };
-

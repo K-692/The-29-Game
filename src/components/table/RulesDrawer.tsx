@@ -128,6 +128,19 @@ export const RulesDrawer: React.FC<RulesDrawerProps> = ({ isOpen, onClose }) => 
             First team to reach <strong>+6 points</strong> wins the match; reaching <strong>-6 points</strong> loses.
           </p>
         </section>
+
+        {/* Turn Timers & Physical Controls */}
+        <section className="space-y-2 bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800">
+          <h3 className="font-bold text-amber-400 text-sm flex items-center gap-1.5">
+            <Flame className="w-4 h-4 text-amber-400" /> 6. Turn Timers & Controls
+          </h3>
+          <ul className="list-disc pl-4 space-y-1.5 text-slate-400">
+            <li><strong>Bidding Timer (15s):</strong> Exactly 15 seconds per turn. Automatically passes on expiration (or bids 16 if forced dealer).</li>
+            <li><strong>Card Playing Timer (60s):</strong> 60 seconds per turn with server-authoritative auto-play fallback.</li>
+            <li><strong>Drag-to-Play:</strong> Drag any legal card from your hand onto the central table felt to play. Ordinary clicks alone never throw cards accidentally.</li>
+            <li><strong>Original Assets & Audio:</strong> Authentic EPS card artwork, table felt, and original sound effects with volume control and mute toggle.</li>
+          </ul>
+        </section>
       </div>
 
       {/* Footer */}
