@@ -213,9 +213,18 @@ export default function App() {
   };
 
   // In-Table Game Actions
-  const handleBid = (bid: number | 'PASS') => {
+  const handleBid = async (bid: number | 'PASS') => {
     soundManager.playChip();
-    lanClient.placeBid(bid);
+    const res = await lanClient.placeBid(bid);
+    if (!res.success && res.error) {
+      console.warn('Bid action rejected:', res.error);
+      soundManager.playError();
+      setNotification({
+        type: 'INFO',
+        message: res.error,
+        timestamp: Date.now(),
+      });
+    }
   };
 
   const handleSelectTrump = (choice: TrumpSelectionChoice) => {

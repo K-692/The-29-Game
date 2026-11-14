@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { GameRulesConfig, PlayerInfo, PlayerPosition } from '../../engine/types';
 import { getLegalBidOptions } from '../../engine/bidding';
-import { Clock, XCircle } from 'lucide-react';
+import { Clock, XCircle, Loader2 } from 'lucide-react';
 
 interface InTableBiddingProps {
   currentHighestBid: number;
@@ -28,6 +28,13 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
   remainingSeconds = 30,
   onPlaceBid,
 }) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Reset submitting state whenever activeBidder or turn changes
+  useEffect(() => {
+    setIsSubmitting(false);
+  }, [activeBidder, isMyTurn]);
+
   const legalOptions = getLegalBidOptions(currentHighestBid, rules);
 
   const activePlayer = players.find(
@@ -37,6 +44,12 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
   const activeName = activePlayer?.name || 'Player';
 
   const isUrgent = remainingSeconds <= 5;
+
+  const handleBidClick = (val: number | 'PASS') => {
+    if (isSubmitting || !isMyTurn) return;
+    setIsSubmitting(true);
+    onPlaceBid(val);
+  };
 
   return (
     <div className="w-full max-w-sm sm:max-w-md mx-auto bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3.5 z-30 select-none text-slate-900 animate-fade-in max-h-[85vh] overflow-y-auto">
@@ -82,8 +95,13 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
                 <button
                   key={val}
                   type="button"
-                  onClick={() => onPlaceBid(val)}
-                  className="py-2.5 sm:py-3 px-1 rounded-xl font-mono font-black text-sm sm:text-base bg-amber-50 hover:bg-amber-400 hover:text-slate-950 border border-amber-300 text-slate-900 shadow-sm transition-all active:scale-95 flex items-center justify-center cursor-pointer"
+                  disabled={isSubmitting}
+                  onClick={() => handleBidClick(val)}
+                  className={`py-2.5 sm:py-3 px-1 rounded-xl font-mono font-black text-sm sm:text-base border shadow-sm transition-all flex items-center justify-center ${
+                    isSubmitting
+                      ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
+                      : 'bg-amber-50 hover:bg-amber-400 hover:text-slate-950 border-amber-300 text-slate-900 active:scale-95 cursor-pointer'
+                  }`}
                   title={`Click to Bid ${val}`}
                 >
                   {val}
@@ -97,12 +115,26 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
             {!isForcedDealer ? (
               <button
                 type="button"
-                onClick={() => onPlaceBid('PASS')}
-                className="w-full py-3 px-4 rounded-xl font-black text-sm uppercase tracking-wider bg-rose-50 hover:bg-rose-100 active:scale-98 text-rose-700 border-2 border-rose-300 shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2"
+                disabled={isSubmitting}
+                onClick={() => handleBidClick('PASS')}
+                className={`w-full py-3 px-4 rounded-xl font-black text-sm uppercase tracking-wider border-2 shadow-sm transition-all flex items-center justify-center gap-2 ${
+                  isSubmitting
+                    ? 'bg-slate-100 text-slate-400 border-slate-300 cursor-not-allowed'
+                    : 'bg-rose-50 hover:bg-rose-100 active:scale-98 text-rose-700 border-rose-300 cursor-pointer'
+                }`}
                 title="Pass your bidding turn"
               >
-                <XCircle className="w-4 h-4 text-rose-600" />
-                PASS
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
+                    SUBMITTING...
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="w-4 h-4 text-rose-600" />
+                    PASS
+                  </>
+                )}
               </button>
             ) : (
               <div

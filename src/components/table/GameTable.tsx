@@ -21,6 +21,7 @@ import { InTableRoundSummary } from './InTableRoundSummary';
 import { MatchOverModal } from './MatchOverModal';
 import { RulesDrawer } from './RulesDrawer';
 import { DealerDealingAnimation } from './DealerDealingAnimation';
+import { CardPlayFlightAnimation } from './CardPlayFlightAnimation';
 import { InTableNotification } from '../../services/lanClient';
 import { 
   ArrowLeft, 
@@ -80,6 +81,26 @@ export const GameTable: React.FC<GameTableProps> = ({
       setShowDealingAnimation(true);
     }
   }, [publicState.phase, publicState.roundNumber]);
+
+  // Card-playing flight animation state
+  const [flyingCard, setFlyingCard] = useState<{
+    cardId: string;
+    playerIndex: PlayerPosition;
+  } | null>(null);
+
+  const prevTrickCardsCountRef = useRef<number>(publicState.currentTrickCards.length);
+
+  useEffect(() => {
+    const currentCount = publicState.currentTrickCards.length;
+    if (currentCount > prevTrickCardsCountRef.current && currentCount > 0) {
+      const latestCard = publicState.currentTrickCards[currentCount - 1];
+      setFlyingCard({
+        cardId: latestCard.cardId,
+        playerIndex: latestCard.playerIndex,
+      });
+    }
+    prevTrickCardsCountRef.current = currentCount;
+  }, [publicState.currentTrickCards]);
 
   // Drag-and-drop state coordinates between Table and Player Hand
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -215,15 +236,27 @@ export const GameTable: React.FC<GameTableProps> = ({
 
   const latestSummary = publicState.roundHistory[publicState.roundHistory.length - 1];
 
-  // Determine if it is a human turn for the bottom-right timer
-  const isHumanTurn = Boolean(
-    publicState.phase !== 'ROUND_ENDED' &&
-    publicState.phase !== 'MATCH_ENDED' &&
-    (
-      (publicState.phase === 'BIDDING' && isMyTurn) ||
-      (publicState.phase === 'TRUMP_SELECTION' && publicState.highestBidder === myPosition) ||
-      (publicState.phase === 'TRICK_PLAY' && isMyTurn)
-    )
+  // Authoritative Active Player resolution across all game phases
+  const activePlayerPos = 
+    publicState.phase === 'TRUMP_SELECTION'
+      ? (publicState.highestBidder ?? publicState.currentTurn)
+      : publicState.currentTurn;
+  const isMyActiveTurn = activePlayerPos === myPosition;
+  const isBottomTurn = activePlayerPos === myPosition;
+  const activePlayer = publicState.players.find((p) => p.position === activePlayerPos);
+  const activePlayerName = isMyActiveTurn ? 'You' : (activePlayer?.name || 'Player');
+  const activePlayerPoints = (publicState.playerPoints && publicState.playerPoints[activePlayerPos] !== undefined)
+    ? publicState.playerPoints[activePlayerPos]
+    : 0;
+
+  const highestBidderPlayer = publicState.players.find((p) => p.position === publicState.highestBidder);
+  const highestBidderName = highestBidderPlayer ? (highestBidderPlayer.position === myPosition ? 'You' : highestBidderPlayer.name) : 'None';
+
+  // Determine if turn countdown timer should be shown
+  const showTurnTimer = Boolean(
+    publicState.phase === 'BIDDING' ||
+    publicState.phase === 'TRUMP_SELECTION' ||
+    publicState.phase === 'TRICK_PLAY'
   );
 
   return (
@@ -235,43 +268,75 @@ export const GameTable: React.FC<GameTableProps> = ({
         className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0"
       />
 
-      {/* 2. Sleek Light Top Bar */}
-      <header className="relative z-30 bg-white/85 backdrop-blur-md border-b border-slate-200/80 px-3 sm:px-5 py-2 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-2 sm:gap-3">
+      {/* 2. Floating Top Controls (No reserved navbar height, no horizontal strip) */}
+      <div className="fixed top-2.5 left-2.5 right-2.5 sm:top-4 sm:left-5 sm:right-5 z-30 flex items-center justify-between pointer-events-none">
+        {/* Left Section: Back / Leave + Room Code */}
+        <div className="flex items-center gap-2 pointer-events-auto">
           <button
             onClick={onLeave}
-            className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors"
+            className="p-2 text-slate-700 hover:text-slate-950 bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md rounded-2xl transition-all active:scale-95 cursor-pointer"
             title="Leave Game to Lobby"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
 
-          <div className="flex items-center gap-2">
-            <img src="/assets/game_logo.png" alt="The 29 Game" className="w-7 h-7 object-contain drop-shadow" />
-            <div className="flex items-center gap-1.5 text-xs font-mono bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-xl text-slate-700 font-bold">
-              <Wifi className="w-3.5 h-3.5 text-emerald-600" />
+          <div className="flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md px-2.5 sm:px-3 py-1.5 rounded-2xl text-slate-800">
+            <img src="/assets/game_logo.png" alt="The 29 Game" className="w-5 h-5 sm:w-6 sm:h-6 object-contain drop-shadow" />
+            <div className="flex items-center gap-1 text-[11px] sm:text-xs font-mono font-bold">
+              <Wifi className="w-3 h-3 text-emerald-600" />
               <span>ROOM: {publicState.roomCode}</span>
             </div>
           </div>
         </div>
 
-        {/* Minimal Scoreboard in Center (Partnership colors, no Team A/B text) */}
-        <div className="hidden sm:flex items-center">
-          <Scoreboard publicState={publicState} myTeam={myTeam} />
+        {/* Center Section: Active Bidder Name & Avatar during Bidding OR Scoreboard during Trick Play */}
+        <div className="pointer-events-auto flex items-center">
+          {publicState.phase === 'BIDDING' ? (
+            <div
+              className={`bg-white/95 backdrop-blur-md border shadow-lg px-3.5 py-1.5 rounded-2xl flex items-center gap-2 text-xs sm:text-sm font-black transition-all animate-fade-in ${
+                (activePlayer?.team ?? 0) === 0
+                  ? 'border-sky-400 ring-2 ring-sky-300/40 text-sky-950'
+                  : 'border-rose-400 ring-2 ring-rose-300/40 text-rose-950'
+              }`}
+            >
+              <span className="text-base sm:text-lg leading-none" role="img" aria-label="Bidder Avatar">
+                {activePlayer?.avatar || '🦊'}
+              </span>
+              <span>
+                {isMyActiveTurn ? 'Your Turn to Bid' : `${activePlayerName} is bidding`}
+              </span>
+              {publicState.highestBid > 0 && (
+                <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-lg ml-1">
+                  High: {publicState.highestBid} ({highestBidderName})
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Scoreboard publicState={publicState} myTeam={myTeam} />
+              {publicState.highestBid > 0 && (
+                <div className="hidden md:flex items-center gap-1 bg-white/95 backdrop-blur-md border border-emerald-300 text-emerald-900 px-2.5 py-1 rounded-xl text-xs font-bold shadow-xs">
+                  <span>🏆 Bid:</span>
+                  <span className="font-mono font-black">{publicState.highestBid}</span>
+                  <span className="text-slate-500">({highestBidderName})</span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Right Section: Revealed Trump (Top-Right) & Audio Controls */}
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Revealed Trump Suit indicator at Top-Right (Only visible when officially revealed!) */}
+        {/* Right Section: Revealed Trump (Top-Right) & Audio Controls & Help */}
+        <div className="flex items-center gap-2 pointer-events-auto">
+          {/* Revealed Trump Suit indicator at Top-Right */}
           <div className="hidden xs:block">
             <RevealedTrumpTopRight publicState={publicState} />
           </div>
 
           {/* Sound Controls */}
-          <div className="flex items-center gap-1.5 bg-slate-100/90 border border-slate-200 px-2 py-1 rounded-xl">
+          <div className="flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md px-2 py-1.5 rounded-2xl text-slate-700">
             <button
               onClick={handleToggleSound}
-              className="p-1 text-slate-600 hover:text-slate-900 transition-colors"
+              className="p-1 hover:text-slate-950 transition-colors cursor-pointer"
               title={isMuted ? 'Unmute' : 'Mute'}
             >
               {isMuted || volume === 0 ? (
@@ -287,7 +352,7 @@ export const GameTable: React.FC<GameTableProps> = ({
               step="0.05"
               value={isMuted ? 0 : volume}
               onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-              className="w-14 sm:w-16 h-1.5 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-amber-500 hidden sm:block"
+              className="w-12 sm:w-16 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-amber-500 hidden sm:block"
               title={`Volume: ${Math.round(volume * 100)}%`}
               aria-label="Volume Slider"
             />
@@ -296,18 +361,12 @@ export const GameTable: React.FC<GameTableProps> = ({
           {/* Help Rules Toggle */}
           <button
             onClick={() => setShowRulesDrawer(true)}
-            className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors"
+            className="p-2 text-amber-600 hover:text-amber-700 bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md rounded-2xl transition-all active:scale-95 cursor-pointer"
             title="Open Rules & Reference (?)"
           >
-            <HelpCircle className="w-5 h-5 text-amber-600" />
+            <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
           </button>
         </div>
-      </header>
-
-      {/* Floating Scoreboard & Revealed Trump for Small Mobile Screens */}
-      <div className="sm:hidden relative z-20 flex items-center justify-between px-3 pt-2 gap-2">
-        <Scoreboard publicState={publicState} myTeam={myTeam} />
-        <RevealedTrumpTopRight publicState={publicState} />
       </div>
 
       {/* Floating In-Table Notification Toast (Non-winner alerts only) */}
@@ -338,7 +397,7 @@ export const GameTable: React.FC<GameTableProps> = ({
             <OpponentSeat
               player={partner}
               seatPosition="top"
-              isCurrentTurn={publicState.currentTurn === partnerPos}
+              isCurrentTurn={activePlayerPos === partnerPos}
               isDealer={publicState.dealerIndex === partnerPos}
               isBidder={publicState.highestBidder === partnerPos}
               bidAmount={publicState.highestBid || undefined}
@@ -353,7 +412,7 @@ export const GameTable: React.FC<GameTableProps> = ({
             <OpponentSeat
               player={leftOpponent}
               seatPosition="left"
-              isCurrentTurn={publicState.currentTurn === leftOpponentPos}
+              isCurrentTurn={activePlayerPos === leftOpponentPos}
               isDealer={publicState.dealerIndex === leftOpponentPos}
               isBidder={publicState.highestBidder === leftOpponentPos}
               bidAmount={publicState.highestBid || undefined}
@@ -368,7 +427,7 @@ export const GameTable: React.FC<GameTableProps> = ({
             <OpponentSeat
               player={rightOpponent}
               seatPosition="right"
-              isCurrentTurn={publicState.currentTurn === rightOpponentPos}
+              isCurrentTurn={activePlayerPos === rightOpponentPos}
               isDealer={publicState.dealerIndex === rightOpponentPos}
               isBidder={publicState.highestBidder === rightOpponentPos}
               bidAmount={publicState.highestBid || undefined}
@@ -465,16 +524,16 @@ export const GameTable: React.FC<GameTableProps> = ({
             <div
               id="seat-bottom"
               data-seat="bottom"
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-2xl transition-all duration-150 select-none shadow-md mb-1 ${
-                isMyTurn
-                  ? 'bg-amber-50/90 border-2 border-amber-400 ring-2 ring-amber-300/60 shadow-lg'
+              className={`relative flex items-center gap-2 px-3 py-1.5 rounded-2xl transition-all duration-200 select-none shadow-md mb-1 ${
+                isBottomTurn
+                  ? 'bg-sky-50/95 border-2 border-sky-400 ring-2 ring-sky-300/60 shadow-[0_0_18px_rgba(56,189,248,0.5)] text-slate-900'
                   : 'bg-white/95 border border-sky-200/90 text-slate-800'
               }`}
             >
               {/* Dealer Badge */}
               {publicState.dealerIndex === myPosition && (
                 <span
-                  className="bg-amber-400 text-slate-950 font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-md border border-amber-300"
+                  className="absolute -top-2 -left-2 bg-amber-400 text-slate-950 font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-md border border-amber-300 z-10"
                   title="Dealer"
                 >
                   D
@@ -484,10 +543,17 @@ export const GameTable: React.FC<GameTableProps> = ({
               {/* Bidder Badge */}
               {publicState.highestBidder === myPosition && publicState.highestBid && (
                 <span
-                  className="bg-emerald-600 text-white font-black text-[10px] px-1.5 py-0.5 rounded-full shadow-md"
+                  className="absolute -top-2 -right-2 bg-emerald-600 text-white font-black text-[10px] px-1.5 py-0.5 rounded-full shadow-md z-10"
                   title={`Winning Bidder: ${publicState.highestBid}`}
                 >
                   {publicState.highestBid}
+                </span>
+              )}
+
+              {/* Turn Indicator Tag */}
+              {isBottomTurn && (
+                <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider text-white bg-sky-500 shadow-xs z-10">
+                  TURN
                 </span>
               )}
 
@@ -533,25 +599,56 @@ export const GameTable: React.FC<GameTableProps> = ({
         />
       </div>
 
-      {/* 6. Bottom-Right Control: 30-Second Human Turn Timer (Item 8) */}
-      {isHumanTurn && (
-        <div
-          className={`fixed bottom-3 right-3 sm:bottom-4 sm:right-5 z-40 bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl px-3.5 sm:px-4 py-2 rounded-2xl flex items-center gap-2 select-none text-xs sm:text-sm font-bold transition-all ${
-            remainingSeconds <= 5
-              ? 'bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-300 animate-pulse'
-              : 'text-slate-800'
-          }`}
-          title="30-Second Human Turn Countdown"
-        >
-          <Clock className={`w-4 h-4 ${remainingSeconds <= 5 ? 'text-rose-600' : 'text-amber-500'}`} />
-          <div className="flex flex-col text-left leading-none">
-            <span className="text-[9px] sm:text-[10px] text-slate-400 uppercase tracking-wider font-extrabold">Turn Timer</span>
-            <span className="font-mono text-sm sm:text-base font-black">00:{remainingSeconds.toString().padStart(2, '0')}</span>
+      {/* 6. Bottom-Right Controls: 30-Second Turn Timer + Active Player Points Box (Item 2) */}
+      <div className="fixed bottom-3 right-3 sm:bottom-4 sm:right-5 z-40 flex items-center gap-2 select-none pointer-events-auto">
+        {/* Turn Timer */}
+        {showTurnTimer && (
+          <div
+            className={`bg-white/95 backdrop-blur-md border shadow-xl px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-2xl flex items-center gap-2 text-xs sm:text-sm font-bold transition-all ${
+              remainingSeconds <= 5
+                ? 'bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-300 animate-pulse'
+                : 'border-slate-200/90 text-slate-800'
+            }`}
+            title="30-Second Turn Countdown"
+          >
+            <Clock className={`w-4 h-4 ${remainingSeconds <= 5 ? 'text-rose-600' : 'text-amber-500'}`} />
+            <div className="flex flex-col text-left leading-none">
+              <span className="text-[9px] sm:text-[10px] text-slate-400 uppercase tracking-wider font-extrabold">Turn Timer</span>
+              <span className="font-mono text-sm sm:text-base font-black">00:{remainingSeconds.toString().padStart(2, '0')}</span>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Active Player Points Box (Immediately to the right of Turn Timer) */}
+        {publicState.phase !== 'ROUND_ENDED' && publicState.phase !== 'MATCH_ENDED' && (
+          <div
+            className="bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-2xl flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-800 transition-all"
+            title={`${isMyActiveTurn ? 'Your' : activePlayerName} collected trick points`}
+          >
+            <Sparkles className="w-4 h-4 text-amber-500" />
+            <div className="flex flex-col text-left leading-none">
+              <span className="text-[9px] sm:text-[10px] text-slate-400 uppercase tracking-wider font-extrabold">
+                {isMyActiveTurn ? 'Your Points' : `${activePlayerName}'s Pts`}
+              </span>
+              <span className="font-mono text-sm sm:text-base font-black text-amber-600">
+                {activePlayerPoints.toString().padStart(2, '0')}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 7. Card-Playing Flight Animation (Face-up smooth flight from player seat/hand to center trick) */}
+      {flyingCard && (
+        <CardPlayFlightAnimation
+          cardId={flyingCard.cardId}
+          playerIndex={flyingCard.playerIndex}
+          myPosition={myPosition}
+          onAnimationComplete={() => setFlyingCard(null)}
+        />
       )}
 
-      {/* 7. Dealer Distribution Animation (Item 12: 16 sequential deliveries from dealer) */}
+      {/* 8. Dealer Distribution Animation (16 sequential deliveries from dealer) */}
       {showDealingAnimation && (
         <DealerDealingAnimation
           dealerIndex={publicState.dealerIndex}

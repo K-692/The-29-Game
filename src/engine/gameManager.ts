@@ -199,22 +199,36 @@ export const applyBid = (
 
   const biddingStatus = evaluateBiddingState(newBids, state.dealerIndex, state.rules);
 
-  if (biddingStatus.isComplete && biddingStatus.highestBidder !== null) {
-    // Single-round complete: transition to TRUMP_SELECTION with winning bidder
-    return {
-      success: true,
-      state: {
-        ...state,
-        phase: 'TRUMP_SELECTION',
-        bids: newBids,
-        biddingTurnIndex: 4,
-        highestBid: biddingStatus.highestBid,
-        highestBidder: biddingStatus.highestBidder,
-        currentTurn: biddingStatus.highestBidder,
-        version: state.version + 1,
-        lastActionTimestamp: Date.now(),
-      },
-    };
+  if (biddingStatus.isComplete) {
+    if (biddingStatus.highestBidder !== null) {
+      // Single-round complete: transition to TRUMP_SELECTION with winning bidder
+      return {
+        success: true,
+        state: {
+          ...state,
+          phase: 'TRUMP_SELECTION',
+          bids: newBids,
+          biddingTurnIndex: 4,
+          highestBid: biddingStatus.highestBid,
+          highestBidder: biddingStatus.highestBidder,
+          currentTurn: biddingStatus.highestBidder,
+          version: state.version + 1,
+          lastActionTimestamp: Date.now(),
+        },
+      };
+    } else {
+      // All 4 passed without a bid: void deal, re-deal cards by advancing dealer
+      const nextDealer = ((state.dealerIndex + 1) % 4) as PlayerPosition;
+      const redealtState = startNewRound(state, nextDealer);
+      return {
+        success: true,
+        state: {
+          ...redealtState,
+          version: state.version + 1,
+          lastActionTimestamp: Date.now(),
+        },
+      };
+    }
   }
 
   return {

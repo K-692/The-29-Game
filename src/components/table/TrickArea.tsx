@@ -126,6 +126,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
   return (
     <div
       ref={dropZoneRef}
+      id="trick-area"
       className="relative w-80 h-64 sm:w-96 sm:h-72 md:w-[28rem] md:h-80 flex items-center justify-center select-none pointer-events-none"
     >
       {/* Invisible drop target hitbox */}

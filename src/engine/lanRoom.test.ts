@@ -275,4 +275,87 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     const hasTrickWonNotif = notifEvents.some((e: { event: string; data: any }) => e.data.message?.includes('Trick won'));
     expect(hasTrickWonNotif).toBe(false);
   });
+
+  it('should handle PASS actions sequentially from seats 1, 2, and 3, enforce dealer bid, and advance turns', () => {
+    const io = createMockIo();
+    const mgr = new RoomManager(io);
+    const hostSocket = createMockSocket('host_bidding_pass');
+    const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', { ...DEFAULT_RULES_CONFIG, forcedDealerBid: true }, 0);
+
+    mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
+    room.seats.forEach((s) => { s.isCpu = false; });
+
+    // Set dealer to Seat 0 (Alice), so bidding order is [1, 2, 3, 0]
+    room.gameState!.dealerIndex = 0;
+    room.gameState!.biddingOrder = [1, 2, 3, 0];
+    room.gameState!.biddingTurnIndex = 0;
+    room.gameState!.currentTurn = 1;
+    room.gameState!.bids = [];
+    room.gameState!.phase = 'BIDDING';
+
+    // Seat 1 tries out of turn? (Seat 2 tries to pass before Seat 1)
+    const outOfTurn = mgr.handleBid(room.code, room.seats[2].sessionToken, 'PASS');
+    expect(outOfTurn.success).toBe(false);
+    expect(outOfTurn.error).toContain('Not your turn');
+
+    // Seat 1 passes legally
+    const pass1 = mgr.handleBid(room.code, room.seats[1].sessionToken, 'PASS');
+    expect(pass1.success).toBe(true);
+    expect(room.gameState?.bids).toHaveLength(1);
+    expect(room.gameState?.bids[0]).toMatchObject({ playerIndex: 1, bid: 'PASS' });
+    expect(room.gameState?.currentTurn).toBe(2);
+
+    // Seat 2 passes legally
+    const pass2 = mgr.handleBid(room.code, room.seats[2].sessionToken, 'PASS');
+    expect(pass2.success).toBe(true);
+    expect(room.gameState?.bids).toHaveLength(2);
+    expect(room.gameState?.currentTurn).toBe(3);
+
+    // Seat 3 passes legally
+    const pass3 = mgr.handleBid(room.code, room.seats[3].sessionToken, 'PASS');
+    expect(pass3.success).toBe(true);
+    expect(room.gameState?.bids).toHaveLength(3);
+    expect(room.gameState?.currentTurn).toBe(0); // Dealer's turn!
+
+    // As dealer on 4th turn with all 3 previous players passed, dealer CANNOT pass when forcedDealerBid is true
+    const illegalDealerPass = mgr.handleBid(room.code, hostSeat.sessionToken, 'PASS');
+    expect(illegalDealerPass.success).toBe(false);
+    expect(illegalDealerPass.error).toContain('Dealer is required to make the minimum opening bid');
+
+    // Dealer bids 16 (minimum legal bid)
+    const dealerBid = mgr.handleBid(room.code, hostSeat.sessionToken, 16);
+    expect(dealerBid.success).toBe(true);
+    expect(room.gameState?.phase).toBe('TRUMP_SELECTION');
+    expect(room.gameState?.highestBid).toBe(16);
+    expect(room.gameState?.highestBidder).toBe(0);
+  });
+
+  it('should automatically re-deal cards when all 4 players pass and forced dealer is disabled', () => {
+    const io = createMockIo();
+    const mgr = new RoomManager(io);
+    const hostSocket = createMockSocket('host_all_pass');
+    const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', { ...DEFAULT_RULES_CONFIG, forcedDealerBid: false }, 0);
+
+    mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
+    room.seats.forEach((s) => { s.isCpu = false; });
+
+    // Set dealer to Seat 0, bidding order [1, 2, 3, 0]
+    room.gameState!.dealerIndex = 0;
+    room.gameState!.biddingOrder = [1, 2, 3, 0];
+    room.gameState!.biddingTurnIndex = 0;
+    room.gameState!.currentTurn = 1;
+    room.gameState!.bids = [];
+    room.gameState!.phase = 'BIDDING';
+
+    mgr.handleBid(room.code, room.seats[1].sessionToken, 'PASS');
+    mgr.handleBid(room.code, room.seats[2].sessionToken, 'PASS');
+    mgr.handleBid(room.code, room.seats[3].sessionToken, 'PASS');
+    const pass4 = mgr.handleBid(room.code, hostSeat.sessionToken, 'PASS');
+
+    expect(pass4.success).toBe(true);
+    // Void deal handled by redealing: dealer rotated to Seat 1, new deal in BIDDING phase!
+    expect(room.gameState?.dealerIndex).toBe(1);
+    expect(room.gameState?.phase).toBe('BIDDING');
+    expect(room.gameState?.bids).toHaveLength(0);
+  });
 });

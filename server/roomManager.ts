@@ -726,7 +726,8 @@ export class RoomManager {
   private executeTimeoutFallback(room: LanRoom, turnPosition: PlayerPosition) {
     if (!room.gameState) return;
 
-    const seat = room.seats[turnPosition];
+    const seat = room.seats.find((s) => s.position === turnPosition);
+    if (!seat) return;
     const playerHand = room.gameState.hands[turnPosition];
 
     if (room.gameState.phase === 'BIDDING') {
@@ -804,7 +805,7 @@ export class RoomManager {
       ? (room.gameState.highestBidder ?? room.gameState.currentTurn)
       : room.gameState.currentTurn;
 
-    const seat = room.seats[currentTurn];
+    const seat = room.seats.find((s) => s.position === currentTurn);
     if (!seat || !seat.isCpu) return;
 
     const botDelay = 900 + Math.floor(Math.random() * 400);

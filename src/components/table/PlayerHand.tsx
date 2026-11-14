@@ -145,8 +145,14 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
         soundManager.playSlide();
       }
     } else {
-      setClickHint('Drag card onto the table to play');
-      setTimeout(() => setClickHint(null), 2500);
+      // Single click / tap to play when it's your turn
+      if (isMyTurn && playableCardIds.includes(cardId)) {
+        soundManager.playCardPlace();
+        onPlayCard(cardId);
+      } else {
+        setClickHint('Drag card onto the table to play');
+        setTimeout(() => setClickHint(null), 2500);
+      }
     }
 
     setActiveDragCardId(null);
@@ -176,7 +182,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
   };
 
   return (
-    <div className="relative flex flex-col items-center w-full max-w-5xl mx-auto select-none overflow-visible">
+    <div id="player-hand" className="relative flex flex-col items-center w-full max-w-5xl mx-auto select-none overflow-visible">
       {/* Subtle feedback message only when user attempts an illegal click */}
       {clickHint && (
         <div className="mb-1 px-3 py-0.5 rounded-full bg-white/95 border border-slate-200 text-slate-700 font-semibold text-xs shadow-sm z-20 animate-fade-in">

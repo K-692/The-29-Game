@@ -7,15 +7,39 @@
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-black.svg?logo=socketdotio)](https://socket.io/)
 [![Express](https://img.shields.io/badge/Express-5.3-green.svg?logo=express)](https://expressjs.com/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-38bdf8.svg?logo=tailwind-css)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Vitest-37%2F37%20Passing-brightgreen.svg?logo=vitest)](https://vitest.dev/)
+[![Tests](https://img.shields.io/badge/Vitest-39%2F39%20Passing-brightgreen.svg?logo=vitest)](https://vitest.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> A modern, zero-install, real-time **LAN (Local Area Network)** multiplayer implementation of the traditional Indian **29 (Twenty-Nine)** trick-taking card game. Features authentic traditional Indian rules, edge-to-edge full-screen table felt (`table.jpg`), original vector playing-card artwork extracted directly from an EPS collection (`poker-cards-icons-collection/OIUGSZ1.eps`), larger cards with gentle horizontal overlap, bright minimalistic UI, consistent partnership colour schemes (Soft Blue & Soft Coral), animal emoji avatars, individual trick-point counters, clean 3-element direct-click bidding with prominent PASS button, bottom-right 30-second turn timer, bottom-left Ask to Reveal Trump button, top-right persistent revealed trump indicator, 3-second deal transition with sequential 16-card dealer distribution animation, 1-second trick collection animation, original sound effects (`sound-effects/`), physical drag-and-drop card playing, single-round auction with forced dealer opening, six trump options (including Joker / No Trump and 7th Card), first-bidder point-card eligibility redeals, and authentic Indian AI players.
+> A modern, zero-install, real-time **LAN (Local Area Network)** multiplayer implementation of the traditional Indian **29 (Twenty-Nine)** trick-taking card game. Features authentic traditional Indian rules, edge-to-edge full-screen table felt (`table.jpg`), original vector playing-card artwork extracted directly from an EPS collection (`poker-cards-icons-collection/OIUGSZ1.eps`), larger cards with gentle horizontal overlap, bright minimalistic UI, consistent partnership colour schemes (Soft Blue & Soft Coral), animal emoji avatars, bottom-right individual trick-point counters beside the 30-second turn timer, active bidder top-bar synchronization (`🦊 Aarav is bidding`), clean 3-element direct-click bidding with authoritative PASS button, card-playing face-up flight animations matching dealer-distribution quality, bottom-left Ask to Reveal Trump button, top-right persistent revealed trump indicator, 3-second deal transition with sequential 16-card dealer distribution animation, 1-second trick collection animation, floating utility controls (zero reserved navbar height), non-scrollable landing page (`100dvh`), original sound effects (`sound-effects/`), physical drag-and-drop card playing, single-round auction with forced dealer opening, six trump options (including Joker / No Trump and 7th Card), first-bidder point-card eligibility redeals, and authentic Indian AI players.
 
 ---
 
 ## 🌟 Key Highlights
 
+- **Active Bidder Display in Top Information Bar**:
+  - During the bidding phase, the name and avatar of the player whose bidding turn is currently active is displayed cleanly in the floating top area (e.g. `🦊 Aarav is bidding` or `🦊 Your Turn to Bid`).
+  - Seamlessly updates in real time as bidding progresses around the table and synchronizes across all four clients.
+  - Distinguishes between active bidder and current highest bidder (`High: 16 by Aarav`), retaining the winning bidder contract upon transition to trump selection and trick play.
+- **Bottom-Right Active Player Points & 30-Second Turn Timer**:
+  - The collected trick-points counter for the active player is positioned at the **bottom-right** of the window, immediately to the right of the turn timer (`Turn Timer: 00:28 | Your Points: 05`).
+  - Displays the personal card points collected by the active player during the current deal, updating after each trick won, and resetting upon each new deal.
+- **Authoritative Bidding PASS Button**:
+  - The PASS button authoritatively validates, submits, and advances turns without failure across human and CPU players.
+  - Rejects out-of-turn actions, handles forced dealer opening (16 minimum) when the first 3 players pass, and cleanly redeals cards when all 4 players pass with forced dealer disabled.
+  - Immediate optimistic UI submission state prevents duplicate clicks or race conditions.
+- **Card-Playing Face-Up Flight Animation**:
+  - When any player (bottom human or left/top/right CPU/LAN players) plays a card, the exact card face visibly glides across the table into its slot in the central trick arrangement.
+  - Employs identical smooth easing (`cubic-bezier(0.2, 0.8, 0.2, 1)`), 300ms duration, and layout coordinate calculations as the dealer distribution animation.
+  - Preserves authoritative server validation: the card is removed from the player's hand only once verified by the server.
+- **Active Player Seat Highlighting in Partnership Colours**:
+  - The currently active player is highlighted using the partnership colour scheme (Soft Blue for Partnership 1, Soft Coral for Partnership 2).
+  - Subtle glowing outline (`ring-2 ring-sky-400` or `ring-2 ring-rose-400`) and a compact `TURN` badge clearly identify who must act without jarring popups or jumping boxes.
+- **Floating Top Controls (Zero Reserved Navbar Height)**:
+  - Eliminated the opaque header bar strip to maximise screen space for the full-screen felt table.
+  - Utility controls (Back/Leave, Room Code, Scoreboard, Revealed Trump, Volume slider, Rules `?`) float as sleek, translucent pills along the top edge of the main table.
+- **Non-Scrollable Landing Page (`100dvh`)**:
+  - The landing page adapts responsively to fit `100dvh` / `100vw` without vertical or horizontal scrollbars across desktop, laptops, tablets, and phones.
+  - Removed the development-only "View 32 Original Card Assets" button from the landing view while keeping the full EPS card asset pipeline and manifest intact.
 - **Full-Screen Edge-to-Edge Table (`table.jpg`)**:
   - The game table occupies **100% of the browser viewport width and height** without outer containers, black bars, or constrained aspect boxes.
   - The authentic wooden-rimmed green felt (`table.jpg`) acts as the full-screen canvas with edge-to-edge rendering.

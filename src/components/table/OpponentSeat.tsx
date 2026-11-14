@@ -28,9 +28,11 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
     <div
       id={`seat-${seatPosition}`}
       data-seat={seatPosition}
-      className={`relative flex items-center gap-2 px-3 py-1.5 rounded-2xl transition-all duration-150 select-none shadow-md ${
+      className={`relative flex items-center gap-2 px-3 py-1.5 rounded-2xl transition-all duration-200 select-none shadow-md ${
         isCurrentTurn
-          ? 'bg-amber-50/90 border-2 border-amber-400 ring-2 ring-amber-300/60 shadow-lg'
+          ? isPartnership1
+            ? 'bg-sky-50/95 border-2 border-sky-400 ring-2 ring-sky-300/60 shadow-[0_0_16px_rgba(56,189,248,0.45)] text-slate-900'
+            : 'bg-rose-50/95 border-2 border-rose-400 ring-2 ring-rose-300/60 shadow-[0_0_16px_rgba(251,113,133,0.45)] text-slate-900'
           : isPartnership1
           ? 'bg-white/95 border border-sky-200/90 text-slate-800'
           : 'bg-white/95 border border-rose-200/90 text-slate-800'
@@ -53,6 +55,17 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
           title={`Winning Bidder: ${bidAmount}`}
         >
           {bidAmount}
+        </span>
+      )}
+
+      {/* Turn Indicator Tag */}
+      {isCurrentTurn && (
+        <span
+          className={`absolute -bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider text-white shadow-xs z-10 ${
+            isPartnership1 ? 'bg-sky-500' : 'bg-rose-500'
+          }`}
+        >
+          TURN
         </span>
       )}
 
