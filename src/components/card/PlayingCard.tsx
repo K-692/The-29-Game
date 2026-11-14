@@ -14,15 +14,16 @@ export interface PlayingCardProps {
   className?: string;
   style?: React.CSSProperties;
   animateThrow?: boolean;
-  rotation?: number; // In degrees, for trick area natural scatter
+  rotation?: number; // In degrees, for natural scatter
 }
 
+// Increased card dimensions for prominent, readable cards
 const SIZE_CLASSES = {
-  xs: 'w-10 h-14 rounded-sm',
-  sm: 'w-14 h-20 rounded-md',
-  md: 'w-20 h-28 sm:w-24 sm:h-34 rounded-lg',
-  lg: 'w-24 h-34 sm:w-28 sm:h-40 rounded-xl',
-  xl: 'w-32 h-44 sm:w-36 sm:h-50 rounded-2xl',
+  xs: 'w-12 h-[4.2rem] rounded-md',
+  sm: 'w-16 h-[5.6rem] rounded-lg',
+  md: 'w-22 h-[7.7rem] sm:w-26 sm:h-[9.1rem] md:w-30 md:h-[10.5rem] lg:w-32 lg:h-[11.2rem] rounded-xl',
+  lg: 'w-26 h-[9.1rem] sm:w-30 sm:h-[10.5rem] md:w-34 md:h-[11.9rem] rounded-xl',
+  xl: 'w-32 h-[11.2rem] sm:w-38 sm:h-[13.3rem] rounded-2xl',
 };
 
 export const PlayingCard: React.FC<PlayingCardProps> = ({
@@ -73,30 +74,30 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
         transform: combinedTransform || undefined,
       }}
       className={`
-        relative select-none flex-shrink-0 bg-white opacity-100
+        relative select-none flex-shrink-0 bg-white opacity-100 rounded-xl
         ${sizeClass}
-        ${isPlayable && !disabled ? 'cursor-grab ring-2 ring-amber-400/90 shadow-lg' : ''}
+        ${isPlayable && !disabled ? 'cursor-grab shadow-lg ring-2 ring-amber-400' : 'shadow-md'}
         ${isDragging ? 'cursor-grabbing shadow-2xl ring-4 ring-amber-400 z-50' : ''}
-        ${isSelected && !isDragging ? '-translate-y-6 ring-4 ring-amber-400 shadow-2xl z-30' : ''}
-        ${disabled ? 'cursor-not-allowed' : ''}
+        ${isSelected && !isDragging ? '-translate-y-8 ring-4 ring-amber-400 shadow-2xl z-30' : ''}
+        ${disabled ? 'cursor-not-allowed opacity-90' : ''}
         ${animateThrow ? 'animate-throw' : ''}
         ${className}
       `}
       title={cardData ? `${cardData.name} (${cardData.points} pts)` : 'Face Down Card'}
     >
-      {/* Authentic Card Image (100% Fully Opaque) */}
+      {/* Authentic Card Image (100% Fully Opaque Pure White Background) */}
       <img
         src={assetUrl}
         alt={cardData ? cardData.name : 'Card Back'}
         onError={() => setUseFallbackPng(true)}
-        className="w-full h-full object-contain filter drop-shadow-md pointer-events-none rounded-inherit"
+        className="w-full h-full object-contain filter drop-shadow-sm pointer-events-none rounded-xl"
         loading="eager"
         draggable={false}
       />
 
       {/* Point badge for scoring cards */}
       {isPlayable && cardData && cardData.points > 0 && !isDragging && (
-        <span className="absolute -top-2 -right-2 bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-md border border-amber-300 pointer-events-none">
+        <span className="absolute -top-2 -right-2 bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-md border border-amber-200 pointer-events-none">
           +{cardData.points}
         </span>
       )}

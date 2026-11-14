@@ -1,30 +1,33 @@
-import React from 'react';
-import { PlayedCard, PlayerInfo, PlayerPosition } from '../../engine/types';
+import React, { useEffect, useState, useRef } from 'react';
+import { CompletedTrick, PlayedCard, PlayerInfo, PlayerPosition } from '../../engine/types';
 import { PlayingCard } from '../card/PlayingCard';
-import { Target, Sparkles } from 'lucide-react';
+import { soundManager } from '../../common/SoundManager';
 
 interface TrickAreaProps {
   playedCards: PlayedCard[];
   players: PlayerInfo[];
   myPosition: PlayerPosition;
-  trickNumber: number;
-  isDropTargetActive?: boolean;
-  isHoveredOverDropTarget?: boolean;
+  completedTricks: CompletedTrick[];
   dropZoneRef?: React.Ref<HTMLDivElement>;
 }
 
 // Fixed slight rotation angles for natural card feel
-const CARD_ROTATIONS = [-3, 4, -2, 3];
+const CARD_ROTATIONS = [-2, 3, -3, 2];
 
 export const TrickArea: React.FC<TrickAreaProps> = ({
   playedCards,
   players,
   myPosition,
-  trickNumber,
-  isDropTargetActive = false,
-  isHoveredOverDropTarget = false,
+  completedTricks,
   dropZoneRef,
 }) => {
+  // Animation state for 1-second pause & smooth collection towards winning seat
+  const [animatingCards, setAnimatingCards] = useState<PlayedCard[] | null>(null);
+  const [collectTarget, setCollectTarget] = useState<'bottom' | 'left' | 'top' | 'right' | null>(null);
+  const [isCollecting, setIsCollecting] = useState<boolean>(false);
+
+  const prevCompletedCountRef = useRef(completedTricks.length);
+
   // Map player absolute position (0..3) to relative table position (bottom, left, top, right)
   const getRelativePosition = (pos: PlayerPosition): 'bottom' | 'left' | 'top' | 'right' => {
     const diff = (pos - myPosition + 4) % 4;
@@ -37,77 +40,104 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
     }
   };
 
+  // When a trick completes (completedTricks count increases), execute the 1-second pause & collection animation
+  useEffect(() => {
+    if (completedTricks.length > prevCompletedCountRef.current) {
+      const lastTrick = completedTricks[completedTricks.length - 1];
+      if (lastTrick && lastTrick.cards && lastTrick.cards.length === 4) {
+        // Step 1: Keep all 4 cards visible for exactly 1 second
+        setAnimatingCards(lastTrick.cards);
+        setIsCollecting(false);
+        setCollectTarget(getRelativePosition(lastTrick.winner));
+
+        // Step 2: At 1000ms, start collection animation towards winning player's seat
+        const collectTimer = setTimeout(() => {
+          setIsCollecting(true);
+          soundManager.playCardShove();
+        }, 1000);
+
+        // Step 3: At 1500ms, complete the animation and clear trick area
+        const endTimer = setTimeout(() => {
+          setAnimatingCards(null);
+          setIsCollecting(false);
+          setCollectTarget(null);
+        }, 1550);
+
+        prevCompletedCountRef.current = completedTricks.length;
+        return () => {
+          clearTimeout(collectTimer);
+          clearTimeout(endTimer);
+        };
+      }
+    }
+    prevCompletedCountRef.current = completedTricks.length;
+  }, [completedTricks.length, myPosition]);
+
+  const cardsToRender = animatingCards || playedCards;
+
   const getPositionStyles = (relPos: 'bottom' | 'left' | 'top' | 'right') => {
     switch (relPos) {
       case 'bottom':
-        return 'bottom-1 sm:bottom-2 left-1/2 -translate-x-1/2';
+        return 'bottom-2 left-1/2 -translate-x-1/2';
       case 'top':
-        return 'top-1 sm:top-2 left-1/2 -translate-x-1/2';
+        return 'top-2 left-1/2 -translate-x-1/2';
       case 'left':
-        return 'left-1 sm:left-2 top-1/2 -translate-y-1/2';
+        return 'left-2 top-1/2 -translate-y-1/2';
       case 'right':
-        return 'right-1 sm:right-2 top-1/2 -translate-y-1/2';
+        return 'right-2 top-1/2 -translate-y-1/2';
+    }
+  };
+
+  const getCollectionTransform = (target: 'bottom' | 'left' | 'top' | 'right') => {
+    switch (target) {
+      case 'bottom':
+        return 'translate3d(0, 260px, 0) scale(0.15) opacity(0)';
+      case 'top':
+        return 'translate3d(0, -260px, 0) scale(0.15) opacity(0)';
+      case 'left':
+        return 'translate3d(-320px, 0, 0) scale(0.15) opacity(0)';
+      case 'right':
+        return 'translate3d(320px, 0, 0) scale(0.15) opacity(0)';
     }
   };
 
   return (
     <div
       ref={dropZoneRef}
-      className={`
-        relative w-64 h-48 sm:w-80 sm:h-56 md:w-96 md:h-64 rounded-3xl
-        flex items-center justify-center transition-all duration-200 select-none
-        ${
-          isHoveredOverDropTarget
-            ? 'ring-4 ring-amber-400 bg-amber-500/20 shadow-2xl scale-105'
-            : isDropTargetActive
-            ? 'border-2 border-dashed border-amber-400/80 bg-emerald-950/40 shadow-xl'
-            : 'border border-emerald-500/20 bg-emerald-950/20'
-        }
-      `}
+      className="relative w-72 h-56 sm:w-96 sm:h-72 md:w-[28rem] md:h-80 flex items-center justify-center select-none pointer-events-none"
     >
-      {/* Visual Drop Target Highlight when dragging a card */}
-      {isDropTargetActive && (
-        <div className="absolute inset-0 rounded-3xl flex flex-col items-center justify-center pointer-events-none z-20 animate-pulse">
-          <div className={`p-2.5 rounded-full ${isHoveredOverDropTarget ? 'bg-amber-400 text-slate-950' : 'bg-slate-900/90 text-amber-300 border border-amber-400/50'}`}>
-            <Target className="w-6 h-6 animate-spin" />
-          </div>
-          <span className={`text-xs font-black uppercase tracking-wider mt-1 px-3 py-1 rounded-full shadow ${isHoveredOverDropTarget ? 'bg-amber-400 text-slate-950' : 'bg-slate-900/90 text-amber-300'}`}>
-            {isHoveredOverDropTarget ? 'Release to Throw Card!' : 'Drop Card Here'}
-          </span>
-        </div>
-      )}
-
-      {/* Central Watermark (Shown when not dragging) */}
-      {!isDropTargetActive && playedCards.length === 0 && (
-        <div className="text-center select-none pointer-events-none opacity-40">
-          <div className="text-3xl sm:text-4xl font-black text-amber-300/80 font-serif tracking-widest">29</div>
-          <div className="text-[10px] tracking-widest text-emerald-100 uppercase font-bold mt-0.5">
-            Trick {trickNumber} / 8
-          </div>
-        </div>
-      )}
+      {/* Invisible drop target hitbox (no visible border, no highlight, no background) */}
+      <div className="absolute inset-0 pointer-events-auto" />
 
       {/* Played Cards in Trick */}
-      {playedCards.map((pc, idx) => {
-        const player = players.find((p) => p.position === pc.playerIndex);
+      {cardsToRender.map((pc, idx) => {
         const relPos = getRelativePosition(pc.playerIndex);
         const posClass = getPositionStyles(relPos);
         const rotation = CARD_ROTATIONS[idx % CARD_ROTATIONS.length];
 
+        let collectStyle = '';
+        if (isCollecting && collectTarget) {
+          collectStyle = getCollectionTransform(collectTarget);
+        }
+
         return (
           <div
             key={`${pc.cardId}_${pc.playerIndex}`}
-            className={`absolute ${posClass} flex flex-col items-center z-10 transition-all duration-300 transform scale-90 sm:scale-95`}
+            style={{
+              transform: collectStyle || undefined,
+              transition: isCollecting
+                ? 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.45s ease-in'
+                : 'none',
+            }}
+            className={`absolute ${posClass} z-10`}
           >
             <PlayingCard
               cardId={pc.cardId}
-              rotation={rotation}
+              faceDown={false}
               size="md"
-              className="shadow-2xl ring-1 ring-slate-900/30"
+              rotation={rotation}
+              className="shadow-2xl rounded-xl"
             />
-            <span className="text-[10px] font-bold text-slate-200 bg-slate-950/90 px-2 py-0.5 rounded-full mt-1 border border-slate-700/80 max-w-[90px] truncate shadow">
-              {player ? player.name : `P${pc.playerIndex}`}
-            </span>
           </div>
         );
       })}

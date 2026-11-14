@@ -7,6 +7,7 @@ export interface LanSeat {
   team: Team;
   playerId: string;
   playerName: string;
+  avatar?: string;
   isHost: boolean;
   isCpu: boolean;
   connected: boolean;

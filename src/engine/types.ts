@@ -45,6 +45,7 @@ export interface PlayerInfo {
   isReady: boolean;
   connected: boolean;
   avatarSeed?: string;
+  avatar?: string; // Animal / character emoji (🦊, 🐼, 🐯, 🦁, etc.)
 }
 
 export interface BidEntry {
@@ -148,6 +149,9 @@ export interface GameState {
   // Pair declaration
   pairDeclaration: PairDeclaration | null;
   
+  // Individual card points collected in current deal
+  playerPoints: Record<PlayerPosition, number>;
+
   // Match scores
   roundNumber: number;
   matchScore: { team0: number; team1: number };

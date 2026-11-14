@@ -34,11 +34,27 @@ import { getPlayableCards } from '../src/engine/tricks.js';
 import { isLegalBid } from '../src/engine/bidding.js';
 import { getRandomBotNames } from '../src/engine/botNames.js';
 
+export const ANIMAL_AVATARS = [
+  '🦊', '🐼', '🐯', '🐸', '🦁', '🐻', '🐵', '🐺', 
+  '🐨', '🦉', '🐧', '🐱', '🐰', '🦄', '🦖', '🦋'
+];
+
+export function getRandomDistinctAvatars(count: number, exclude: string[] = []): string[] {
+  const excludeSet = new Set(exclude);
+  const pool = ANIMAL_AVATARS.filter((a) => !excludeSet.has(a));
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, count);
+}
+
 export interface SeatInfo {
   position: PlayerPosition;
   team: Team;
   playerId: string;
   playerName: string;
+  avatar: string;
   isHost: boolean;
   isCpu: boolean;
   socketId: string | null;
@@ -101,6 +117,7 @@ export class RoomManager {
     const code = this.generateRoomCode();
     const hostId = socket.id;
     const sessionToken = this.generateSessionToken();
+    const initialAvatars = getRandomDistinctAvatars(4);
 
     const seats: SeatInfo[] = [
       {
@@ -108,6 +125,7 @@ export class RoomManager {
         team: 0,
         playerId: preferredSeat === 0 ? hostId : '',
         playerName: preferredSeat === 0 ? hostName : 'Empty Seat (Bottom - Team A)',
+        avatar: initialAvatars[0],
         isHost: preferredSeat === 0,
         isCpu: false,
         socketId: preferredSeat === 0 ? socket.id : null,
@@ -119,6 +137,7 @@ export class RoomManager {
         team: 1,
         playerId: preferredSeat === 1 ? hostId : '',
         playerName: preferredSeat === 1 ? hostName : 'Empty Seat (Left - Team B)',
+        avatar: initialAvatars[1],
         isHost: preferredSeat === 1,
         isCpu: false,
         socketId: preferredSeat === 1 ? socket.id : null,
@@ -130,6 +149,7 @@ export class RoomManager {
         team: 0,
         playerId: preferredSeat === 2 ? hostId : '',
         playerName: preferredSeat === 2 ? hostName : 'Empty Seat (Top - Team A)',
+        avatar: initialAvatars[2],
         isHost: preferredSeat === 2,
         isCpu: false,
         socketId: preferredSeat === 2 ? socket.id : null,
@@ -141,6 +161,7 @@ export class RoomManager {
         team: 1,
         playerId: preferredSeat === 3 ? hostId : '',
         playerName: preferredSeat === 3 ? hostName : 'Empty Seat (Right - Team B)',
+        avatar: initialAvatars[3],
         isHost: preferredSeat === 3,
         isCpu: false,
         socketId: preferredSeat === 3 ? socket.id : null,
@@ -238,6 +259,7 @@ export class RoomManager {
 
     // Vacate current seat
     const prevName = currentSeat.playerName;
+    const prevAvatar = currentSeat.avatar;
     const isHost = currentSeat.isHost;
 
     currentSeat.playerId = '';
@@ -250,6 +272,7 @@ export class RoomManager {
     // Occupy target seat
     targetSeat.playerId = socket.id;
     targetSeat.playerName = prevName;
+    targetSeat.avatar = prevAvatar;
     targetSeat.socketId = socket.id;
     targetSeat.connected = true;
     targetSeat.sessionToken = sessionToken;
@@ -346,10 +369,16 @@ export class RoomManager {
       .filter((s) => s.connected && s.socketId && !s.isCpu)
       .map((s) => s.playerName);
 
+    const existingAvatars = room.seats
+      .filter((s) => s.connected && s.socketId && !s.isCpu)
+      .map((s) => s.avatar);
+
     const vacantSeats = room.seats.filter((s) => !s.connected || !s.socketId);
     const botNames = getRandomBotNames(vacantSeats.length, existingHumanNames);
+    const newAvatars = getRandomDistinctAvatars(vacantSeats.length, existingAvatars);
 
     let botIdx = 0;
+    let avatarIdx = 0;
     const players: PlayerInfo[] = [];
 
     room.seats.forEach((seat) => {
@@ -359,11 +388,13 @@ export class RoomManager {
         seat.sessionToken = `tok_cpu_${seat.position}_${Math.random().toString(36).substring(2, 9)}`;
         seat.playerId = `cpu_${seat.position}_${Math.random().toString(36).substring(2, 6)}`;
         seat.playerName = botNames[botIdx++] || `Player ${seat.position + 1}`;
+        seat.avatar = newAvatars[avatarIdx++] || seat.avatar || '🦊';
       }
 
       players.push({
         id: seat.playerId,
         name: seat.playerName,
+        avatar: seat.avatar,
         position: seat.position,
         team: seat.team,
         isHost: seat.isHost,
@@ -567,12 +598,20 @@ export class RoomManager {
       this.broadcastNotification(
         room, 
         'INFO', 
-        `Trick #${lastTrick.trickNumber} won by ${winnerPlayer?.name} (+${lastTrick.points} pts)`
+        `Trick won by ${winnerPlayer?.name} (+${lastTrick.points} pts)`
       );
-    }
 
-    this.startTurnTimer(room);
-    this.checkAndExecuteBotTurn(room);
+      // Delay next turn timer & bot action by 1600ms so all connected clients observe
+      // the complete 4-card trick for 1 second, followed by smooth collection animation
+      setTimeout(() => {
+        if (!room.gameState || room.gameState.phase !== 'TRICK_PLAY') return;
+        this.startTurnTimer(room);
+        this.checkAndExecuteBotTurn(room);
+      }, 1600);
+    } else {
+      this.startTurnTimer(room);
+      this.checkAndExecuteBotTurn(room);
+    }
 
     return { success: true };
   }
@@ -643,8 +682,7 @@ export class RoomManager {
       return;
     }
 
-    const isBidding = room.gameState.phase === 'BIDDING';
-    const totalDuration = isBidding ? 15 : 60; // 15s bidding countdown, 60s trick/trump
+    const totalDuration = 30; // Exactly 30 seconds for all human turns (Bidding, Trump, Play)
     room.remainingSeconds = totalDuration;
     room.turnDeadline = Date.now() + totalDuration * 1000;
 
@@ -854,6 +892,7 @@ export class RoomManager {
         team: s.team,
         playerId: s.playerId,
         playerName: s.playerName,
+        avatar: s.avatar,
         isHost: s.isHost,
         isCpu: s.isCpu,
         connected: s.connected,

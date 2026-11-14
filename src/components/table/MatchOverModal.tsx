@@ -37,40 +37,40 @@ export const MatchOverModal: React.FC<MatchOverModalProps> = ({
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in">
-      <div className="bg-slate-900 border-2 border-amber-500 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center space-y-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center space-y-6">
         <div className="flex justify-center">
-          <div className="w-20 h-20 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center border-2 border-amber-400 shadow-2xl animate-bounce">
+          <div className="w-20 h-20 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center border border-amber-300 shadow-lg animate-bounce">
             <Trophy className="w-10 h-10" />
           </div>
         </div>
 
         <div className="space-y-1">
-          <h2 className="text-3xl font-black text-slate-100">
+          <h2 className="text-3xl font-black text-slate-800">
             {isMyTeamWinner ? 'VICTORY!' : 'MATCH OVER'}
           </h2>
-          <p className="text-sm font-bold text-amber-400">
-            {winnerTeam === 0 ? 'Team A (P1 & P3)' : 'Team B (P2 & P4)'} Wins the Match!
+          <p className="text-sm font-bold text-amber-600">
+            {winnerTeam === 0 ? 'Team A (Seats 1 & 3)' : 'Team B (Seats 2 & 4)'} Wins the Match!
           </p>
         </div>
 
         {/* Final Standings */}
-        <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
-          <span className="text-xs text-slate-400 font-bold uppercase tracking-wider block">
-            Final Match Score
+        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2">
+          <span className="text-xs text-slate-500 font-bold uppercase tracking-wider block">
+            Final Match Score (+6 to Win)
           </span>
-          <div className="flex items-center justify-center gap-6 text-xl font-mono font-black">
+          <div className="flex items-center justify-center gap-6 text-xl font-mono font-bold">
             <div className="text-center">
-              <span className="text-xs text-slate-400 block font-sans">Team A</span>
-              <span className={finalScore.team0 >= 6 ? 'text-emerald-400' : 'text-slate-300'}>
-                {finalScore.team0}
+              <span className="text-xs text-slate-500 block font-sans">Team A</span>
+              <span className={finalScore.team0 >= 6 ? 'text-emerald-600 font-black' : 'text-slate-800'}>
+                {finalScore.team0 > 0 ? `+${finalScore.team0}` : finalScore.team0}
               </span>
             </div>
-            <span className="text-slate-700">vs</span>
+            <span className="text-slate-300">vs</span>
             <div className="text-center">
-              <span className="text-xs text-slate-400 block font-sans">Team B</span>
-              <span className={finalScore.team1 >= 6 ? 'text-amber-400' : 'text-slate-300'}>
-                {finalScore.team1}
+              <span className="text-xs text-slate-500 block font-sans">Team B</span>
+              <span className={finalScore.team1 >= 6 ? 'text-blue-600 font-black' : 'text-slate-800'}>
+                {finalScore.team1 > 0 ? `+${finalScore.team1}` : finalScore.team1}
               </span>
             </div>
           </div>
@@ -80,7 +80,7 @@ export const MatchOverModal: React.FC<MatchOverModalProps> = ({
         <div className="flex flex-col sm:flex-row gap-3 pt-2">
           <button
             onClick={onExit}
-            className="flex-1 py-3 rounded-xl font-bold text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all flex items-center justify-center gap-2"
+            className="flex-1 py-3 rounded-xl font-bold text-sm bg-slate-100 hover:bg-slate-200 active:scale-98 text-slate-700 border border-slate-200 transition-all flex items-center justify-center gap-2"
           >
             <Home className="w-4 h-4" /> Home
           </button>
@@ -88,7 +88,7 @@ export const MatchOverModal: React.FC<MatchOverModalProps> = ({
           {isHost && (
             <button
               onClick={onRematch}
-              className="flex-1 py-3 rounded-xl font-black text-sm bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-xl shadow-amber-500/25 transition-all flex items-center justify-center gap-2"
+              className="flex-1 py-3 rounded-xl font-bold text-sm bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 shadow-md transition-all flex items-center justify-center gap-2"
             >
               <RotateCcw className="w-4 h-4" /> Rematch
             </button>
@@ -98,4 +98,3 @@ export const MatchOverModal: React.FC<MatchOverModalProps> = ({
     </div>
   );
 };
-

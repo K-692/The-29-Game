@@ -225,6 +225,10 @@ class SoundManager {
     this.play('shove');
   }
 
+  public playCardShove() {
+    this.playTrickShove();
+  }
+
   // Backward compatibility alias methods
   public playCard() {
     this.playCardPlace();

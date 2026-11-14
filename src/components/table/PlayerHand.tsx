@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { PlayingCard } from '../card/PlayingCard';
 import { soundManager } from '../../common/SoundManager';
-import { Hand, Sparkles } from 'lucide-react';
+import { Hand } from 'lucide-react';
 
 export interface DragState {
   isDragging: boolean;
@@ -41,22 +41,19 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
     return null;
   }
 
-  // Calculate horizontal overlap based on card count
-  // 8 cards: tighter overlap so cards fit cleanly on screen
-  // 4 cards or fewer: relaxed overlap
+  // Calculate generous horizontal spacing with reduced overlap
   const getOverlapMargin = (index: number) => {
     if (index === 0) return 'ml-0';
     if (cardIds.length >= 7) {
-      return '-ml-12 sm:-ml-14 md:-ml-16';
+      return '-ml-5 sm:-ml-8 md:-ml-10 lg:-ml-12';
     }
     if (cardIds.length >= 5) {
-      return '-ml-9 sm:-ml-11 md:-ml-13';
+      return '-ml-4 sm:-ml-6 md:-ml-8 lg:-ml-9';
     }
-    return '-ml-6 sm:-ml-8 md:-ml-10';
+    return '-ml-2 sm:-ml-4 md:-ml-5 lg:ml-2';
   };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>, cardId: string) => {
-    // Only allow initiating drag if it's player's turn and not disabled
     if (disabled || !isMyTurn) {
       setClickHint('Wait for your turn to play');
       setTimeout(() => setClickHint(null), 2500);
@@ -99,7 +96,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
 
       setDragOffset({ x: dx, y: dy });
 
-      // Determine if current pointer is inside drop target
+      // Determine if pointer is inside the generous invisible drop hitbox
       let isOver = false;
       if (dropTargetRect) {
         isOver = (
@@ -109,7 +106,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
           e.clientY <= dropTargetRect.bottom
         );
       } else {
-        // Fallback: if pointer dragged upward significantly into central table
+        // Fallback: dragged upward into table center
         isOver = dy < -100;
       }
 
@@ -129,7 +126,6 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
     } catch {}
 
     if (isActualDrag) {
-      // Check if dropped within valid drop target
       let isOver = false;
       if (dropTargetRect) {
         isOver = (
@@ -143,15 +139,12 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
       }
 
       if (isOver && playableCardIds.includes(cardId)) {
-        // Valid drop! Play card
         soundManager.playCardPlace();
         onPlayCard(cardId);
       } else {
-        // Invalid or cancelled drop: snap back
         soundManager.playSlide();
       }
     } else {
-      // Pure click without drag
       setClickHint('Drag card onto the table to play');
       setTimeout(() => setClickHint(null), 2500);
     }
@@ -183,24 +176,24 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
   };
 
   return (
-    <div className="relative flex flex-col items-center w-full max-w-3xl mx-auto select-none">
-      {/* Click / Drag Helper Banner */}
+    <div className="relative flex flex-col items-center w-full max-w-5xl mx-auto select-none overflow-visible">
+      {/* Click / Drag Helper Banner (Clean Light Styling) */}
       {isMyTurn && !disabled && (
-        <div className="mb-1 flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500 text-slate-950 font-black text-xs shadow-lg animate-bounce z-20">
+        <div className="mb-1 flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400 text-slate-950 font-black text-xs shadow-md animate-bounce z-20">
           <Hand className="w-3.5 h-3.5 text-slate-950" />
-          <span>{clickHint || 'Your Turn — Drag a Card to the Table Center'}</span>
+          <span>{clickHint || 'Your Turn — Drag a Card to Center of Table'}</span>
         </div>
       )}
 
       {clickHint && (!isMyTurn || disabled) && (
-        <div className="mb-1 px-3 py-1 rounded-full bg-slate-900 border border-amber-500/80 text-amber-300 font-bold text-xs shadow-lg z-20 animate-fade-in">
+        <div className="mb-1 px-3 py-1 rounded-full bg-white/95 border border-slate-200 text-slate-800 font-bold text-xs shadow-md z-20 animate-fade-in">
           {clickHint}
         </div>
       )}
 
-      {/* Horizontal Hand of Playing Cards */}
+      {/* Horizontal Hand of Playing Cards - Generously Spread & Prominent */}
       <div
-        className="flex items-end justify-center px-4 pt-10 pb-2 overflow-visible w-full"
+        className="flex items-end justify-center px-4 pt-12 pb-2 overflow-visible w-full"
         style={{ perspective: '1000px' }}
       >
         {cardIds.map((cardId, index) => {
@@ -210,15 +203,15 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
 
           // Compute z-index so hovered/dragged card strictly renders above all others
           let zIndex = index + 10;
-          if (isHovered) zIndex = 50;
+          if (isHovered) zIndex = 60;
           if (isDraggingThis) zIndex = 100;
 
-          // Calculate interactive transform
+          // Hover moves card upward (-32px) and scales 1.12x without clipping
           let transformStyle = '';
           if (isDraggingThis) {
             transformStyle = `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0) scale(1.15) rotate(${dragOffset.x * 0.04}deg)`;
           } else if (isHovered) {
-            transformStyle = 'translateY(-28px) scale(1.14)';
+            transformStyle = 'translateY(-32px) scale(1.12)';
           }
 
           const overlapMargin = getOverlapMargin(index);
@@ -259,7 +252,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
                 size="md"
                 className={`
                   rounded-xl shadow-xl transition-all
-                  ${isPlayable ? 'ring-2 ring-amber-400' : 'ring-1 ring-slate-700/60'}
+                  ${isPlayable ? 'ring-2 ring-amber-400' : 'ring-1 ring-slate-300'}
                   ${isHovered ? 'shadow-2xl ring-4 ring-amber-400' : ''}
                 `}
               />

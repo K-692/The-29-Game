@@ -2,6 +2,19 @@ import { CARD_MANIFEST, Suit } from '../assets/cardManifest';
 import { CompletedTrick, GameRulesConfig, PairDeclaration, PlayerPosition, RoundSummary, Team } from './types';
 
 /**
+ * Calculates points collected by each individual player across completed tricks in current deal.
+ */
+export const calculatePlayerPoints = (completedTricks: CompletedTrick[]): Record<PlayerPosition, number> => {
+  const points: Record<PlayerPosition, number> = { 0: 0, 1: 0, 2: 0, 3: 0 };
+  for (const trick of completedTricks) {
+    if (points[trick.winner] !== undefined) {
+      points[trick.winner] += trick.points;
+    }
+  }
+  return points;
+};
+
+/**
  * Checks if a player holds both King and Queen of the trump suit
  */
 export const hasRoyalsPair = (handCardIds: string[], trumpSuit: Suit): boolean => {

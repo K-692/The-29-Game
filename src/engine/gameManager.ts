@@ -2,7 +2,7 @@ import { CARD_MANIFEST, Suit } from '../assets/cardManifest';
 import { evaluateBiddingState, isLegalBid } from './bidding';
 import { getBiddingOrder, getLeftOfDealer, hasPointCard } from './biddingOrder';
 import { create29Deck, deal29Deck, shuffleDeck, sortHand } from './deck';
-import { canDeclarePair, evaluateRoundScore } from './scoring';
+import { canDeclarePair, evaluateRoundScore, calculatePlayerPoints } from './scoring';
 import { evaluateTrickWinner, isLegalCardPlay } from './tricks';
 import { 
   BidEntry,
@@ -62,6 +62,7 @@ export const createInitialGame = (
     currentTrickCards: [],
     completedTricks: [],
     pairDeclaration: null,
+    playerPoints: { 0: 0, 1: 0, 2: 0, 3: 0 },
     roundNumber: 1,
     matchScore: { team0: 0, team1: 0 },
     roundHistory: [],
@@ -143,6 +144,7 @@ export const startNewRound = (state: GameState, nextDealer?: PlayerPosition): Ga
     currentTrickCards: [],
     completedTricks: [],
     pairDeclaration: null,
+    playerPoints: { 0: 0, 1: 0, 2: 0, 3: 0 },
     version: state.version + 1,
     lastActionTimestamp: Date.now(),
     // Keep secondary 4 cards accessible for deal phase 2
@@ -488,6 +490,11 @@ export const applyCardPlay = (
 
     const nextPhase: GamePhase = roundResult.isMatchOver ? 'MATCH_ENDED' : 'ROUND_ENDED';
 
+    const updatedPlayerPoints = {
+      ...state.playerPoints,
+      [completedTrick.winner]: (state.playerPoints?.[completedTrick.winner] || 0) + completedTrick.points,
+    };
+
     return {
       success: true,
       trickCompleted: completedTrick,
@@ -497,6 +504,7 @@ export const applyCardPlay = (
         hands: newHands,
         currentTrickCards: newTrickCards,
         completedTricks: newCompletedTricks,
+        playerPoints: updatedPlayerPoints,
         matchScore: roundResult.newMatchScore,
         roundHistory: [...state.roundHistory, roundSummary],
         winnerTeam: roundResult.winnerTeam,
@@ -508,6 +516,10 @@ export const applyCardPlay = (
 
   // Next trick begins: winner of this trick leads next trick
   const nextTrickLead = completedTrick.winner;
+  const updatedPlayerPoints = {
+    ...state.playerPoints,
+    [completedTrick.winner]: (state.playerPoints?.[completedTrick.winner] || 0) + completedTrick.points,
+  };
 
   return {
     success: true,
@@ -520,6 +532,7 @@ export const applyCardPlay = (
       currentTurn: nextTrickLead,
       currentTrickCards: [],
       completedTricks: newCompletedTricks,
+      playerPoints: updatedPlayerPoints,
       version: state.version + 1,
       lastActionTimestamp: Date.now(),
     },
@@ -611,6 +624,7 @@ export const getPublicGameState = (
 
   return {
     ...publicBase,
+    playerPoints: state.playerPoints || calculatePlayerPoints(state.completedTricks),
     myPosition: viewingPlayerPosition,
     myHand,
     otherHandCounts,

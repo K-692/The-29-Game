@@ -101,7 +101,7 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({ onClose }) => {
                   <strong>First Bidder Eligibility:</strong> The player to the dealer&apos;s left opens bidding. They must hold at least one point-valued card (J, 9, A, 10). If not, all cards are reshuffled and redealt.
                 </li>
                 <li>
-                  <strong>Strictly One Round:</strong> Exactly 4 turns in clockwise order. Each player gets one turn to bid or pass. Opening bid is minimum 16. If all 3 pass, the dealer is forced to bid 16.
+                  <strong>Strictly One Round (30s Turns):</strong> Exactly 4 turns in clockwise order. Each player gets 30 seconds to choose a bid from the direct-click bid grid (16–28) or pass. If all 3 pass, the dealer is forced to bid 16.
                 </li>
                 <li>
                   <strong>Six Trump Options:</strong> The winning bidder can choose:
