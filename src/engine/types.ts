@@ -164,6 +164,7 @@ export interface GameState {
   // Metadata & version for sync
   version: number;
   lastActionTimestamp: number;
+  lastPlayActionId?: string;
 }
 
 /**
@@ -180,5 +181,7 @@ export interface PublicGameState extends Omit<GameState, 'hands' | 'trumpSuit' |
   // 7th card trump visibility: visible to bidder only before reveal; visible to all after reveal
   revealedSeventhCard: string | null;
   hasSeventhCardReserved: boolean;
+  lastPlayActionId?: string;
+  turnDeadline?: number;
 }
 

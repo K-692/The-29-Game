@@ -63,6 +63,10 @@ export default function App() {
     const unsubGame = lanClient.onGameStateUpdate(({ gameState: fullState, publicState: pubState, myPosition: pos }) => {
       setGameState(fullState);
       setPublicState(pubState);
+      if (pubState.turnDeadline && pubState.turnDeadline > 0) {
+        const rem = Math.max(0, Math.ceil((pubState.turnDeadline - Date.now()) / 1000));
+        setRemainingSeconds(rem);
+      }
       if (pos !== undefined) {
         setMyPosition(pos);
       }
@@ -231,14 +235,28 @@ export default function App() {
     lanClient.selectTrump(choice);
   };
 
-  const handleRevealTrump = () => {
+  const handleRevealTrump = async (payload?: { requestId?: string; playerPosition?: PlayerPosition; roundNumber?: number; trickNumber?: number }) => {
     soundManager.playTrump();
-    lanClient.revealTrump();
+    const res = await lanClient.revealTrump(payload);
+    if (!res.success && res.error) {
+      console.warn('Trump reveal rejected:', res.error);
+    }
+    return res;
   };
 
-  const handlePlayCard = (cardId: string) => {
+  const handlePlayCard = async (cardId: string) => {
     soundManager.playCard();
-    lanClient.playCard(cardId);
+    const res = await lanClient.playCard(cardId);
+    if (!res.success && res.error) {
+      console.warn('Play card rejected:', res.error);
+      soundManager.playError();
+      setNotification({
+        type: 'INFO',
+        message: res.error,
+        timestamp: Date.now(),
+      });
+    }
+    return res;
   };
 
   const handleDeclarePair = () => {

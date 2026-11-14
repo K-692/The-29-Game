@@ -48,8 +48,8 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ publicState, myTeam }) =
               Target: <strong className="text-slate-900 font-black">{highestBid}</strong>
             </span>
             <span className="text-slate-400 font-normal hidden sm:inline">·</span>
-            <span className="font-semibold text-slate-600 hidden sm:inline flex items-center gap-1">
-              Bidder: <span className={`w-2 h-2 rounded-full ${isBiddingTeam0 ? 'bg-sky-500' : 'bg-rose-500'}`} />
+            <span className="font-semibold text-slate-600 hidden sm:inline flex items-center gap-1.5" title="Bidding Team">
+              <span className={`w-2 h-2 rounded-full ${isBiddingTeam0 ? 'bg-sky-500' : 'bg-rose-500'}`} />
             </span>
           </div>
         </>

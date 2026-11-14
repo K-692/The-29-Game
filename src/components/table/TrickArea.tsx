@@ -10,6 +10,7 @@ interface TrickAreaProps {
   completedTricks: CompletedTrick[];
   lastCompletedTrick?: CompletedTrick | null;
   dropZoneRef?: React.Ref<HTMLDivElement>;
+  flyingCardId?: string | null;
 }
 
 // Fixed slight rotation angles for natural card feel
@@ -22,6 +23,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
   completedTricks,
   lastCompletedTrick,
   dropZoneRef,
+  flyingCardId,
 }) => {
   // State for freeze-frame and collection animation
   const [frozenCards, setFrozenCards] = useState<PlayedCard[] | null>(null);
@@ -29,7 +31,9 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
   const [collectionVectors, setCollectionVectors] = useState<Record<string, { x: number; y: number }>>({});
 
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const lastAnimatedTrickIdRef = useRef<number | null>(null);
+  const lastAnimatedTrickKeyRef = useRef<string | null>(null);
+  const timer1Ref = useRef<NodeJS.Timeout | null>(null);
+  const timer2Ref = useRef<NodeJS.Timeout | null>(null);
 
   // Map player absolute position (0..3) to relative table position (bottom, left, top, right)
   const getRelativePosition = (pos: PlayerPosition): 'bottom' | 'left' | 'top' | 'right' => {
@@ -50,16 +54,24 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
     // Determine completed trick info
     const latestTrick = lastCompletedTrick || (completedTricks.length > 0 ? completedTricks[completedTricks.length - 1] : null);
 
-    if (isFourCards && latestTrick && lastAnimatedTrickIdRef.current !== latestTrick.trickNumber) {
-      lastAnimatedTrickIdRef.current = latestTrick.trickNumber;
+    if (isFourCards && latestTrick) {
+      const trickKey = `trick_${latestTrick.trickNumber}_len${completedTricks.length}_w${latestTrick.winner}`;
+      if (lastAnimatedTrickKeyRef.current === trickKey) {
+        return;
+      }
+      lastAnimatedTrickKeyRef.current = trickKey;
+
       const cardsToAnimate = [...playedCards];
       setFrozenCards(cardsToAnimate);
       setIsCollecting(false);
 
       const targetRelPos = getRelativePosition(latestTrick.winner);
 
+      if (timer1Ref.current) clearTimeout(timer1Ref.current);
+      if (timer2Ref.current) clearTimeout(timer2Ref.current);
+
       // Step 1: Wait exactly 1 second (1000ms) with all 4 cards displayed clearly in center
-      const timer1 = setTimeout(() => {
+      timer1Ref.current = setTimeout(() => {
         // Step 2: Calculate destination coordinates using getBoundingClientRect()
         const targetSeatEl = document.querySelector(`[data-seat="${targetRelPos}"]`);
         const targetRect = targetSeatEl?.getBoundingClientRect();
@@ -95,20 +107,24 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
       }, 1000);
 
       // Step 3: At 1550ms, animation completes
-      const timer2 = setTimeout(() => {
+      timer2Ref.current = setTimeout(() => {
         setFrozenCards(null);
         setIsCollecting(false);
         setCollectionVectors({});
       }, 1550);
-
-      return () => {
-        clearTimeout(timer1);
-        clearTimeout(timer2);
-      };
     }
   }, [playedCards.length, isFourCards, lastCompletedTrick, completedTricks.length, myPosition]);
 
-  const cardsToRender = frozenCards || playedCards;
+  useEffect(() => {
+    return () => {
+      if (timer1Ref.current) clearTimeout(timer1Ref.current);
+      if (timer2Ref.current) clearTimeout(timer2Ref.current);
+    };
+  }, []);
+
+  const cardsToRender = (frozenCards || playedCards).filter(
+    (pc) => !flyingCardId || pc.cardId !== flyingCardId
+  );
 
   const getPositionStyles = (relPos: 'bottom' | 'left' | 'top' | 'right') => {
     switch (relPos) {

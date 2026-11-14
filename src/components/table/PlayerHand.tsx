@@ -85,7 +85,10 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
     const dy = e.clientY - pointerStartRef.current.y;
     const distance = Math.hypot(dx, dy);
 
-    if (distance > 6) {
+    // Strict 8px threshold to differentiate deliberate drag gestures from clicks/taps
+    const DRAG_THRESHOLD = 8;
+
+    if (distance >= DRAG_THRESHOLD) {
       if (!isActualDrag) {
         setIsActualDrag(true);
         if (!hasPlayedSlideSoundRef.current) {
@@ -96,18 +99,18 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
 
       setDragOffset({ x: dx, y: dy });
 
-      // Determine if pointer is inside the generous invisible drop hitbox
+      // Determine if pointer is inside the generous invisible drop hitbox on the central table felt
       let isOver = false;
       if (dropTargetRect) {
         isOver = (
-          e.clientX >= dropTargetRect.left &&
-          e.clientX <= dropTargetRect.right &&
-          e.clientY >= dropTargetRect.top &&
-          e.clientY <= dropTargetRect.bottom
+          e.clientX >= dropTargetRect.left - 50 &&
+          e.clientX <= dropTargetRect.right + 50 &&
+          e.clientY >= dropTargetRect.top - 50 &&
+          e.clientY <= dropTargetRect.bottom + 60
         );
       } else {
         // Fallback: dragged upward into table center
-        isOver = dy < -100;
+        isOver = dy < -80;
       }
 
       onDragStateChange?.({
@@ -129,13 +132,13 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
       let isOver = false;
       if (dropTargetRect) {
         isOver = (
-          e.clientX >= dropTargetRect.left &&
-          e.clientX <= dropTargetRect.right &&
-          e.clientY >= dropTargetRect.top &&
-          e.clientY <= dropTargetRect.bottom
+          e.clientX >= dropTargetRect.left - 50 &&
+          e.clientX <= dropTargetRect.right + 50 &&
+          e.clientY >= dropTargetRect.top - 50 &&
+          e.clientY <= dropTargetRect.bottom + 60
         );
       } else {
-        isOver = dragOffset.y < -100;
+        isOver = dragOffset.y < -80;
       }
 
       if (isOver && playableCardIds.includes(cardId)) {
@@ -145,12 +148,9 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
         soundManager.playSlide();
       }
     } else {
-      // Single click / tap to play when it's your turn
+      // STRICT DRAG-ONLY: A click or tap NEVER plays a card! Show helpful guidance hint.
       if (isMyTurn && playableCardIds.includes(cardId)) {
-        soundManager.playCardPlace();
-        onPlayCard(cardId);
-      } else {
-        setClickHint('Drag card onto the table to play');
+        setClickHint('Drag card into table center to play');
         setTimeout(() => setClickHint(null), 2500);
       }
     }

@@ -5,6 +5,7 @@ import {
 } from '../src/assets/cardManifest.js';
 import { 
   DEFAULT_RULES_CONFIG, 
+  GamePhase,
   GameRulesConfig, 
   GameState, 
   PlayerInfo, 
@@ -63,6 +64,17 @@ export interface SeatInfo {
   sessionToken: string;
 }
 
+export interface ActiveTurnContext {
+  turnId: string;
+  position: PlayerPosition;
+  phase: GamePhase;
+  actionType: 'BID' | 'TRUMP_SELECTION' | 'PLAY_CARD';
+  startTime: number;
+  deadline: number;
+  version: number;
+  resolved: boolean;
+}
+
 export interface LanRoom {
   code: string;
   hostId: string;
@@ -74,6 +86,8 @@ export interface LanRoom {
   remainingSeconds: number;
   turnDeadline: number;
   botTurnTimeout: NodeJS.Timeout | null;
+  activeTurn: ActiveTurnContext | null;
+  revealedTrumpRequestId: string | null;
 }
 
 export class RoomManager {
@@ -179,9 +193,11 @@ export class RoomManager {
       seats,
       gameState: null,
       turnTimer: null,
-      remainingSeconds: 15,
+      remainingSeconds: 30,
       turnDeadline: 0,
       botTurnTimeout: null,
+      activeTurn: null,
+      revealedTrumpRequestId: null,
     };
 
     this.rooms.set(code, room);
@@ -310,7 +326,9 @@ export class RoomManager {
         const turnPos = room.gameState.phase === 'TRUMP_SELECTION' 
           ? (room.gameState.highestBidder ?? room.gameState.currentTurn)
           : room.gameState.currentTurn;
+        const turnId = room.activeTurn?.turnId || `${room.code}_turn_${turnPos}`;
         socket.emit('timer_tick', {
+          turnId,
           remainingSeconds: remaining,
           turnDeadline: room.turnDeadline,
           turnPosition: turnPos,
@@ -449,6 +467,22 @@ export class RoomManager {
       return { success: false, error: validation.reason };
     }
 
+    // Atomic server-authoritative deadline and turn resolution
+    const now = Date.now();
+    if (room.activeTurn && !seat.isCpu) {
+      if (room.activeTurn.resolved) {
+        return { success: false, error: 'Turn action already resolved or expired.' };
+      }
+      if (now > room.activeTurn.deadline + 1000) {
+        return { success: false, error: 'Turn deadline has expired.' };
+      }
+      room.activeTurn.resolved = true;
+    }
+    if (room.turnTimer) {
+      clearInterval(room.turnTimer);
+      room.turnTimer = null;
+    }
+
     const res = applyBid(room.gameState, seat.position, bid);
     if (!res.success) {
       return { success: false, error: res.error };
@@ -479,6 +513,22 @@ export class RoomManager {
 
     if (room.gameState.highestBidder !== seat.position || room.gameState.phase !== 'TRUMP_SELECTION') {
       return { success: false, error: 'You are not the designated trump chooser.' };
+    }
+
+    // Atomic server-authoritative deadline and turn resolution
+    const now = Date.now();
+    if (room.activeTurn && !seat.isCpu) {
+      if (room.activeTurn.resolved) {
+        return { success: false, error: 'Turn action already resolved or expired.' };
+      }
+      if (now > room.activeTurn.deadline + 1000) {
+        return { success: false, error: 'Turn deadline has expired.' };
+      }
+      room.activeTurn.resolved = true;
+    }
+    if (room.turnTimer) {
+      clearInterval(room.turnTimer);
+      room.turnTimer = null;
     }
 
     const res = applyTrumpSelection(room.gameState, seat.position, choice);
@@ -512,13 +562,19 @@ export class RoomManager {
    */
   public handleRevealTrump(
     code: string,
-    sessionToken: string
+    sessionToken: string,
+    data?: { requestId?: string; playerPosition?: PlayerPosition; roundNumber?: number; trickNumber?: number }
   ): { success: boolean; error?: string } {
     const room = this.rooms.get(code);
     if (!room || !room.gameState) return { success: false, error: 'Game not active.' };
 
     const seat = room.seats.find((s) => s.sessionToken === sessionToken);
     if (!seat) return { success: false, error: 'Seat not found.' };
+
+    // Deduplication check
+    if (data?.requestId && room.revealedTrumpRequestId === data.requestId) {
+      return { success: true };
+    }
 
     if (room.gameState.phase !== 'TRICK_PLAY' || room.gameState.isTrumpRevealed) {
       return { success: false, error: 'Cannot reveal trump at this time.' };
@@ -527,6 +583,10 @@ export class RoomManager {
     const res = applyTrumpReveal(room.gameState, seat.position);
     if (!res.success) {
       return { success: false, error: res.error };
+    }
+
+    if (data?.requestId) {
+      room.revealedTrumpRequestId = data.requestId;
     }
     room.gameState = res.state;
 
@@ -567,6 +627,22 @@ export class RoomManager {
       return { success: false, error: 'Not your turn to play.' };
     }
 
+    // Atomic server-authoritative deadline and turn resolution
+    const now = Date.now();
+    if (room.activeTurn && !seat.isCpu) {
+      if (room.activeTurn.resolved) {
+        return { success: false, error: 'Turn action already resolved or expired.' };
+      }
+      if (now > room.activeTurn.deadline + 1000) {
+        return { success: false, error: 'Turn deadline has expired.' };
+      }
+      room.activeTurn.resolved = true;
+    }
+    if (room.turnTimer) {
+      clearInterval(room.turnTimer);
+      room.turnTimer = null;
+    }
+
     const myHand = room.gameState.hands[seat.position];
     if (!myHand.includes(cardId)) {
       return { success: false, error: 'Card not in your hand.' };
@@ -580,7 +656,8 @@ export class RoomManager {
       myHand,
       leadCardId,
       room.gameState.trumpSuit,
-      room.gameState.isTrumpRevealed
+      room.gameState.isTrumpRevealed,
+      room.gameState.trumpMode
     );
 
     if (!playable.includes(cardId)) {
@@ -597,6 +674,9 @@ export class RoomManager {
 
     if (res.trickCompleted) {
       const lastTrick = res.trickCompleted;
+
+      // Clear active turn during collection pause
+      room.activeTurn = null;
 
       // Broadcast trick completed event so all connected clients synchronize the collection
       this.io.to(room.code).emit('TRICK_COMPLETED', { trick: lastTrick });
@@ -678,7 +758,7 @@ export class RoomManager {
 
   /**
    * Server-authoritative turn countdown timer:
-   * Exactly 15s for BIDDING, 60s for TRUMP_SELECTION and TRICK_PLAY.
+   * Strictly 30 seconds for all actionable turns (Bidding, Trump Selection, Card Play).
    */
   private startTurnTimer(room: LanRoom) {
     if (room.turnTimer) {
@@ -687,19 +767,42 @@ export class RoomManager {
     }
 
     if (!room.gameState || (room.gameState.phase !== 'BIDDING' && room.gameState.phase !== 'TRUMP_SELECTION' && room.gameState.phase !== 'TRICK_PLAY')) {
+      room.activeTurn = null;
       return;
     }
-
-    const totalDuration = 30; // Exactly 30 seconds for all human turns (Bidding, Trump, Play)
-    room.remainingSeconds = totalDuration;
-    room.turnDeadline = Date.now() + totalDuration * 1000;
 
     const turnPos = room.gameState.phase === 'TRUMP_SELECTION' 
       ? (room.gameState.highestBidder ?? room.gameState.currentTurn)
       : room.gameState.currentTurn;
 
-    // Broadcast initial tick
+    const actionType: 'BID' | 'TRUMP_SELECTION' | 'PLAY_CARD' =
+      room.gameState.phase === 'BIDDING'
+        ? 'BID'
+        : room.gameState.phase === 'TRUMP_SELECTION'
+        ? 'TRUMP_SELECTION'
+        : 'PLAY_CARD';
+
+    const totalDuration = 30; // Strictly 30 seconds for all human turns
+    const now = Date.now();
+    room.remainingSeconds = totalDuration;
+    room.turnDeadline = now + totalDuration * 1000;
+
+    const turnId = `${room.code}_r${room.gameState.roundNumber}_t${room.gameState.currentTrickNumber}_p${room.gameState.phase}_pos${turnPos}_v${room.gameState.version}_${now}`;
+
+    room.activeTurn = {
+      turnId,
+      position: turnPos,
+      phase: room.gameState.phase,
+      actionType,
+      startTime: now,
+      deadline: room.turnDeadline,
+      version: room.gameState.version,
+      resolved: false,
+    };
+
+    // Broadcast initial tick with turnId
     this.io.to(room.code).emit('timer_tick', {
+      turnId,
       remainingSeconds: room.remainingSeconds,
       turnDeadline: room.turnDeadline,
       turnPosition: turnPos,
@@ -707,19 +810,28 @@ export class RoomManager {
     });
 
     room.turnTimer = setInterval(() => {
-      room.remainingSeconds = Math.max(0, Math.ceil((room.turnDeadline - Date.now()) / 1000));
+      const remaining = Math.max(0, Math.ceil((room.turnDeadline - Date.now()) / 1000));
+      room.remainingSeconds = remaining;
 
       this.io.to(room.code).emit('timer_tick', {
-        remainingSeconds: room.remainingSeconds,
+        turnId,
+        remainingSeconds: remaining,
         turnDeadline: room.turnDeadline,
         turnPosition: turnPos,
         phase: room.gameState?.phase || 'TRICK_PLAY',
       });
 
-      if (room.remainingSeconds <= 0) {
-        clearInterval(room.turnTimer!);
-        room.turnTimer = null;
-        this.executeTimeoutFallback(room, turnPos);
+      if (remaining <= 0) {
+        if (room.turnTimer) {
+          clearInterval(room.turnTimer);
+          room.turnTimer = null;
+        }
+
+        // Atomic check: only fire fallback if this turn is not already resolved
+        if (room.activeTurn && room.activeTurn.turnId === turnId && !room.activeTurn.resolved) {
+          room.activeTurn.resolved = true;
+          this.executeTimeoutFallback(room, turnPos);
+        }
       }
     }, 1000);
   }
@@ -899,6 +1011,7 @@ export class RoomManager {
     for (const seat of room.seats) {
       if (seat.socketId) {
         const publicState = getPublicGameState(room.gameState, seat.position);
+        publicState.turnDeadline = room.turnDeadline;
         this.io.to(seat.socketId).emit('game_state_update', {
           gameState: room.gameState, // Full state for host/debug if needed
           publicState,

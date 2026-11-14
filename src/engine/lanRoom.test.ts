@@ -432,4 +432,116 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     );
     expect(timeoutNotifs).toHaveLength(0);
   });
+
+  it('should strictly enforce the 30-second deadline and reject late human actions', () => {
+    const io = createMockIo();
+    const mgr = new RoomManager(io);
+    const hostSocket = createMockSocket('host_timer_strict');
+    const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
+
+    mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
+    room.seats.forEach((s) => { s.isCpu = false; });
+
+    // Set up active turn with an expired deadline
+    const currentTurn = room.gameState!.currentTurn;
+    const currentSeat = room.seats.find((s) => s.position === currentTurn)!;
+
+    expect(room.activeTurn).toBeDefined();
+    expect(room.activeTurn?.deadline).toBeGreaterThan(Date.now());
+
+    // Artificially expire the deadline
+    room.activeTurn!.deadline = Date.now() - 5000;
+
+    // Player attempts to bid after deadline has expired
+    const lateBidRes = mgr.handleBid(room.code, currentSeat.sessionToken, 16);
+    expect(lateBidRes.success).toBe(false);
+    expect(lateBidRes.error).toMatch(/expired/i);
+  });
+
+  it('should atomically resolve the race between timeout fallback and human action', () => {
+    const io = createMockIo();
+    const mgr = new RoomManager(io);
+    const hostSocket = createMockSocket('host_race_resolution');
+    const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
+
+    mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
+    room.seats.forEach((s) => { s.isCpu = false; });
+
+    const turnPos = room.gameState!.currentTurn;
+    const seat = room.seats.find((s) => s.position === turnPos)!;
+
+    // Simulate timeout fallback resolution
+    expect(room.activeTurn?.resolved).toBe(false);
+    (mgr as any).executeTimeoutFallback(room, turnPos);
+
+    // After fallback resolves the turn, any subsequent human action for that same turn is rejected
+    const lateBid = mgr.handleBid(room.code, seat.sessionToken, 16);
+    expect(lateBid.success).toBe(false);
+    expect(lateBid.error).toMatch(/resolved|turn/i);
+  });
+
+  it('should support Ask to Reveal Trump with unique request IDs and deduplicate identical requests', () => {
+    const io = createMockIo();
+    const mgr = new RoomManager(io);
+    const hostSocket = createMockSocket('host_trump_reveal');
+    const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
+
+    mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
+    room.seats.forEach((s) => { s.isCpu = false; });
+
+    // Fast-forward to TRICK_PLAY with concealed trump in Clubs
+    room.gameState!.phase = 'TRICK_PLAY';
+    room.gameState!.trumpSuit = 'CLUBS';
+    room.gameState!.isTrumpRevealed = false;
+    room.gameState!.currentTurn = 1;
+    // Lead is HEARTS
+    room.gameState!.currentTrickCards = [{ cardId: 'J_HEARTS', playerIndex: 0 }];
+    // Seat 1 holds NO HEARTS, only Spades and Diamonds
+    room.gameState!.hands[1] = ['K_SPADES', 'Q_DIAMONDS'];
+
+    const seat1 = room.seats.find((s) => s.position === 1)!;
+
+    const reqPayload = {
+      requestId: 'req_test_123',
+      playerPosition: 1 as any,
+      roundNumber: room.gameState!.roundNumber,
+      trickNumber: room.gameState!.currentTrickNumber,
+    };
+
+    // First request: legal and successful
+    const revealRes1 = mgr.handleRevealTrump(room.code, seat1.sessionToken, reqPayload);
+    expect(revealRes1.success).toBe(true);
+    expect(room.gameState?.isTrumpRevealed).toBe(true);
+    expect(room.gameState?.trumpRevealedBy).toBe(1);
+
+    // Duplicate request with the exact same requestId is safely accepted idempotently
+    const revealRes2 = mgr.handleRevealTrump(room.code, seat1.sessionToken, reqPayload);
+    expect(revealRes2.success).toBe(true);
+  });
+
+  it('should reject Ask to Reveal Trump if the player can legally follow the lead suit', () => {
+    const io = createMockIo();
+    const mgr = new RoomManager(io);
+    const hostSocket = createMockSocket('host_cannot_reveal');
+    const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
+
+    mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
+    room.seats.forEach((s) => { s.isCpu = false; });
+
+    room.gameState!.phase = 'TRICK_PLAY';
+    room.gameState!.trumpSuit = 'CLUBS';
+    room.gameState!.isTrumpRevealed = false;
+    room.gameState!.currentTurn = 1;
+    // Lead is HEARTS
+    room.gameState!.currentTrickCards = [{ cardId: 'J_HEARTS', playerIndex: 0 }];
+    // Seat 1 holds a Heart! (Must follow suit!)
+    room.gameState!.hands[1] = ['10_HEARTS', 'K_SPADES'];
+
+    const seat1 = room.seats.find((s) => s.position === 1)!;
+
+    const revealRes = mgr.handleRevealTrump(room.code, seat1.sessionToken);
+    expect(revealRes.success).toBe(false);
+    expect(revealRes.error).toMatch(/follow suit/i);
+    expect(room.gameState?.isTrumpRevealed).toBe(false);
+  });
 });

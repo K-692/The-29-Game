@@ -448,6 +448,8 @@ export const applyCardPlay = (
   const playedCard: PlayedCard = { cardId, playerIndex };
   const newTrickCards = [...state.currentTrickCards, playedCard];
 
+  const playActionId = `${state.roundNumber}_${state.currentTrickNumber}_${playerIndex}_${cardId}`;
+
   // Case 1: Trick is still in progress (fewer than 4 cards)
   if (newTrickCards.length < 4) {
     const nextTurn = ((playerIndex + 1) % 4) as PlayerPosition;
@@ -460,6 +462,7 @@ export const applyCardPlay = (
         currentTurn: nextTurn,
         version: state.version + 1,
         lastActionTimestamp: Date.now(),
+        lastPlayActionId: playActionId,
       },
     };
   }
@@ -486,6 +489,7 @@ export const applyCardPlay = (
       lastCompletedTrick: completedTrick,
       version: state.version + 1,
       lastActionTimestamp: Date.now(),
+      lastPlayActionId: playActionId,
     },
   };
 };

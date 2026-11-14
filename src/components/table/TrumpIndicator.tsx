@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { CARD_MANIFEST, SUIT_COLORS, SUIT_SYMBOLS } from '../../assets/cardManifest';
 import { PublicGameState } from '../../engine/types';
 import { Eye, Sparkles, Layers } from 'lucide-react';
@@ -86,7 +86,7 @@ export const RevealedTrumpTopRight: React.FC<RevealedTrumpTopRightProps> = ({ pu
 
 interface AskToRevealTrumpButtonProps {
   canRevealTrump: boolean;
-  onRevealTrump: () => void;
+  onRevealTrump: () => Promise<any> | void;
 }
 
 /**
@@ -96,17 +96,32 @@ export const AskToRevealTrumpButton: React.FC<AskToRevealTrumpButtonProps> = ({
   canRevealTrump,
   onRevealTrump,
 }) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   if (!canRevealTrump) return null;
+
+  const handleClick = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await onRevealTrump();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <button
       type="button"
-      onClick={onRevealTrump}
-      className="bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black px-4 py-2.5 rounded-2xl text-xs shadow-xl border-2 border-amber-300/80 flex items-center gap-2 transition-all uppercase tracking-wider cursor-pointer"
+      onClick={handleClick}
+      disabled={isSubmitting}
+      className={`bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black px-4 py-2.5 rounded-2xl text-xs shadow-xl border-2 border-amber-300/80 flex items-center gap-2 transition-all uppercase tracking-wider cursor-pointer ${
+        isSubmitting ? 'opacity-60 cursor-not-allowed' : ''
+      }`}
       title="Ask to reveal the concealed trump suit"
     >
       <Eye className="w-4 h-4 text-slate-950" />
-      ASK TO REVEAL TRUMP
+      {isSubmitting ? 'REVEALING...' : 'ASK TO REVEAL TRUMP'}
     </button>
   );
 };

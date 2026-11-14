@@ -206,10 +206,14 @@ class LanClientService {
     });
   }
 
-  public revealTrump(): Promise<{ success: boolean; error?: string }> {
+  public revealTrump(payload?: { requestId?: string; playerPosition?: PlayerPosition; roundNumber?: number; trickNumber?: number }): Promise<{ success: boolean; error?: string }> {
     return new Promise((resolve) => {
       if (!this.socket) return resolve({ success: false, error: 'Not connected' });
-      this.socket.emit('reveal_trump', { roomCode: this.roomCode, sessionToken: this.sessionToken }, resolve);
+      this.socket.emit('reveal_trump', { 
+        roomCode: this.roomCode, 
+        sessionToken: this.sessionToken,
+        ...payload,
+      }, resolve);
     });
   }
 

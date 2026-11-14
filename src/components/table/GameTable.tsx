@@ -43,7 +43,7 @@ interface GameTableProps {
   notification?: InTableNotification | null;
   onBid: (bid: number | 'PASS') => void;
   onSelectTrump: (choice: TrumpSelectionChoice) => void;
-  onRevealTrump: () => void;
+  onRevealTrump: (data?: { requestId?: string; playerPosition?: PlayerPosition; roundNumber?: number; trickNumber?: number }) => Promise<any> | void;
   onPlayCard: (cardId: string) => void;
   onDeclarePair: () => void;
   onNextRound: () => void;
@@ -82,25 +82,35 @@ export const GameTable: React.FC<GameTableProps> = ({
     }
   }, [publicState.phase, publicState.roundNumber]);
 
-  // Card-playing flight animation state
+  // Card-playing flight animation state with robust action deduplication
   const [flyingCard, setFlyingCard] = useState<{
+    actionId: string;
     cardId: string;
     playerIndex: PlayerPosition;
   } | null>(null);
 
-  const prevTrickCardsCountRef = useRef<number>(publicState.currentTrickCards.length);
+  const playedActionsSetRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    // Reset played actions deduplication when round advances
+    playedActionsSetRef.current.clear();
+  }, [publicState.roundNumber]);
 
   useEffect(() => {
     const currentCount = publicState.currentTrickCards.length;
-    if (currentCount > prevTrickCardsCountRef.current && currentCount > 0) {
+    if (currentCount > 0) {
       const latestCard = publicState.currentTrickCards[currentCount - 1];
-      setFlyingCard({
-        cardId: latestCard.cardId,
-        playerIndex: latestCard.playerIndex,
-      });
+      const actionId = `${publicState.roundNumber}_${publicState.currentTrickNumber}_${latestCard.playerIndex}_${latestCard.cardId}`;
+      if (!playedActionsSetRef.current.has(actionId)) {
+        playedActionsSetRef.current.add(actionId);
+        setFlyingCard({
+          actionId,
+          cardId: latestCard.cardId,
+          playerIndex: latestCard.playerIndex,
+        });
+      }
     }
-    prevTrickCardsCountRef.current = currentCount;
-  }, [publicState.currentTrickCards]);
+  }, [publicState.currentTrickCards, publicState.roundNumber, publicState.currentTrickNumber]);
 
   // Drag-and-drop state coordinates between Table and Player Hand
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -197,18 +207,28 @@ export const GameTable: React.FC<GameTableProps> = ({
     publicState.myHand,
     leadCardId,
     publicState.revealedTrumpSuit,
-    publicState.isTrumpRevealed
+    publicState.isTrumpRevealed,
+    publicState.trumpMode
   );
 
-  // Check if player can legally reveal trump
+  // Check if player can legally reveal trump (when player cannot follow lead suit)
   const canRevealTrump = Boolean(
     isMyTurn &&
     publicState.phase === 'TRICK_PLAY' &&
     !publicState.isTrumpRevealed &&
-    publicState.trumpMode !== 'no-trump' &&
     leadCardId &&
     !publicState.myHand.some((id) => CARD_MANIFEST[id]?.suit === CARD_MANIFEST[leadCardId]?.suit)
   );
+
+  const handleRevealTrumpAction = () => {
+    const requestId = `reveal_${Date.now()}_pos${myPosition}_r${publicState.roundNumber}_t${publicState.currentTrickNumber}`;
+    return onRevealTrump({
+      requestId,
+      playerPosition: myPosition,
+      roundNumber: publicState.roundNumber,
+      trickNumber: publicState.currentTrickNumber,
+    });
+  };
 
   // Check if player can declare Pair/Royals
   const pairCheck = canDeclarePair(
@@ -315,10 +335,11 @@ export const GameTable: React.FC<GameTableProps> = ({
             <div className="flex items-center gap-2">
               <Scoreboard publicState={publicState} myTeam={myTeam} />
               {publicState.highestBid > 0 && (
-                <div className="hidden md:flex items-center gap-1 bg-white/95 backdrop-blur-md border border-emerald-300 text-emerald-900 px-2.5 py-1 rounded-xl text-xs font-bold shadow-xs">
-                  <span>🏆 Bid:</span>
+                <div className="hidden md:flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-emerald-300 text-emerald-900 px-2.5 py-1 rounded-xl text-xs font-bold shadow-xs">
+                  <span role="img" aria-label="Trophy">🏆</span>
+                  <span>{highestBidderPlayer?.avatar || '🦊'} {highestBidderName}</span>
+                  <span className="text-emerald-500 font-bold">·</span>
                   <span className="font-mono font-black">{publicState.highestBid}</span>
-                  <span className="text-slate-500">({highestBidderName})</span>
                 </div>
               )}
             </div>
@@ -495,6 +516,7 @@ export const GameTable: React.FC<GameTableProps> = ({
               completedTricks={publicState.completedTricks}
               lastCompletedTrick={publicState.lastCompletedTrick}
               dropZoneRef={dropZoneRef}
+              flyingCardId={flyingCard?.cardId}
             />
           </div>
         )}
@@ -532,7 +554,7 @@ export const GameTable: React.FC<GameTableProps> = ({
       <div className="fixed bottom-3 left-3 sm:bottom-4 sm:left-5 z-40 flex flex-col items-start gap-2 select-none pointer-events-auto">
         <AskToRevealTrumpButton
           canRevealTrump={canRevealTrump}
-          onRevealTrump={onRevealTrump}
+          onRevealTrump={handleRevealTrumpAction}
         />
 
         {me && (

@@ -209,10 +209,10 @@ io.on('connection', (socket: Socket) => {
   socket.on(
     'reveal_trump',
     (
-      data: { roomCode: string; sessionToken: string },
+      data: { roomCode: string; sessionToken: string; requestId?: string; playerPosition?: PlayerPosition; roundNumber?: number; trickNumber?: number },
       callback?: (res: { success: boolean; error?: string }) => void
     ) => {
-      const res = roomManager.handleRevealTrump(data.roomCode, data.sessionToken);
+      const res = roomManager.handleRevealTrump(data.roomCode, data.sessionToken, data);
       if (callback) callback(res);
     }
   );

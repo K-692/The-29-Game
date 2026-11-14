@@ -7,15 +7,35 @@
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-black.svg?logo=socketdotio)](https://socket.io/)
 [![Express](https://img.shields.io/badge/Express-5.3-green.svg?logo=express)](https://expressjs.com/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-38bdf8.svg?logo=tailwind-css)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Vitest-41%2F41%20Passing-brightgreen.svg?logo=vitest)](https://vitest.dev/)
+[![Tests](https://img.shields.io/badge/Vitest-45%2F45%20Passing-brightgreen.svg?logo=vitest)](https://vitest.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> A modern, zero-install, real-time **LAN (Local Area Network)** multiplayer implementation of the traditional Indian **29 (Twenty-Nine)** trick-taking card game. Features authentic traditional Indian rules, edge-to-edge full-screen table felt (`table.jpg`), original vector playing-card artwork extracted directly from an EPS collection (`poker-cards-icons-collection/OIUGSZ1.eps`), larger cards with gentle horizontal overlap, bright minimalistic UI, consistent partnership colour schemes (Soft Blue & Soft Coral), animal emoji avatars, bottom-left Krish (You) player seat, fully visible top partner seat, bottom-right individual trick-point counters beside the 30-second turn timer, active bidder top-bar synchronization (`🦊 Aarav is bidding`), clean 3-element direct-click bidding with authoritative PASS button, card-playing face-up flight animations matching dealer-distribution quality, bottom-left Ask to Reveal Trump button, top-right persistent revealed trump indicator, 3-second deal transition with sequential 16-card dealer distribution animation running at the start of **every new deal**, 1-second trick collection animation, floating utility controls (zero reserved navbar height), non-scrollable landing page (`100dvh`), original sound effects (`sound-effects/`), physical drag-and-drop card playing, single-round auction with forced dealer opening, six trump options (including Joker / No Trump and 7th Card), first-bidder point-card eligibility redeals, and authentic Indian AI players.
+> A modern, zero-install, real-time **LAN (Local Area Network)** multiplayer implementation of the traditional Indian **29 (Twenty-Nine)** trick-taking card game. Features authentic traditional Indian rules, edge-to-edge full-screen table felt (`table.jpg`), original vector playing-card artwork extracted directly from an EPS collection (`poker-cards-icons-collection/OIUGSZ1.eps`), strictly drag-only card playing (no accidental clicks), strict server-authoritative 30-second turn timers, larger cards with gentle horizontal overlap, bright minimalistic UI with zero "Bidder:" text prefixes, consistent partnership colour schemes (Soft Blue & Soft Coral), animal emoji avatars, bottom-left Krish (You) player seat, fully visible top partner seat, bottom-right individual trick-point counters beside the turn countdown timer, active bidder top-bar synchronization (`🦊 Aarav is bidding`), clean direct-click bidding with authoritative PASS button, card-playing face-up flight animations with idempotent action deduplication, bottom-left Ask to Reveal Trump button with unique request tracking and support for all 6 trump modes, top-right persistent revealed trump indicator, 3-second deal transition with sequential 16-card dealer distribution animation running at the start of **every new deal**, 1-second trick collection animation, floating utility controls (zero reserved navbar height), non-scrollable landing page (`100dvh`), original sound effects (`sound-effects/`), single-round auction with forced dealer opening, six trump options (including Joker / No Trump and 7th Card), first-bidder point-card eligibility redeals, and authentic Indian AI players.
 
 ---
 
 ## 🌟 Key Highlights
 
+- **Strict Server-Authoritative 30-Second Turn Timers**:
+  - The LAN server is the single source of truth for all actionable turns (Bidding, Trump Selection, Card Play).
+  - Every turn maintains `turnId`, `position`, `actionType`, `startTime`, `deadline`, and `version` with atomic resolution preventing race conditions between timeouts and human submissions.
+  - The countdown timer never resets on card hover, starting a drag, opening the rules drawer, browser refresh, or temporary reconnects. Actions submitted after the deadline are authoritatively rejected.
+- **Strictly Drag-Only Card Playing**:
+  - A human player must physically drag a card from their hand and drop it into the central table area to play it.
+  - Clicking or tapping a card NEVER submits a play action. An 8-pixel movement threshold distinguishes deliberate drags from clicks.
+  - Releasing outside the central playing area smoothly returns the card to the hand with zero state penalty.
+  - Full touch and mouse support with pointer capture and `touch-action: none` preventing mobile scroll conflicts during drag.
+- **Robust "Ask to Reveal Trump" Flow for All Eligible Players**:
+  - Available to any player during trick play who cannot follow the lead suit, across all 6 trump modes (including Joker / No Trump and 7th Card).
+  - Submits unique `requestId`, `playerPosition`, `roundNumber`, and `trickNumber` to the LAN server with idempotent deduplication.
+  - Shows an inline `"REVEALING..."` state to prevent duplicate clicks without intrusive modals.
+  - For 7th Card mode, reveals the exact reserved seventh card and returns it to the winning bidder's playable hand.
+- **Deduplicated Card Animations (Zero Double-Rendering or Vanishing Cards)**:
+  - Every card play generates a unique monotonic action ID (`${roundNumber}_${trickNumber}_${playerIndex}_${cardId}`) deduplicated on all clients.
+  - While the card is flying from the player seat/hand to the center, `TrickArea` suppresses the static card, handing off seamlessly upon arrival without double-rendering or flickering.
+  - Trick collection animation timers are protected from React re-renders, preventing mid-flight aborts or frozen cards.
+- **Total Removal of "Bidder:" Label from the Top Information Bar**:
+  - Replaced legacy `Bidder:` and `Bid:` text prefixes with clean icons and player badges (`🏆 🦊 Aarav · 18`). Zero visible instances of the word "Bidder:" remain in the top navigation or scoreboard.
 - **Bottom-Left "Krish (You)" Seat Positioning**:
   - The local player's information box (`Krish (You)`) is positioned neatly in the **bottom-left corner** of the window, adjacent to the Ask to Reveal Trump button.
   - Leaves the central bottom area 100% unobstructed for the horizontally spread player hand, eliminating card overlap.
@@ -29,7 +49,6 @@
 - **Top-Right Persistent Revealed Trump Indicator**:
   - Positioned at the **top-right** corner of the screen, completely hidden before reveal to ensure strict privacy.
   - Once officially revealed, clearly displays the trump suit, `NO TRUMP` for Joker mode, or the actual revealed 7th card artwork and suit for 7th Card mode.
-  - Remains visible for the remainder of the deal across all connected clients and cleanly resets between deals.
 - **Recurring Card Distribution Animation at Start of Every Deal**:
   - The sequential 16-card dealer distribution animation runs at the beginning of **every deal** in the match, not just the initial round.
   - Increments `roundNumber` on every deal, rotates the dealer clockwise, respects the 3-second transition, delivers 4 initial cards to all players, checks first-bidder eligibility, and synchronizes seamlessly across all LAN clients.
