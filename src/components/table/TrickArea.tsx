@@ -210,7 +210,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
             style={{
               transform: isCollecting && collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`]
                 ? `translate3d(${collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`].y}px, 0) scale(0.25)`
-                : undefined,
+                : 'translate3d(0, 0, 0) scale(1)',
               transition: isCollecting
                 ? 'transform 0.65s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.65s cubic-bezier(0.4, 0.0, 0.2, 1)'
                 : undefined,
@@ -222,7 +222,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
               cardId={cardsBySlot.bottom.cardId}
               rotation={SLOT_ROTATIONS.bottom}
               size="sm"
-              className="rounded-lg shadow-xl"
+              className="shadow-xl"
             />
           </div>
         )}
@@ -241,7 +241,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
             style={{
               transform: isCollecting && collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`]
                 ? `translate3d(${collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`].y}px, 0) scale(0.25)`
-                : undefined,
+                : 'translate3d(0, 0, 0) scale(1)',
               transition: isCollecting
                 ? 'transform 0.65s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.65s cubic-bezier(0.4, 0.0, 0.2, 1)'
                 : undefined,
@@ -253,7 +253,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
               cardId={cardsBySlot.top.cardId}
               rotation={SLOT_ROTATIONS.top}
               size="sm"
-              className="rounded-lg shadow-xl"
+              className="shadow-xl"
             />
           </div>
         )}
@@ -272,7 +272,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
             style={{
               transform: isCollecting && collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`]
                 ? `translate3d(${collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`].y}px, 0) scale(0.25)`
-                : undefined,
+                : 'translate3d(0, 0, 0) scale(1)',
               transition: isCollecting
                 ? 'transform 0.65s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.65s cubic-bezier(0.4, 0.0, 0.2, 1)'
                 : undefined,
@@ -284,7 +284,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
               cardId={cardsBySlot.left.cardId}
               rotation={SLOT_ROTATIONS.left}
               size="sm"
-              className="rounded-lg shadow-xl"
+              className="shadow-xl"
             />
           </div>
         )}
@@ -303,7 +303,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
             style={{
               transform: isCollecting && collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`]
                 ? `translate3d(${collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`].y}px, 0) scale(0.25)`
-                : undefined,
+                : 'translate3d(0, 0, 0) scale(1)',
               transition: isCollecting
                 ? 'transform 0.65s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.65s cubic-bezier(0.4, 0.0, 0.2, 1)'
                 : undefined,
@@ -315,7 +315,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
               cardId={cardsBySlot.right.cardId}
               rotation={SLOT_ROTATIONS.right}
               size="sm"
-              className="rounded-lg shadow-xl"
+              className="shadow-xl"
             />
           </div>
         )}

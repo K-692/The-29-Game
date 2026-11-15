@@ -155,11 +155,11 @@ export const PhysicalTrumpIndicator: React.FC<PhysicalTrumpIndicatorProps> = ({
       >
         {/* 3D Card Container with Flip Animation */}
         <div
-          className="relative w-11 h-15 sm:w-13 sm:h-[4.6rem] transition-transform duration-300 hover:scale-105"
+          className="relative w-12 h-[4.2rem] sm:w-14 sm:h-[4.9rem] aspect-[5/7] transition-transform duration-300 hover:scale-105"
           style={{ perspective: '800px' }}
         >
           <div
-            className="w-full h-full relative transition-transform duration-700 shadow-lg rounded-lg"
+            className="w-full h-full relative transition-transform duration-700 shadow-lg"
             style={{
               transformStyle: 'preserve-3d',
               transform: showFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
@@ -167,7 +167,7 @@ export const PhysicalTrumpIndicator: React.FC<PhysicalTrumpIndicatorProps> = ({
           >
             {/* FRONT FACE: Concealed Trump (Face-Down Card Back - Strictly NO text on top of card) */}
             <div
-              className="absolute inset-0 w-full h-full rounded-lg overflow-hidden shadow-md bg-transparent"
+              className="absolute inset-0 w-full h-full shadow-md bg-transparent"
               style={{
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',
@@ -184,7 +184,7 @@ export const PhysicalTrumpIndicator: React.FC<PhysicalTrumpIndicatorProps> = ({
 
             {/* BACK FACE: Revealed Trump (Strictly NO text/badges on top of card face) */}
             <div
-              className="absolute inset-0 w-full h-full rounded-lg overflow-hidden shadow-xl bg-transparent"
+              className="absolute inset-0 w-full h-full shadow-xl bg-transparent"
               style={{
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',
@@ -193,7 +193,7 @@ export const PhysicalTrumpIndicator: React.FC<PhysicalTrumpIndicatorProps> = ({
             >
               {trumpMode === 'no-trump' ? (
                 // Clean Joker / NO TRUMP Card Face
-                <div className="w-full h-full bg-linear-to-b from-amber-50 to-white flex flex-col items-center justify-center p-1 text-center border-2 border-amber-400 rounded-lg">
+                <div className="w-full h-full bg-linear-to-b from-amber-50 to-white flex flex-col items-center justify-center p-1 text-center border-2 border-amber-400 rounded-sm">
                   <Crown className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 mb-0.5" />
                   <span className="text-[9px] sm:text-[10px] font-black text-slate-900 leading-tight tracking-wider">
                     NO
@@ -205,12 +205,12 @@ export const PhysicalTrumpIndicator: React.FC<PhysicalTrumpIndicatorProps> = ({
               ) : trumpMode === 'seventh-card' && (seventhCardStage === 'showing-7th' || seventhCardStage === 'gliding') && revealedSeventhCard ? (
                 // Stage 1 & 2: Authentic 7th card displayed cleanly without badges on top
                 <div className="w-full h-full relative">
-                  <PlayingCard cardId={revealedSeventhCard} size="xs" className="w-full h-full rounded-lg" />
+                  <PlayingCard cardId={revealedSeventhCard} size="xs" className="w-full h-full" />
                 </div>
               ) : (
                 // Normal Suit OR 7th Card Stage 3: Clean Six-Number Display Card
                 <div className="w-full h-full relative">
-                  <PlayingCard cardId={suitDisplayCardId} size="xs" className="w-full h-full rounded-lg" />
+                  <PlayingCard cardId={suitDisplayCardId} size="xs" className="w-full h-full" />
                 </div>
               )}
             </div>
@@ -230,14 +230,14 @@ export const PhysicalTrumpIndicator: React.FC<PhysicalTrumpIndicatorProps> = ({
           style={{
             left: glideCoords.targetX,
             top: glideCoords.targetY,
-            width: 52,
-            height: 74,
+            width: 50,
+            height: 70,
             transform: 'scale(1.1) rotate(-4deg)',
             filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.35))',
             animation: 'glideToOwner 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards',
           }}
         >
-          <PlayingCard cardId={revealedSeventhCard} size="xs" className="w-full h-full rounded-lg" />
+          <PlayingCard cardId={revealedSeventhCard} size="xs" className="w-full h-full" />
         </div>
       )}
     </>
