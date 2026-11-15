@@ -238,6 +238,8 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
           return (
             <div
               key={cardId}
+              data-card-id={cardId}
+              data-card-playable={isPlayable ? 'true' : 'false'}
               onMouseEnter={() => {
                 if (!activeDragCardId) {
                   setHoveredCardId(cardId);

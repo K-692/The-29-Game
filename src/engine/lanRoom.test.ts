@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { RoomManager, SeatInfo } from '../../server/roomManager';
 import { DEFAULT_RULES_CONFIG } from './types';
+import { getPlayableCards } from './tricks';
+import { completeTrickTransition } from './gameManager';
 
 // Mock Socket for server-side testing
 function createMockSocket(id: string) {
@@ -543,5 +545,86 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     expect(revealRes.success).toBe(false);
     expect(revealRes.error).toMatch(/follow suit/i);
     expect(room.gameState?.isTrumpRevealed).toBe(false);
+  });
+
+  it('should play through an entire bot match round with 3 bots and reach ROUND_ENDED with correct summary', () => {
+    const io = createMockIo();
+    const mgr = new RoomManager(io);
+    const hostSocket = createMockSocket('host_bot_round');
+    const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Krish', DEFAULT_RULES_CONFIG, 0);
+
+    const startRes = mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
+    expect(startRes.success).toBe(true);
+    expect(room.gameState?.phase).toBe('BIDDING');
+
+    // Force dealer to Seat 3 so Seat 0 (human) is first bidder in biddingOrder [0, 1, 2, 3]
+    room.gameState!.dealerIndex = 3;
+    room.gameState!.currentTurn = 0;
+    room.gameState!.biddingOrder = [0, 1, 2, 3];
+    room.gameState!.biddingTurnIndex = 0;
+    room.gameState!.bids = [];
+
+    // Human (Seat 0) bids 16
+    const b0 = mgr.handleBid(room.code, hostSeat.sessionToken, 16);
+    expect(b0.success).toBe(true);
+
+    // Bots 1, 2, 3 pass
+    const s1 = room.seats[1];
+    const s2 = room.seats[2];
+    const s3 = room.seats[3];
+    mgr.handleBid(room.code, s1.sessionToken, 'PASS');
+    mgr.handleBid(room.code, s2.sessionToken, 'PASS');
+    mgr.handleBid(room.code, s3.sessionToken, 'PASS');
+
+    expect(room.gameState?.phase).toBe('TRUMP_SELECTION');
+    expect(room.gameState?.highestBidder).toBe(0);
+
+    // Host selects SPADES
+    const trumpRes = mgr.handleSelectTrump(room.code, hostSeat.sessionToken, 'SPADES');
+    expect(trumpRes.success).toBe(true);
+    expect(room.gameState?.phase).toBe('TRICK_PLAY');
+    expect(room.gameState?.trumpSuit).toBe('SPADES');
+
+    // Play all 8 tricks
+    for (let trick = 1; trick <= 8; trick++) {
+      expect(room.gameState?.currentTrickNumber).toBe(trick);
+
+      for (let cardIndex = 0; cardIndex < 4; cardIndex++) {
+        const turn = room.gameState!.currentTurn;
+        const currentSeat = room.seats.find((s) => s.position === turn)!;
+        const hand = room.gameState!.hands[turn];
+
+        const leadCardId = room.gameState!.currentTrickCards.length > 0 
+          ? room.gameState!.currentTrickCards[0].cardId 
+          : null;
+
+        // Pick legal card
+        const playable = getPlayableCards(
+          hand,
+          leadCardId,
+          room.gameState!.trumpSuit,
+          room.gameState!.isTrumpRevealed,
+          room.gameState!.trumpMode
+        );
+
+        const cardToPlay = playable[0];
+        const playRes = mgr.handlePlayCard(room.code, currentSeat.sessionToken, cardToPlay);
+        expect(playRes.success).toBe(true);
+      }
+
+      // Authoritatively transition trick
+      const lastTrick = room.gameState!.lastCompletedTrick!;
+      expect(lastTrick).toBeDefined();
+      room.gameState = completeTrickTransition(room.gameState!, lastTrick);
+    }
+
+    // Verify all 8 tricks played and round concluded
+    expect(room.gameState?.completedTricks).toHaveLength(8);
+    expect(room.gameState?.phase).toBe('ROUND_ENDED');
+    expect(room.gameState?.roundHistory).toHaveLength(1);
+    const summary = room.gameState!.roundHistory[0];
+    expect(summary.roundNumber).toBe(1);
+    expect(summary.contractBid).toBe(16);
+    expect(summary.trumpSuit).toBe('SPADES');
   });
 });

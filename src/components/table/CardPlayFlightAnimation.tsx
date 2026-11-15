@@ -42,11 +42,11 @@ export const CardPlayFlightAnimation: React.FC<CardPlayFlightAnimationProps> = (
   const [animState, setAnimState] = useState<{
     x: number;
     y: number;
+    width: number;
+    height: number;
     deltaX: number;
     deltaY: number;
-    initialRotation: number;
     targetRotation: number;
-    scale: number;
     isMoving: boolean;
   } | null>(null);
 
@@ -55,59 +55,58 @@ export const CardPlayFlightAnimation: React.FC<CardPlayFlightAnimationProps> = (
   useEffect(() => {
     hasCalledCompleteRef.current = false;
 
-    // 1. Determine Start Coordinates
-    let startX = window.innerWidth / 2 - 48;
+    // 1. Measure Exact Target Slot Coordinates
+    const slotEl = document.querySelector(`[data-trick-slot="${relPos}"]`);
+    let targetX = window.innerWidth / 2 - 50;
+    let targetY = window.innerHeight / 2 - 70;
+    let slotWidth = 100;
+    let slotHeight = 140;
+
+    if (slotEl) {
+      const slotRect = slotEl.getBoundingClientRect();
+      targetX = slotRect.left;
+      targetY = slotRect.top;
+      slotWidth = slotRect.width;
+      slotHeight = slotRect.height;
+    } else {
+      const trickEl = document.querySelector('#trick-area');
+      if (trickEl) {
+        const tr = trickEl.getBoundingClientRect();
+        const cx = tr.left + tr.width / 2 - 50;
+        const cy = tr.top + tr.height / 2 - 70;
+        switch (relPos) {
+          case 'bottom': targetX = cx; targetY = cy + 85; break;
+          case 'top': targetX = cx; targetY = cy - 85; break;
+          case 'left': targetX = cx - 100; targetY = cy; break;
+          case 'right': targetX = cx + 100; targetY = cy; break;
+        }
+      }
+    }
+
+    // 2. Determine Exact Start Coordinates
+    let startX = targetX;
     let startY = window.innerHeight * 0.85;
-    let initialRotation = 0;
 
     if (originRect && relPos === 'bottom') {
-      startX = originRect.left;
-      startY = originRect.top;
-      initialRotation = 0;
+      startX = originRect.left + (originRect.width - slotWidth) / 2;
+      startY = originRect.top + (originRect.height - slotHeight) / 2;
     } else {
       const seatEl = document.querySelector(`[data-seat="${relPos}"]`);
       if (relPos === 'bottom') {
         const handEl = document.querySelector('#player-hand');
         if (handEl) {
           const r = handEl.getBoundingClientRect();
-          startX = r.left + r.width / 2 - 48;
-          startY = r.top + r.height / 2 - 68;
+          startX = r.left + (r.width - slotWidth) / 2;
+          startY = r.top + (r.height - slotHeight) / 2;
         } else if (seatEl) {
           const r = seatEl.getBoundingClientRect();
-          startX = r.left + r.width / 2 - 48;
-          startY = r.top + r.height / 2 - 68;
+          startX = r.left + (r.width - slotWidth) / 2;
+          startY = r.top + (r.height - slotHeight) / 2;
         }
       } else if (seatEl) {
         const r = seatEl.getBoundingClientRect();
-        startX = r.left + r.width / 2 - 48;
-        startY = r.top + r.height / 2 - 68;
-        if (relPos === 'left') initialRotation = 12;
-        else if (relPos === 'right') initialRotation = -12;
-        else if (relPos === 'top') initialRotation = 6;
-      }
-    }
-
-    // 2. Measure Exact Target Coordinates from the Designated Trick Slot
-    const slotEl = document.querySelector(`[data-trick-slot="${relPos}"]`);
-    let targetX = window.innerWidth / 2 - 48;
-    let targetY = window.innerHeight / 2 - 68;
-
-    if (slotEl) {
-      const slotRect = slotEl.getBoundingClientRect();
-      targetX = slotRect.left + slotRect.width / 2 - 48;
-      targetY = slotRect.top + slotRect.height / 2 - 68;
-    } else {
-      const trickEl = document.querySelector('#trick-area');
-      if (trickEl) {
-        const tr = trickEl.getBoundingClientRect();
-        const cx = tr.left + tr.width / 2 - 48;
-        const cy = tr.top + tr.height / 2 - 68;
-        switch (relPos) {
-          case 'bottom': targetX = cx; targetY = cy + 90; break;
-          case 'top': targetX = cx; targetY = cy - 90; break;
-          case 'left': targetX = cx - 110; targetY = cy; break;
-          case 'right': targetX = cx + 110; targetY = cy; break;
-        }
+        startX = r.left + (r.width - slotWidth) / 2;
+        startY = r.top + (r.height - slotHeight) / 2;
       }
     }
 
@@ -119,11 +118,11 @@ export const CardPlayFlightAnimation: React.FC<CardPlayFlightAnimationProps> = (
     setAnimState({
       x: startX,
       y: startY,
+      width: slotWidth,
+      height: slotHeight,
       deltaX,
       deltaY,
-      initialRotation,
       targetRotation,
-      scale: 1,
       isMoving: false,
     });
 
@@ -145,7 +144,7 @@ export const CardPlayFlightAnimation: React.FC<CardPlayFlightAnimationProps> = (
         soundManager.playCardPlace();
         onAnimationComplete();
       }
-    }, 300);
+    }, 280);
 
     return () => {
       cancelAnimationFrame(raf);
@@ -161,20 +160,25 @@ export const CardPlayFlightAnimation: React.FC<CardPlayFlightAnimationProps> = (
       style={{
         left: animState.x,
         top: animState.y,
+        width: animState.width,
+        height: animState.height,
         transform: animState.isMoving
-          ? `translate3d(${animState.deltaX}px, ${animState.deltaY}px, 0) rotate(${animState.targetRotation}deg) scale(1)`
-          : `translate3d(0, 0, 0) rotate(${animState.initialRotation}deg) scale(1)`,
+          ? `translate3d(${animState.deltaX}px, ${animState.deltaY}px, 0)`
+          : 'translate3d(0, 0, 0)',
         transition: animState.isMoving
           ? 'transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1)'
           : 'none',
         willChange: 'transform',
       }}
     >
-      <PlayingCard
-        cardId={cardId}
-        size="md"
-        className="rounded-xl shadow-2xl border border-slate-200/40"
-      />
+      <div className="w-full h-full flex items-center justify-center">
+        <PlayingCard
+          cardId={cardId}
+          rotation={animState.targetRotation}
+          size="md"
+          className="rounded-xl shadow-2xl border border-slate-200/40"
+        />
+      </div>
     </div>
   );
 };

@@ -429,7 +429,7 @@ export const GameTable: React.FC<GameTableProps> = ({
       <main className="relative flex-1 w-full h-full overflow-hidden">
         {/* Top Seat: Partner (Seat 3) - Ample clearance below top scoreboard */}
         {partner && (
-          <div className="absolute top-20 sm:top-24 md:top-28 left-1/2 -translate-x-1/2 z-25">
+          <div className="absolute top-18 sm:top-20 md:top-22 left-1/2 -translate-x-1/2 z-25">
             <OpponentSeat
               player={partner}
               seatPosition="top"
@@ -457,16 +457,18 @@ export const GameTable: React.FC<GameTableProps> = ({
           </div>
         )}
 
-        {/* Right Area: Trump Card (Just above Varun) + Opponent Right (Seat 4, Varun) */}
-        <div className="absolute right-2 sm:right-6 top-[44%] -translate-y-1/2 z-20 flex flex-col items-center gap-2">
-          {/* Physical Trump Indicator positioned just above Varun */}
-          <PhysicalTrumpIndicator
-            publicState={publicState}
-            myPosition={myPosition}
-            onTriggerEpicReveal={handleTriggerEpicReveal}
-          />
+        {/* Right Seat: Opponent Right (Seat 4, Varun) */}
+        {rightOpponent && (
+          <div className="absolute right-2 sm:right-6 top-[44%] -translate-y-1/2 z-20">
+            {/* Physical Trump Indicator positioned directly above Varun */}
+            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto">
+              <PhysicalTrumpIndicator
+                publicState={publicState}
+                myPosition={myPosition}
+                onTriggerEpicReveal={handleTriggerEpicReveal}
+              />
+            </div>
 
-          {rightOpponent && (
             <OpponentSeat
               player={rightOpponent}
               seatPosition="right"
@@ -476,13 +478,13 @@ export const GameTable: React.FC<GameTableProps> = ({
               bidAmount={publicState.highestBid || undefined}
               playerPoints={publicState.playerPoints ? publicState.playerPoints[rightOpponentPos] : 0}
             />
-          )}
-        </div>
+          </div>
+        )}
 
         {/* IN-TABLE ACTIVE OVERLAYS (STRICTLY NO MODALS!) */}
         {/* A. Bidding Panel with Restored PASS button */}
         {publicState.phase === 'BIDDING' && !showDealingAnimation && (
-          <div className="absolute top-[44%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-full max-w-lg px-2">
+          <div className="absolute top-[50%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-full max-w-lg px-2">
             <InTableBidding
               currentHighestBid={publicState.highestBid}
               highestBidder={publicState.highestBidder}
@@ -505,7 +507,7 @@ export const GameTable: React.FC<GameTableProps> = ({
 
         {/* B. Trump Selector */}
         {publicState.phase === 'TRUMP_SELECTION' && (
-          <div className="absolute top-[44%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-full max-w-lg px-2">
+          <div className="absolute top-[50%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-full max-w-lg px-2">
             <InTableTrumpSelector
               handCardIds={publicState.myHand}
               highestBid={publicState.highestBid}
@@ -521,7 +523,7 @@ export const GameTable: React.FC<GameTableProps> = ({
 
         {/* C. Round Summary with 3s transition */}
         {publicState.phase === 'ROUND_ENDED' && latestSummary && (
-          <div className="absolute top-[44%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-full max-w-lg px-2">
+          <div className="absolute top-[50%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-full max-w-lg px-2">
             <InTableRoundSummary
               summary={latestSummary}
               isHost={isHost}

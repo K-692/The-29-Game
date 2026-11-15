@@ -49,6 +49,7 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
     if (isSubmitting || !isMyTurn) return;
     setIsSubmitting(true);
     onPlaceBid(val);
+    setTimeout(() => setIsSubmitting(false), 1500);
   };
 
   return (
