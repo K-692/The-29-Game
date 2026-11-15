@@ -13,8 +13,12 @@ interface TrickAreaProps {
   flyingCardId?: string | null;
 }
 
-// Fixed slight rotation angles for natural card feel
-const CARD_ROTATIONS = [-2, 3, -2, 2];
+const SLOT_ROTATIONS: Record<'bottom' | 'top' | 'left' | 'right', number> = {
+  bottom: -2,
+  top: 2,
+  left: 3,
+  right: -3,
+};
 
 export const TrickArea: React.FC<TrickAreaProps> = ({
   playedCards,
@@ -30,7 +34,13 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
   const [isCollecting, setIsCollecting] = useState<boolean>(false);
   const [collectionVectors, setCollectionVectors] = useState<Record<string, { x: number; y: number }>>({});
 
-  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const slotRefs = {
+    bottom: useRef<HTMLDivElement>(null),
+    top: useRef<HTMLDivElement>(null),
+    left: useRef<HTMLDivElement>(null),
+    right: useRef<HTMLDivElement>(null),
+  };
+
   const lastAnimatedTrickKeyRef = useRef<string | null>(null);
   const timer1Ref = useRef<NodeJS.Timeout | null>(null);
   const timer2Ref = useRef<NodeJS.Timeout | null>(null);
@@ -47,73 +57,78 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
     }
   };
 
-  // Check if a 4-card trick is present (either currently played 4 cards or freshly completed trick)
+  // Check if a 4-card trick is present
   const isFourCards = playedCards.length === 4;
 
   useEffect(() => {
-    // Determine completed trick info
-    const latestTrick = lastCompletedTrick || (completedTricks.length > 0 ? completedTricks[completedTricks.length - 1] : null);
-
-    if (isFourCards && latestTrick) {
-      const trickKey = `trick_${latestTrick.trickNumber}_len${completedTricks.length}_w${latestTrick.winner}`;
-      if (lastAnimatedTrickKeyRef.current === trickKey) {
-        return;
-      }
-      lastAnimatedTrickKeyRef.current = trickKey;
-
-      const cardsToAnimate = [...playedCards];
-      setFrozenCards(cardsToAnimate);
-      setIsCollecting(false);
-
-      const targetRelPos = getRelativePosition(latestTrick.winner);
-
-      if (timer1Ref.current) clearTimeout(timer1Ref.current);
-      if (timer2Ref.current) clearTimeout(timer2Ref.current);
-
-      // Step 1: Wait exactly 1 second (1000ms) with all 4 cards displayed clearly in center
-      timer1Ref.current = setTimeout(() => {
-        // Step 2: Calculate destination coordinates using getBoundingClientRect()
-        const targetSeatEl = document.querySelector(`[data-seat="${targetRelPos}"]`);
-        const targetRect = targetSeatEl?.getBoundingClientRect();
-
-        const vectors: Record<string, { x: number; y: number }> = {};
-        cardsToAnimate.forEach((pc) => {
-          const key = `${pc.cardId}_${pc.playerIndex}`;
-          const cardEl = cardRefs.current[key];
-          if (cardEl && targetRect) {
-            const cardRect = cardEl.getBoundingClientRect();
-            const targetCenterX = targetRect.left + targetRect.width / 2;
-            const targetCenterY = targetRect.top + targetRect.height / 2;
-            const cardCenterX = cardRect.left + cardRect.width / 2;
-            const cardCenterY = cardRect.top + cardRect.height / 2;
-            vectors[key] = {
-              x: targetCenterX - cardCenterX,
-              y: targetCenterY - cardCenterY,
-            };
-          } else {
-            // High-visibility fallback offsets towards winning seat
-            switch (targetRelPos) {
-              case 'bottom': vectors[key] = { x: 0, y: 340 }; break;
-              case 'top': vectors[key] = { x: 0, y: -340 }; break;
-              case 'left': vectors[key] = { x: -420, y: 0 }; break;
-              case 'right': vectors[key] = { x: 420, y: 0 }; break;
-            }
-          }
-        });
-
-        setCollectionVectors(vectors);
-        setIsCollecting(true);
-        soundManager.playTrickShove();
-      }, 1000);
-
-      // Step 3: At 1550ms, animation completes
-      timer2Ref.current = setTimeout(() => {
-        setFrozenCards(null);
-        setIsCollecting(false);
-        setCollectionVectors({});
-      }, 1550);
+    // Only begin the 1000ms freeze-frame when all 4 cards have fully landed (flyingCardId is null)
+    if (!isFourCards || flyingCardId) {
+      return;
     }
-  }, [playedCards.length, isFourCards, lastCompletedTrick, completedTricks.length, myPosition]);
+
+    const latestTrick = lastCompletedTrick || (completedTricks.length > 0 ? completedTricks[completedTricks.length - 1] : null);
+    if (!latestTrick) return;
+
+    const trickKey = `trick_${latestTrick.trickNumber}_len${completedTricks.length}_w${latestTrick.winner}`;
+    if (lastAnimatedTrickKeyRef.current === trickKey) {
+      return;
+    }
+    lastAnimatedTrickKeyRef.current = trickKey;
+
+    const cardsToAnimate = [...playedCards];
+    setFrozenCards(cardsToAnimate);
+    setIsCollecting(false);
+
+    const targetRelPos = getRelativePosition(latestTrick.winner);
+
+    if (timer1Ref.current) clearTimeout(timer1Ref.current);
+    if (timer2Ref.current) clearTimeout(timer2Ref.current);
+
+    // Step 1: Hold all 4 cards on the table for exactly 1000ms
+    timer1Ref.current = setTimeout(() => {
+      // Step 2: Calculate vectors towards winning player's seat
+      const targetSeatEl = document.querySelector(`[data-seat="${targetRelPos}"]`);
+      const targetRect = targetSeatEl?.getBoundingClientRect();
+
+      const vectors: Record<string, { x: number; y: number }> = {};
+      cardsToAnimate.forEach((pc) => {
+        const key = `${pc.cardId}_${pc.playerIndex}`;
+        const pcRelPos = getRelativePosition(pc.playerIndex);
+        const slotEl = slotRefs[pcRelPos].current;
+
+        if (slotEl && targetRect) {
+          const slotRect = slotEl.getBoundingClientRect();
+          const targetCenterX = targetRect.left + targetRect.width / 2;
+          const targetCenterY = targetRect.top + targetRect.height / 2;
+          const slotCenterX = slotRect.left + slotRect.width / 2;
+          const slotCenterY = slotRect.top + slotRect.height / 2;
+          vectors[key] = {
+            x: targetCenterX - slotCenterX,
+            y: targetCenterY - slotCenterY,
+          };
+        } else {
+          // Fallback offsets
+          switch (targetRelPos) {
+            case 'bottom': vectors[key] = { x: 0, y: 340 }; break;
+            case 'top': vectors[key] = { x: 0, y: -340 }; break;
+            case 'left': vectors[key] = { x: -420, y: 0 }; break;
+            case 'right': vectors[key] = { x: 420, y: 0 }; break;
+          }
+        }
+      });
+
+      setCollectionVectors(vectors);
+      setIsCollecting(true);
+      soundManager.playTrickShove();
+    }, 1000);
+
+    // Step 3: At 1450ms (1000ms pause + 450ms glide), collection completes
+    timer2Ref.current = setTimeout(() => {
+      setFrozenCards(null);
+      setIsCollecting(false);
+      setCollectionVectors({});
+    }, 1450);
+  }, [isFourCards, flyingCardId, lastCompletedTrick, completedTricks.length, myPosition]);
 
   useEffect(() => {
     return () => {
@@ -122,22 +137,21 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
     };
   }, []);
 
-  const cardsToRender = (frozenCards || playedCards).filter(
-    (pc) => !flyingCardId || pc.cardId !== flyingCardId
-  );
+  // Cards to render: either currently frozen cards (during collection) or played cards
+  const cardsToRender = frozenCards || playedCards;
 
-  const getPositionStyles = (relPos: 'bottom' | 'left' | 'top' | 'right') => {
-    switch (relPos) {
-      case 'bottom':
-        return 'bottom-1 left-1/2 -translate-x-1/2';
-      case 'top':
-        return 'top-1 left-1/2 -translate-x-1/2';
-      case 'left':
-        return 'left-2 top-1/2 -translate-y-1/2';
-      case 'right':
-        return 'right-2 top-1/2 -translate-y-1/2';
-    }
+  // Group cards by their relative slot
+  const cardsBySlot: Record<'bottom' | 'top' | 'left' | 'right', PlayedCard | null> = {
+    bottom: null,
+    top: null,
+    left: null,
+    right: null,
   };
+
+  cardsToRender.forEach((pc) => {
+    const relPos = getRelativePosition(pc.playerIndex);
+    cardsBySlot[relPos] = pc;
+  });
 
   return (
     <div
@@ -148,42 +162,122 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
       {/* Invisible drop target hitbox */}
       <div className="absolute inset-0 pointer-events-auto" />
 
-      {/* Played Cards in Trick (Strictly NO player name text underneath cards) */}
-      {cardsToRender.map((pc, idx) => {
-        const relPos = getRelativePosition(pc.playerIndex);
-        const posClass = getPositionStyles(relPos);
-        const rotation = CARD_ROTATIONS[idx % CARD_ROTATIONS.length];
-        const key = `${pc.cardId}_${pc.playerIndex}`;
-
-        const vector = collectionVectors[key];
-        const isCurrentlyGliding = isCollecting && vector !== undefined;
-
-        return (
+      {/* 4 Dedicated Slots with Fixed Anchors */}
+      {/* 1. BOTTOM SLOT */}
+      <div
+        ref={slotRefs.bottom}
+        data-trick-slot="bottom"
+        className="absolute bottom-2 left-1/2 -translate-x-1/2 w-22 h-[7.7rem] sm:w-26 sm:h-[9.1rem] md:w-30 md:h-[10.5rem] lg:w-32 lg:h-[11.2rem] flex items-center justify-center pointer-events-none"
+      >
+        {cardsBySlot.bottom && (
           <div
-            key={key}
-            ref={(el) => { cardRefs.current[key] = el; }}
+            className={`w-full h-full flex items-center justify-center transition-all ${
+              cardsBySlot.bottom.cardId === flyingCardId ? 'opacity-0' : 'opacity-100'
+            }`}
             style={{
-              transform: isCurrentlyGliding
-                ? `translate3d(${vector.x}px, ${vector.y}px, 0) scale(0.18)`
+              transform: isCollecting && collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`]
+                ? `translate3d(${collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`].y}px, 0) scale(0.55)`
                 : undefined,
-              opacity: isCurrentlyGliding ? 0 : 1,
-              transition: isCurrentlyGliding
-                ? 'transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.45s ease-in'
-                : 'none',
-              zIndex: isCurrentlyGliding ? 50 : 10 + idx,
+              transition: isCollecting ? 'transform 0.45s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.45s ease-in' : undefined,
+              opacity: isCollecting ? 0.3 : 1,
             }}
-            className={`absolute ${posClass}`}
           >
             <PlayingCard
-              cardId={pc.cardId}
-              faceDown={false}
+              cardId={cardsBySlot.bottom.cardId}
+              rotation={SLOT_ROTATIONS.bottom}
               size="md"
-              rotation={rotation}
-              className="shadow-2xl rounded-xl ring-1 ring-slate-900/10"
+              className="rounded-xl shadow-xl border border-slate-200/40"
             />
           </div>
-        );
-      })}
+        )}
+      </div>
+
+      {/* 2. TOP SLOT */}
+      <div
+        ref={slotRefs.top}
+        data-trick-slot="top"
+        className="absolute top-2 left-1/2 -translate-x-1/2 w-22 h-[7.7rem] sm:w-26 sm:h-[9.1rem] md:w-30 md:h-[10.5rem] lg:w-32 lg:h-[11.2rem] flex items-center justify-center pointer-events-none"
+      >
+        {cardsBySlot.top && (
+          <div
+            className={`w-full h-full flex items-center justify-center transition-all ${
+              cardsBySlot.top.cardId === flyingCardId ? 'opacity-0' : 'opacity-100'
+            }`}
+            style={{
+              transform: isCollecting && collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`]
+                ? `translate3d(${collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`].y}px, 0) scale(0.55)`
+                : undefined,
+              transition: isCollecting ? 'transform 0.45s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.45s ease-in' : undefined,
+              opacity: isCollecting ? 0.3 : 1,
+            }}
+          >
+            <PlayingCard
+              cardId={cardsBySlot.top.cardId}
+              rotation={SLOT_ROTATIONS.top}
+              size="md"
+              className="rounded-xl shadow-xl border border-slate-200/40"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* 3. LEFT SLOT */}
+      <div
+        ref={slotRefs.left}
+        data-trick-slot="left"
+        className="absolute left-3 top-1/2 -translate-y-1/2 w-22 h-[7.7rem] sm:w-26 sm:h-[9.1rem] md:w-30 md:h-[10.5rem] lg:w-32 lg:h-[11.2rem] flex items-center justify-center pointer-events-none"
+      >
+        {cardsBySlot.left && (
+          <div
+            className={`w-full h-full flex items-center justify-center transition-all ${
+              cardsBySlot.left.cardId === flyingCardId ? 'opacity-0' : 'opacity-100'
+            }`}
+            style={{
+              transform: isCollecting && collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`]
+                ? `translate3d(${collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`].y}px, 0) scale(0.55)`
+                : undefined,
+              transition: isCollecting ? 'transform 0.45s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.45s ease-in' : undefined,
+              opacity: isCollecting ? 0.3 : 1,
+            }}
+          >
+            <PlayingCard
+              cardId={cardsBySlot.left.cardId}
+              rotation={SLOT_ROTATIONS.left}
+              size="md"
+              className="rounded-xl shadow-xl border border-slate-200/40"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* 4. RIGHT SLOT */}
+      <div
+        ref={slotRefs.right}
+        data-trick-slot="right"
+        className="absolute right-3 top-1/2 -translate-y-1/2 w-22 h-[7.7rem] sm:w-26 sm:h-[9.1rem] md:w-30 md:h-[10.5rem] lg:w-32 lg:h-[11.2rem] flex items-center justify-center pointer-events-none"
+      >
+        {cardsBySlot.right && (
+          <div
+            className={`w-full h-full flex items-center justify-center transition-all ${
+              cardsBySlot.right.cardId === flyingCardId ? 'opacity-0' : 'opacity-100'
+            }`}
+            style={{
+              transform: isCollecting && collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`]
+                ? `translate3d(${collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`].y}px, 0) scale(0.55)`
+                : undefined,
+              transition: isCollecting ? 'transform 0.45s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.45s ease-in' : undefined,
+              opacity: isCollecting ? 0.3 : 1,
+            }}
+          >
+            <PlayingCard
+              cardId={cardsBySlot.right.cardId}
+              rotation={SLOT_ROTATIONS.right}
+              size="md"
+              className="rounded-xl shadow-xl border border-slate-200/40"
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 };

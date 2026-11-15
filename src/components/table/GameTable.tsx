@@ -14,7 +14,9 @@ import { Scoreboard } from './Scoreboard';
 import { OpponentSeat } from './OpponentSeat';
 import { PlayerHand } from './PlayerHand';
 import { TrickArea } from './TrickArea';
-import { RevealedTrumpTopRight, AskToRevealTrumpButton } from './TrumpIndicator';
+import { AskToRevealTrumpButton } from './TrumpIndicator';
+import { PhysicalTrumpIndicator } from './PhysicalTrumpIndicator';
+import { EpicTrumpRevealEffect } from './EpicTrumpRevealEffect';
 import { InTableBidding } from './InTableBidding';
 import { InTableTrumpSelector } from './InTableTrumpSelector';
 import { InTableRoundSummary } from './InTableRoundSummary';
@@ -82,18 +84,27 @@ export const GameTable: React.FC<GameTableProps> = ({
     }
   }, [publicState.phase, publicState.roundNumber]);
 
+  // Epic full-window reveal effect state
+  const [showEpicReveal, setShowEpicReveal] = useState(false);
+  const handleTriggerEpicReveal = () => {
+    setShowEpicReveal(true);
+  };
+
   // Card-playing flight animation state with robust action deduplication
   const [flyingCard, setFlyingCard] = useState<{
     actionId: string;
     cardId: string;
     playerIndex: PlayerPosition;
+    originRect?: { left: number; top: number; width: number; height: number } | null;
   } | null>(null);
 
+  const pendingOriginRectsRef = useRef<Record<string, { left: number; top: number; width: number; height: number }>>({});
   const playedActionsSetRef = useRef(new Set<string>());
 
   useEffect(() => {
     // Reset played actions deduplication when round advances
     playedActionsSetRef.current.clear();
+    pendingOriginRectsRef.current = {};
   }, [publicState.roundNumber]);
 
   useEffect(() => {
@@ -103,14 +114,25 @@ export const GameTable: React.FC<GameTableProps> = ({
       const actionId = `${publicState.roundNumber}_${publicState.currentTrickNumber}_${latestCard.playerIndex}_${latestCard.cardId}`;
       if (!playedActionsSetRef.current.has(actionId)) {
         playedActionsSetRef.current.add(actionId);
+        const originRect = latestCard.playerIndex === myPosition
+          ? pendingOriginRectsRef.current[latestCard.cardId] || null
+          : null;
         setFlyingCard({
           actionId,
           cardId: latestCard.cardId,
           playerIndex: latestCard.playerIndex,
+          originRect,
         });
       }
     }
-  }, [publicState.currentTrickCards, publicState.roundNumber, publicState.currentTrickNumber]);
+  }, [publicState.currentTrickCards, publicState.roundNumber, publicState.currentTrickNumber, myPosition]);
+
+  const handlePlayCard = (cardId: string, originRect?: { left: number; top: number; width: number; height: number }) => {
+    if (originRect) {
+      pendingOriginRectsRef.current[cardId] = originRect;
+    }
+    onPlayCard(cardId);
+  };
 
   // Drag-and-drop state coordinates between Table and Player Hand
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -346,10 +368,14 @@ export const GameTable: React.FC<GameTableProps> = ({
           )}
         </div>
 
-        {/* Right Section: Revealed Trump (Top-Right) & Audio Controls & Help */}
+        {/* Right Section: Physical Trump Indicator (Top-Right) & Audio Controls & Help */}
         <div className="flex items-center gap-2 pointer-events-auto">
-          {/* Revealed Trump Suit indicator at Top-Right */}
-          <RevealedTrumpTopRight publicState={publicState} />
+          {/* Physical Playing-Card Trump Indicator at Top-Right */}
+          <PhysicalTrumpIndicator
+            publicState={publicState}
+            myPosition={myPosition}
+            onTriggerEpicReveal={handleTriggerEpicReveal}
+          />
 
           {/* Sound Controls */}
           <div className="flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md px-2 py-1.5 rounded-2xl text-slate-700">
@@ -544,8 +570,9 @@ export const GameTable: React.FC<GameTableProps> = ({
             isMyTurn={isMyTurn}
             dropTargetRect={dropTargetRect}
             onDragStateChange={handleDragStateChange}
-            onPlayCard={onPlayCard}
+            onPlayCard={handlePlayCard}
             disabled={publicState.phase !== 'TRICK_PLAY'}
+            inFlightCardId={flyingCard?.playerIndex === myPosition ? flyingCard.cardId : null}
           />
         </div>
       </main>
@@ -661,11 +688,22 @@ export const GameTable: React.FC<GameTableProps> = ({
           cardId={flyingCard.cardId}
           playerIndex={flyingCard.playerIndex}
           myPosition={myPosition}
+          originRect={flyingCard.originRect}
           onAnimationComplete={() => setFlyingCard(null)}
         />
       )}
 
-      {/* 8. Dealer Distribution Animation (16 sequential deliveries from dealer) */}
+      {/* 8. Full-Window Epic Trump-Reveal Effect (1000ms golden-white luminous burst) */}
+      {showEpicReveal && (
+        <EpicTrumpRevealEffect
+          suit={publicState.revealedTrumpSuit}
+          trumpMode={publicState.trumpMode}
+          seventhCardId={publicState.revealedSeventhCard}
+          onComplete={() => setShowEpicReveal(false)}
+        />
+      )}
+
+      {/* 9. Dealer Distribution Animation (16 sequential deliveries from dealer) */}
       {showDealingAnimation && (
         <DealerDealingAnimation
           dealerIndex={publicState.dealerIndex}

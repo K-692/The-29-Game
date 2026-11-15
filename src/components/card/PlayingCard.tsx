@@ -46,6 +46,16 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
   const isBack = faceDown || cardId === 'CARD_BACK';
   const cardData: CardIdentity | undefined = !isBack ? CARD_MANIFEST[cardId] : undefined;
 
+  const getCardTitle = () => {
+    if (isBack) return 'Face Down Card';
+    if (cardData) return `${cardData.name} (${cardData.points} pts)`;
+    if (cardId === '6_HEARTS') return '6 of Hearts (Trump Indicator)';
+    if (cardId === '6_SPADES') return '6 of Spades (Trump Indicator)';
+    if (cardId === '6_CLUBS') return '6 of Clubs (Trump Indicator)';
+    if (cardId === '6_DIAMONDS') return '6 of Diamonds (Trump Indicator)';
+    return 'Playing Card';
+  };
+
   const assetUrl = useFallbackPng
     ? getCardPngUrl(isBack ? 'CARD_BACK' : cardId)
     : getCardSvgUrl(isBack ? 'CARD_BACK' : cardId);
@@ -83,12 +93,12 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
         ${animateThrow ? 'animate-throw' : ''}
         ${className}
       `}
-      title={cardData ? `${cardData.name} (${cardData.points} pts)` : 'Face Down Card'}
+      title={getCardTitle()}
     >
       {/* Authentic Card Image (100% Fully Opaque Pure White Background) */}
       <img
         src={assetUrl}
-        alt={cardData ? cardData.name : 'Card Back'}
+        alt={getCardTitle()}
         onError={() => setUseFallbackPng(true)}
         className="w-full h-full object-contain filter drop-shadow-sm pointer-events-none rounded-xl"
         loading="eager"

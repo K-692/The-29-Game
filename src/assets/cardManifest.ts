@@ -115,6 +115,48 @@ export const CARD_BACK = {
   pngAsset: 'card_back.png',
 };
 
+/**
+ * Six-number display cards used exclusively as visual Trump suit indicators.
+ * Not part of the 32-card playing deck.
+ */
+export const TRUMP_DISPLAY_CARDS: Record<Suit, { id: string; name: string; svgAsset: string; pngAsset: string; suit: Suit }> = {
+  HEARTS: {
+    id: '6_HEARTS',
+    name: '6 of Hearts',
+    svgAsset: 'six_of_hearts.svg',
+    pngAsset: 'six_of_hearts.png',
+    suit: 'HEARTS',
+  },
+  SPADES: {
+    id: '6_SPADES',
+    name: '6 of Spades',
+    svgAsset: 'six_of_spades.svg',
+    pngAsset: 'six_of_spades.png',
+    suit: 'SPADES',
+  },
+  CLUBS: {
+    id: '6_CLUBS',
+    name: '6 of Clubs',
+    svgAsset: 'six_of_clubs.svg',
+    pngAsset: 'six_of_clubs.png',
+    suit: 'CLUBS',
+  },
+  DIAMONDS: {
+    id: '6_DIAMONDS',
+    name: '6 of Diamonds',
+    svgAsset: 'six_of_diamonds.svg',
+    pngAsset: 'six_of_diamonds.png',
+    suit: 'DIAMONDS',
+  },
+};
+
+const TRUMP_DISPLAY_MAP: Record<string, string> = {
+  '6_HEARTS': 'six_of_hearts',
+  '6_SPADES': 'six_of_spades',
+  '6_CLUBS': 'six_of_clubs',
+  '6_DIAMONDS': 'six_of_diamonds',
+};
+
 export const getAllCards = (): CardIdentity[] => Object.values(CARD_MANIFEST);
 
 export const getCardById = (id: string): CardIdentity | undefined => CARD_MANIFEST[id];
@@ -123,6 +165,9 @@ export const getCardSvgUrl = (cardId: string): string => {
   if (cardId === 'CARD_BACK') {
     return getCardAssetPath(CARD_BACK.svgAsset);
   }
+  if (TRUMP_DISPLAY_MAP[cardId]) {
+    return getCardAssetPath(`${TRUMP_DISPLAY_MAP[cardId]}.svg`);
+  }
   const card = CARD_MANIFEST[cardId];
   return card ? getCardAssetPath(card.svgAsset) : getCardAssetPath(CARD_BACK.svgAsset);
 };
@@ -130,6 +175,9 @@ export const getCardSvgUrl = (cardId: string): string => {
 export const getCardPngUrl = (cardId: string): string => {
   if (cardId === 'CARD_BACK') {
     return getCardAssetPath(CARD_BACK.pngAsset);
+  }
+  if (TRUMP_DISPLAY_MAP[cardId]) {
+    return getCardAssetPath(`${TRUMP_DISPLAY_MAP[cardId]}.png`);
   }
   const card = CARD_MANIFEST[cardId];
   return card ? getCardAssetPath(card.pngAsset) : getCardAssetPath(CARD_BACK.pngAsset);

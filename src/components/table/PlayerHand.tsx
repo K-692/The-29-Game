@@ -1,7 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { PlayingCard } from '../card/PlayingCard';
 import { soundManager } from '../../common/SoundManager';
-import { Hand } from 'lucide-react';
 
 export interface DragState {
   isDragging: boolean;
@@ -14,9 +13,10 @@ interface PlayerHandProps {
   playableCardIds: string[];
   isMyTurn: boolean;
   dropTargetRect: DOMRect | null;
-  onPlayCard: (cardId: string) => void;
+  onPlayCard: (cardId: string, originRect?: { left: number; top: number; width: number; height: number }) => void;
   onDragStateChange?: (state: DragState) => void;
   disabled?: boolean;
+  inFlightCardId?: string | null;
 }
 
 export const PlayerHand: React.FC<PlayerHandProps> = ({
@@ -27,15 +27,24 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
   onPlayCard,
   onDragStateChange,
   disabled = false,
+  inFlightCardId = null,
 }) => {
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [activeDragCardId, setActiveDragCardId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isActualDrag, setIsActualDrag] = useState<boolean>(false);
   const [clickHint, setClickHint] = useState<string | null>(null);
+  const [pendingPlayCardId, setPendingPlayCardId] = useState<string | null>(null);
 
   const pointerStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const hasPlayedSlideSoundRef = useRef<boolean>(false);
+
+  // Clear pendingPlayCardId once the card is removed from hand
+  useEffect(() => {
+    if (pendingPlayCardId && !cardIds.includes(pendingPlayCardId)) {
+      setPendingPlayCardId(null);
+    }
+  }, [cardIds, pendingPlayCardId]);
 
   if (cardIds.length === 0) {
     return null;
@@ -142,8 +151,18 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
       }
 
       if (isOver && playableCardIds.includes(cardId)) {
-        soundManager.playCardPlace();
-        onPlayCard(cardId);
+        // Capture origin bounding rect before releasing so flight originates exactly from where card was released
+        const rect = e.currentTarget.getBoundingClientRect();
+        const originRect = {
+          left: rect.left,
+          top: rect.top,
+          width: rect.width,
+          height: rect.height,
+        };
+
+        // Suppress snap-back: mark card as pending in-flight so it does not snap back to hand
+        setPendingPlayCardId(cardId);
+        onPlayCard(cardId, originRect);
       } else {
         soundManager.playSlide();
       }
@@ -199,6 +218,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
           const isPlayable = isMyTurn && !disabled && playableCardIds.includes(cardId);
           const isDraggingThis = activeDragCardId === cardId && isActualDrag;
           const isHovered = hoveredCardId === cardId && !isDraggingThis;
+          const isCardInFlight = cardId === pendingPlayCardId || cardId === inFlightCardId;
 
           // Compute z-index so hovered/dragged card strictly renders above all others
           let zIndex = index + 10;
@@ -237,6 +257,8 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
                 transform: transformStyle,
                 transition: isDraggingThis ? 'none' : 'transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1)',
                 touchAction: 'none',
+                opacity: isCardInFlight ? 0 : 1,
+                pointerEvents: isCardInFlight ? 'none' : 'auto',
               }}
               className={`
                 relative flex-shrink-0 transition-shadow duration-150 ${overlapMargin}
