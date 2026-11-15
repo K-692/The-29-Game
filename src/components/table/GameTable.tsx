@@ -236,9 +236,10 @@ export const GameTable: React.FC<GameTableProps> = ({
   const rightOpponent = publicState.players.find((p) => p.position === rightOpponentPos);
   const me = publicState.players.find((p) => p.position === myPosition);
 
-  // Check if player has passed the bid
+  // Check if player has passed the bid (strictly during BIDDING phase only)
+  const isBiddingPhase = publicState.phase === 'BIDDING';
   const hasPlayerPassed = (pos: PlayerPosition) =>
-    publicState.bids.some((b) => b.playerIndex === pos && b.bid === 'PASS');
+    isBiddingPhase && publicState.bids.some((b) => b.playerIndex === pos && b.bid === 'PASS');
 
   const meHasPassed = hasPlayerPassed(myPosition);
   const leftHasPassed = hasPlayerPassed(leftOpponentPos);

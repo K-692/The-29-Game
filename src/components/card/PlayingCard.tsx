@@ -18,12 +18,13 @@ export interface PlayingCardProps {
 }
 
 // Card dimensions tuned for optimal hierarchy: prominent in hand, balanced on table
+// Aspect ratio strictly matches 500:700 (5:7) SVG viewBox with explicit responsive Tailwind classes
 const SIZE_CLASSES = {
-  xs: 'w-12 h-[4.2rem] rounded-md',
-  sm: 'w-16 h-[5.6rem] sm:w-18 sm:h-[6.3rem] md:w-20 md:h-[7rem] rounded-lg',
-  md: 'w-22 h-[7.7rem] sm:w-26 sm:h-[9.1rem] md:w-30 md:h-[10.5rem] lg:w-32 lg:h-[11.2rem] rounded-xl',
-  lg: 'w-26 h-[9.1rem] sm:w-30 sm:h-[10.5rem] md:w-34 md:h-[11.9rem] rounded-xl',
-  xl: 'w-32 h-[11.2rem] sm:w-38 sm:h-[13.3rem] rounded-2xl',
+  xs: 'w-[3rem] h-[4.2rem] aspect-[5/7] rounded-md',
+  sm: 'w-[4rem] h-[5.6rem] sm:w-[4.5rem] sm:h-[6.3rem] md:w-[5rem] md:h-[7rem] aspect-[5/7] rounded-lg',
+  md: 'w-[5.5rem] h-[7.7rem] sm:w-[6.5rem] sm:h-[9.1rem] md:w-[7.5rem] md:h-[10.5rem] lg:w-32 lg:h-[11.2rem] aspect-[5/7] rounded-xl',
+  lg: 'w-[6.5rem] h-[9.1rem] sm:w-[7.5rem] sm:h-[10.5rem] md:w-[8.5rem] md:h-[11.9rem] aspect-[5/7] rounded-xl',
+  xl: 'w-32 h-[11.2rem] sm:w-[9.5rem] sm:h-[13.3rem] aspect-[5/7] rounded-2xl',
 };
 
 export const PlayingCard: React.FC<PlayingCardProps> = ({
@@ -95,19 +96,27 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
       `}
       title={getCardTitle()}
     >
-      {/* Authentic Card Image */}
-      <img
-        src={assetUrl}
-        alt={getCardTitle()}
-        onError={() => setUseFallbackPng(true)}
-        className="w-full h-full object-contain pointer-events-none rounded-xl"
-        loading="eager"
-        draggable={false}
-      />
+      {/* Tight card inner container with rounded corners and border hugging card edges */}
+      <div
+        className={`
+          relative w-full h-full rounded-xl overflow-hidden
+          ${isPlayable ? 'border-2 border-amber-400' : ''}
+        `}
+      >
+        {/* Authentic Card Image scaled 1.025x to hug the perimeter edge-to-edge */}
+        <img
+          src={assetUrl}
+          alt={getCardTitle()}
+          onError={() => setUseFallbackPng(true)}
+          className="w-full h-full object-cover scale-[1.025] pointer-events-none rounded-xl"
+          loading="eager"
+          draggable={false}
+        />
+      </div>
 
-      {/* Point badge for scoring cards */}
+      {/* Point badge for scoring cards - crisp at top-right outside inner container */}
       {isPlayable && cardData && cardData.points > 0 && !isDragging && (
-        <span className="absolute -top-2 -right-2 bg-amber-500 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-md border border-amber-200 pointer-events-none">
+        <span className="absolute -top-2.5 -right-2.5 bg-amber-400 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-lg border border-amber-200 pointer-events-none z-30">
           +{cardData.points}
         </span>
       )}

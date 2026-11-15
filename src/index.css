@@ -56,6 +56,20 @@
   animation: pulseSubtle 3s ease-in-out infinite;
 }
 
+/* Playable card radiant golden aura glow and breathing pulse */
+@keyframes cardGlowPulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.95)) drop-shadow(0 0 14px rgba(245, 158, 11, 0.65));
+  }
+  50% {
+    filter: drop-shadow(0 0 12px rgba(251, 191, 36, 1)) drop-shadow(0 0 24px rgba(245, 158, 11, 0.85));
+  }
+}
+
+.animate-card-glow {
+  animation: cardGlowPulse 2s ease-in-out infinite;
+}
+
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;

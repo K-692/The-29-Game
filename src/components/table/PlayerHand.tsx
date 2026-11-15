@@ -216,20 +216,24 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
           const isHovered = hoveredCardId === cardId && !isDraggingThis;
           const isCardInFlight = cardId === pendingPlayCardId || cardId === inFlightCardId;
 
-          // Compute z-index so hovered/dragged card strictly renders above all others
+          // Compute z-index so playable cards strictly render above unplayable sibling cards
           let zIndex = index + 10;
-          if (isHovered) zIndex = 60;
+          if (isPlayable) zIndex = 35 + index;
+          if (isHovered) zIndex = 80;
           if (isDraggingThis) zIndex = 100;
 
-          // Hover moves card upward (-32px) and scales 1.12x without clipping
+          // Visual transformation: playable cards lift up slightly (-12px) during player's turn; hover lifts to -32px
           let transformStyle = '';
           if (isDraggingThis) {
             transformStyle = `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0) scale(1.15) rotate(${dragOffset.x * 0.04}deg)`;
           } else if (isHovered) {
             transformStyle = 'translateY(-32px) scale(1.12)';
+          } else if (isPlayable) {
+            transformStyle = 'translateY(-12px)';
           }
 
           const overlapMargin = getOverlapMargin(index);
+          const isUnplayableDuringTurn = isMyTurn && !disabled && !isPlayable;
 
           return (
             <div
@@ -253,13 +257,14 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
               style={{
                 zIndex,
                 transform: transformStyle,
-                transition: isDraggingThis ? 'none' : 'transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1)',
+                transition: isDraggingThis ? 'none' : 'transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease',
                 touchAction: 'none',
-                opacity: isCardInFlight ? 0 : 1,
+                opacity: isCardInFlight ? 0 : isUnplayableDuringTurn ? 0.65 : 1,
+                filter: isUnplayableDuringTurn ? 'brightness(0.9)' : 'none',
                 pointerEvents: isCardInFlight ? 'none' : 'auto',
               }}
               className={`
-                relative flex-shrink-0 transition-shadow duration-150 ${overlapMargin}
+                relative flex-shrink-0 transition-all duration-200 ${overlapMargin}
                 ${isPlayable ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}
               `}
             >
@@ -270,9 +275,9 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
                 disabled={disabled}
                 size="md"
                 className={`
-                  rounded-xl shadow-xl transition-all
-                  ${isPlayable ? 'ring-2 ring-amber-400 shadow-[0_0_16px_rgba(251,191,36,0.8)]' : ''}
-                  ${isHovered ? 'shadow-[0_0_24px_rgba(251,191,36,1)] ring-3 ring-amber-300' : ''}
+                  rounded-xl transition-all duration-200
+                  ${isPlayable ? 'animate-card-glow shadow-[0_0_18px_rgba(251,191,36,0.9),0_0_32px_rgba(245,158,11,0.6)]' : 'shadow-lg'}
+                  ${isHovered ? 'shadow-[0_0_28px_rgba(251,191,36,1),0_0_48px_rgba(245,158,11,0.8)]' : ''}
                 `}
               />
             </div>
