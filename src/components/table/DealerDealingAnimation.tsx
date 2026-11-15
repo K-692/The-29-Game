@@ -17,6 +17,11 @@ interface FlyingCard {
   progress: number; // 0 to 1
 }
 
+interface Point2D {
+  x: number;
+  y: number;
+}
+
 export const DealerDealingAnimation: React.FC<DealerDealingAnimationProps> = ({
   dealerIndex,
   myPosition,
@@ -24,6 +29,7 @@ export const DealerDealingAnimation: React.FC<DealerDealingAnimationProps> = ({
 }) => {
   const [activeFlyingCards, setActiveFlyingCards] = useState<FlyingCard[]>([]);
   const [dealIndex, setDealIndex] = useState<number>(0);
+  const [rhombusPoints, setRhombusPoints] = useState<Record<'top' | 'bottom' | 'left' | 'right', Point2D> | null>(null);
 
   // Map player absolute position (0..3) to relative table position (bottom, left, top, right)
   const getRelativePosition = (pos: PlayerPosition): 'bottom' | 'left' | 'top' | 'right' => {
@@ -40,67 +46,75 @@ export const DealerDealingAnimation: React.FC<DealerDealingAnimationProps> = ({
   const dealerRel = getRelativePosition(dealerIndex);
 
   useEffect(() => {
-    // 16 cards sequentially: 4 cards to each of the 4 players, strictly one card at a time
-    const TOTAL_CARDS = 16;
-    const INTERVAL_MS = 130;
-    const FLIGHT_DURATION_MS = 110;
+    // 1. Calculate 4 Rhombus points near each player, perfectly centered
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const cx = w / 2;
+    const cy = h / 2;
 
-    let currentCard = 0;
+    const topEl = document.querySelector('[data-seat="top"]');
+    const bottomEl = document.querySelector('#player-hand') || document.querySelector('[data-seat="bottom"]');
+    const leftEl = document.querySelector('[data-seat="left"]');
+    const rightEl = document.querySelector('[data-seat="right"]');
+
+    const topRect = topEl?.getBoundingClientRect();
+    const bottomRect = bottomEl?.getBoundingClientRect();
+    const leftRect = leftEl?.getBoundingClientRect();
+    const rightRect = rightEl?.getBoundingClientRect();
+
+    const points: Record<'top' | 'bottom' | 'left' | 'right', Point2D> = {
+      top: {
+        x: cx,
+        y: topRect ? topRect.bottom + 25 : cy - 140,
+      },
+      bottom: {
+        x: cx,
+        y: bottomRect ? bottomRect.top - 25 : cy + 140,
+      },
+      left: {
+        x: leftRect ? leftRect.right + 25 : cx - 180,
+        y: cy,
+      },
+      right: {
+        x: rightRect ? rightRect.left - 25 : cx + 180,
+        y: cy,
+      },
+    };
+
+    setRhombusPoints(points);
+
+    // 2. Sequential distribution from dealer's point to each player point (1 time for each of 4 players)
+    const TOTAL_PLAYERS = 4;
+    const INTERVAL_MS = 200;
+    const FLIGHT_DURATION_MS = 180;
+
+    const dealerPoint = points[dealerRel];
+    const startX = dealerPoint.x;
+    const startY = dealerPoint.y;
+
+    let currentStep = 0;
     const interval = setInterval(() => {
-      if (currentCard >= TOTAL_CARDS) {
+      if (currentStep >= TOTAL_PLAYERS) {
         clearInterval(interval);
         setTimeout(() => {
           onDealingComplete();
-        }, FLIGHT_DURATION_MS + 100);
+        }, FLIGHT_DURATION_MS + 80);
         return;
       }
 
-      // Clockwise distribution starting from player to dealer's left
-      const recipientAbs = ((dealerIndex + 1 + (currentCard % 4)) % 4) as PlayerPosition;
+      // Clockwise distribution to the 4 points: start with player to dealer's left
+      const recipientAbs = ((dealerIndex + 1 + currentStep) % 4) as PlayerPosition;
       const recipientRel = getRelativePosition(recipientAbs);
+      const targetPoint = points[recipientRel];
 
-      // Measure layout coordinates
-      const dealerEl = document.querySelector(`[data-seat="${dealerRel}"]`);
-      const targetEl = document.querySelector(`[data-seat="${recipientRel}"]`);
-
-      let startX = window.innerWidth / 2;
-      let startY = window.innerHeight / 2;
-      if (dealerEl) {
-        const r = dealerEl.getBoundingClientRect();
-        startX = r.left + r.width / 2;
-        startY = r.top + r.height / 2;
-      }
-
-      let targetX = window.innerWidth / 2;
-      let targetY = window.innerHeight * 0.85;
-      if (recipientRel === 'bottom') {
-        const handEl = document.querySelector('#player-hand');
-        if (handEl) {
-          const r = handEl.getBoundingClientRect();
-          targetX = r.left + r.width / 2;
-          targetY = r.top + r.height / 2;
-        } else if (targetEl) {
-          const r = targetEl.getBoundingClientRect();
-          targetX = r.left + r.width / 2;
-          targetY = r.top + r.height / 2;
-        }
-      } else if (targetEl) {
-        const r = targetEl.getBoundingClientRect();
-        targetX = r.left + r.width / 2;
-        targetY = r.top + r.height / 2;
-      }
-
-      const cardId = currentCard;
-      if (cardId % 4 === 0) {
-        soundManager.playDeal();
-      }
+      const cardId = currentStep;
+      soundManager.playDeal();
 
       setActiveFlyingCards((prev) => [
         ...prev,
-        { id: cardId, startX, startY, targetX, targetY, progress: 0 },
+        { id: cardId, startX, startY, targetX: targetPoint.x, targetY: targetPoint.y, progress: 0 },
       ]);
 
-      // Animate progress to 1
       requestAnimationFrame(() => {
         setTimeout(() => {
           setActiveFlyingCards((prev) =>
@@ -114,8 +128,8 @@ export const DealerDealingAnimation: React.FC<DealerDealingAnimationProps> = ({
         setActiveFlyingCards((prev) => prev.filter((c) => c.id !== cardId));
       }, FLIGHT_DURATION_MS + 10);
 
-      currentCard++;
-      setDealIndex(currentCard);
+      currentStep++;
+      setDealIndex(currentStep);
     }, INTERVAL_MS);
 
     return () => {
@@ -125,13 +139,26 @@ export const DealerDealingAnimation: React.FC<DealerDealingAnimationProps> = ({
 
   return (
     <div className="fixed inset-0 pointer-events-none z-50 overflow-hidden">
+      {/* Rhombus 4 Centered Anchor Points */}
+      {rhombusPoints &&
+        Object.entries(rhombusPoints).map(([pos, pt]) => (
+          <div
+            key={pos}
+            className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none"
+            style={{ left: pt.x, top: pt.y }}
+          >
+            <span className="w-3 h-3 rounded-full bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.9)] border border-amber-200 animate-ping" />
+            <span className="absolute w-2 h-2 rounded-full bg-amber-300" />
+          </div>
+        ))}
+
       {/* Dealing Progress Pill in Center */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-md border border-slate-200 px-4 py-2 rounded-2xl shadow-xl flex items-center gap-2 text-xs font-bold text-slate-800 animate-fade-in">
         <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
-        <span>Dealing First 4 Cards ({dealIndex}/16)...</span>
+        <span>Distributing Cards ({dealIndex}/4)...</span>
       </div>
 
-      {/* Flying Card Backs - Strictly one card in flight at a time */}
+      {/* Flying Card Backs */}
       {activeFlyingCards.map((card) => {
         const currentX = card.startX + (card.targetX - card.startX) * card.progress;
         const currentY = card.startY + (card.targetY - card.startY) * card.progress;
@@ -145,7 +172,7 @@ export const DealerDealingAnimation: React.FC<DealerDealingAnimationProps> = ({
               left: `${currentX}px`,
               top: `${currentY}px`,
               transform: `translate(-50%, -50%) rotate(${rotation}deg) scale(${card.progress === 1 ? 0.8 : 1})`,
-              transition: 'left 0.11s cubic-bezier(0.2, 0.8, 0.2, 1), top 0.11s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.11s ease-out',
+              transition: 'left 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), top 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.18s ease-out',
             }}
             className="w-12 h-16 sm:w-16 sm:h-22 rounded-lg overflow-hidden shadow-2xl border border-amber-900/40 bg-white"
           >
@@ -154,7 +181,6 @@ export const DealerDealingAnimation: React.FC<DealerDealingAnimationProps> = ({
               alt="Dealing Card"
               className="w-full h-full object-cover"
               onError={(e) => {
-                // Fallback to png if svg fails
                 (e.target as HTMLImageElement).src = '/assets/cards/card_back.png';
               }}
             />

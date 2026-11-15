@@ -9,6 +9,7 @@ interface OpponentSeatProps {
   bidAmount?: number;
   playerPoints: number;
   seatPosition: 'top' | 'left' | 'right';
+  hasPassed?: boolean;
 }
 
 export const OpponentSeat: React.FC<OpponentSeatProps> = ({
@@ -19,6 +20,7 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
   bidAmount,
   playerPoints,
   seatPosition,
+  hasPassed = false,
 }) => {
   // Partnership 1 (Seats 1 & 3): Soft Blue; Partnership 2 (Seats 2 & 4): Soft Coral
   const isPartnership1 = player.team === 0;
@@ -59,7 +61,7 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
       )}
 
       {/* Turn Indicator Tag */}
-      {isCurrentTurn && (
+      {isCurrentTurn ? (
         <span
           className={`absolute -bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider text-white shadow-xs z-10 ${
             isPartnership1 ? 'bg-sky-500' : 'bg-rose-500'
@@ -67,7 +69,13 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
         >
           TURN
         </span>
-      )}
+      ) : hasPassed ? (
+        <span
+          className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider text-slate-700 bg-slate-200/95 border border-slate-300 shadow-xs z-10"
+        >
+          PASSED
+        </span>
+      ) : null}
 
       {/* Partnership Colour Identifier Dot */}
       <span
@@ -76,7 +84,12 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
       />
 
       {/* Avatar Emoji */}
-      <span className="text-xl sm:text-2xl leading-none shrink-0" role="img" aria-label="Player Avatar">
+      <span
+        data-avatar={seatPosition}
+        className="text-xl sm:text-2xl leading-none shrink-0"
+        role="img"
+        aria-label="Player Avatar"
+      >
         {avatar}
       </span>
 

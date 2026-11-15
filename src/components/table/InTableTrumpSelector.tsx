@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CARD_MANIFEST, SUITS, SUIT_COLORS, SUIT_SYMBOLS, Suit } from '../../assets/cardManifest';
 import { TrumpSelectionChoice } from '../../engine/types';
+import { soundManager } from '../../common/SoundManager';
 import { Lock, Sparkles, Clock, Check, Layers, Award } from 'lucide-react';
 
 interface InTableTrumpSelectorProps {
@@ -17,7 +18,7 @@ export const InTableTrumpSelector: React.FC<InTableTrumpSelectorProps> = ({
   highestBid,
   highestBidderName,
   isMyTurn,
-  remainingSeconds = 30,
+  remainingSeconds = 15,
   onSelectTrump,
 }) => {
   const [selectedChoice, setSelectedChoice] = useState<TrumpSelectionChoice>('SPADES');
@@ -177,7 +178,10 @@ export const InTableTrumpSelector: React.FC<InTableTrumpSelectorProps> = ({
 
           <button
             type="button"
-            onClick={() => onSelectTrump(selectedChoice)}
+            onClick={() => {
+              soundManager.playTrumpSelect();
+              onSelectTrump(selectedChoice);
+            }}
             className="w-full py-2 rounded-xl font-black text-xs uppercase tracking-wider bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
           >
             <Lock className="w-3 h-3 text-slate-950" />

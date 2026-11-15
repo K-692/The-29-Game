@@ -167,7 +167,7 @@ export const PhysicalTrumpIndicator: React.FC<PhysicalTrumpIndicatorProps> = ({
           >
             {/* FRONT FACE: Concealed Trump (Face-Down Card Back - Strictly NO text on top of card) */}
             <div
-              className="absolute inset-0 w-full h-full rounded-lg overflow-hidden border border-amber-300/70 shadow-md bg-white"
+              className="absolute inset-0 w-full h-full rounded-lg overflow-hidden shadow-md bg-transparent"
               style={{
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',
@@ -184,7 +184,7 @@ export const PhysicalTrumpIndicator: React.FC<PhysicalTrumpIndicatorProps> = ({
 
             {/* BACK FACE: Revealed Trump (Strictly NO text/badges on top of card face) */}
             <div
-              className="absolute inset-0 w-full h-full rounded-lg overflow-hidden border border-amber-400 shadow-xl bg-white"
+              className="absolute inset-0 w-full h-full rounded-lg overflow-hidden shadow-xl bg-transparent"
               style={{
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',

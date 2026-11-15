@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { GameRulesConfig, PlayerInfo, PlayerPosition } from '../../engine/types';
 import { getLegalBidOptions } from '../../engine/bidding';
+import { soundManager } from '../../common/SoundManager';
 import { Clock, XCircle, Loader2 } from 'lucide-react';
 
 interface InTableBiddingProps {
@@ -25,7 +26,7 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
   isMyTurn,
   myPosition,
   isForcedDealer,
-  remainingSeconds = 30,
+  remainingSeconds = 15,
   onPlaceBid,
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -43,11 +44,19 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
   const activeAvatar = activePlayer?.avatar || '🦊';
   const activeName = activePlayer?.name || 'Player';
 
+  const highBidderPlayer =
+    highestBidder !== null ? players.find((p) => p.position === highestBidder) : null;
+
   const isUrgent = remainingSeconds <= 5;
 
   const handleBidClick = (val: number | 'PASS') => {
     if (isSubmitting || !isMyTurn) return;
     setIsSubmitting(true);
+    if (val === 'PASS') {
+      soundManager.playPass();
+    } else {
+      soundManager.playBid();
+    }
     onPlaceBid(val);
     setTimeout(() => setIsSubmitting(false), 1500);
   };
@@ -64,20 +73,30 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
             <span className="text-xs sm:text-sm font-black text-slate-900 block leading-tight">
               {isMyTurn ? 'Your Turn to Bid' : `${activeName} is bidding`}
             </span>
-            <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500">
-              Current bid: <strong className="text-amber-700 font-extrabold">{currentHighestBid > 0 ? currentHighestBid : 'None (16 min)'}</strong>
-            </span>
+            {currentHighestBid > 0 && highBidderPlayer ? (
+              <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold text-slate-600 mt-0.5">
+                <span>Bidding against:</span>
+                <span className="inline-flex items-center gap-1 font-bold text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                  <span role="img" aria-label="High Bidder">{highBidderPlayer.avatar || '🦊'}</span>
+                  <span>{highBidderPlayer.name} ({currentHighestBid})</span>
+                </span>
+              </div>
+            ) : (
+              <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 block mt-0.5">
+                Opening Bid (min 16) · No bids yet
+              </span>
+            )}
           </div>
         </div>
 
-        {/* 30s Countdown Timer */}
+        {/* 15s Countdown Timer */}
         <span
           className={`flex items-center gap-1 font-mono text-[11px] sm:text-xs font-black px-2 py-0.5 rounded-lg shadow-xs ${
             isUrgent
               ? 'bg-rose-500 text-white animate-pulse'
               : 'bg-amber-100 text-amber-950 border border-amber-300'
           }`}
-          title="30-Second Bidding Turn Timer"
+          title="15-Second Bidding Turn Timer"
         >
           <Clock className="w-3 h-3" />
           <span>00:{remainingSeconds.toString().padStart(2, '0')}</span>

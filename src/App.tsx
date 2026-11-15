@@ -46,7 +46,7 @@ export default function App() {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [publicState, setPublicState] = useState<PublicGameState | null>(null);
   const [myPosition, setMyPosition] = useState<PlayerPosition>(0);
-  const [remainingSeconds, setRemainingSeconds] = useState<number>(60);
+  const [remainingSeconds, setRemainingSeconds] = useState<number>(15);
   const [notification, setNotification] = useState<InTableNotification | null>(null);
 
   // Initialize Socket and Listeners

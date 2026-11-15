@@ -61,7 +61,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
   const isFourCards = playedCards.length === 4;
 
   useEffect(() => {
-    // Only begin the 1000ms freeze-frame when all 4 cards have fully landed (flyingCardId is null)
+    // Only begin the freeze-frame when all 4 cards have fully landed (flyingCardId is null)
     if (!isFourCards || flyingCardId) {
       return;
     }
@@ -84,11 +84,13 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
     if (timer1Ref.current) clearTimeout(timer1Ref.current);
     if (timer2Ref.current) clearTimeout(timer2Ref.current);
 
-    // Step 1: Hold all 4 cards on the table for exactly 1000ms
+    // Step 1: Hold all 4 cards on the felt for 800ms so trick outcome is clearly visible
     timer1Ref.current = setTimeout(() => {
-      // Step 2: Calculate vectors towards winning player's seat
-      const targetSeatEl = document.querySelector(`[data-seat="${targetRelPos}"]`);
-      const targetRect = targetSeatEl?.getBoundingClientRect();
+      // Step 2: Calculate dynamic trajectory directly into the winning player's avatar center
+      const targetAvatarEl =
+        document.querySelector(`[data-avatar="${targetRelPos}"]`) ||
+        document.querySelector(`[data-seat="${targetRelPos}"]`);
+      const targetRect = targetAvatarEl?.getBoundingClientRect();
 
       const vectors: Record<string, { x: number; y: number }> = {};
       cardsToAnimate.forEach((pc) => {
@@ -107,7 +109,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
             y: targetCenterY - slotCenterY,
           };
         } else {
-          // Fallback offsets
+          // Dynamic fallback offsets based on table orientation
           switch (targetRelPos) {
             case 'bottom': vectors[key] = { x: 0, y: 340 }; break;
             case 'top': vectors[key] = { x: 0, y: -340 }; break;
@@ -120,14 +122,14 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
       setCollectionVectors(vectors);
       setIsCollecting(true);
       soundManager.playTrickShove();
-    }, 1000);
+    }, 800);
 
-    // Step 3: At 1450ms (1000ms pause + 450ms glide), collection completes
+    // Step 3: At 1500ms (800ms hold + 700ms slide), collection finishes and state is cleanly unmounted
     timer2Ref.current = setTimeout(() => {
       setFrozenCards(null);
       setIsCollecting(false);
       setCollectionVectors({});
-    }, 1450);
+    }, 1500);
   }, [isFourCards, flyingCardId, lastCompletedTrick, completedTricks.length, myPosition]);
 
   useEffect(() => {
@@ -174,17 +176,17 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
             className="w-full h-full flex items-center justify-center"
             style={{
               transform: isCollecting && collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`]
-                ? `translate3d(${collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`].y}px, 0) scale(0.55)`
+                ? `translate3d(${collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`].y}px, 0) scale(0.3)`
                 : undefined,
-              transition: isCollecting ? 'transform 0.45s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.45s ease-in' : undefined,
-              opacity: isCollecting ? 0.3 : 1,
+              transition: isCollecting ? 'transform 0.7s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.7s cubic-bezier(0.4, 0.0, 0.2, 1)' : undefined,
+              opacity: isCollecting ? 0 : 1,
             }}
           >
             <PlayingCard
               cardId={cardsBySlot.bottom.cardId}
               rotation={SLOT_ROTATIONS.bottom}
               size="sm"
-              className="rounded-lg shadow-xl border border-slate-200/40"
+              className="rounded-lg shadow-xl"
             />
           </div>
         )}
@@ -201,17 +203,17 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
             className="w-full h-full flex items-center justify-center"
             style={{
               transform: isCollecting && collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`]
-                ? `translate3d(${collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`].y}px, 0) scale(0.55)`
+                ? `translate3d(${collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`].y}px, 0) scale(0.3)`
                 : undefined,
-              transition: isCollecting ? 'transform 0.45s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.45s ease-in' : undefined,
-              opacity: isCollecting ? 0.3 : 1,
+              transition: isCollecting ? 'transform 0.7s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.7s cubic-bezier(0.4, 0.0, 0.2, 1)' : undefined,
+              opacity: isCollecting ? 0 : 1,
             }}
           >
             <PlayingCard
               cardId={cardsBySlot.top.cardId}
               rotation={SLOT_ROTATIONS.top}
               size="sm"
-              className="rounded-lg shadow-xl border border-slate-200/40"
+              className="rounded-lg shadow-xl"
             />
           </div>
         )}
@@ -228,17 +230,17 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
             className="w-full h-full flex items-center justify-center"
             style={{
               transform: isCollecting && collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`]
-                ? `translate3d(${collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`].y}px, 0) scale(0.55)`
+                ? `translate3d(${collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`].y}px, 0) scale(0.3)`
                 : undefined,
-              transition: isCollecting ? 'transform 0.45s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.45s ease-in' : undefined,
-              opacity: isCollecting ? 0.3 : 1,
+              transition: isCollecting ? 'transform 0.7s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.7s cubic-bezier(0.4, 0.0, 0.2, 1)' : undefined,
+              opacity: isCollecting ? 0 : 1,
             }}
           >
             <PlayingCard
               cardId={cardsBySlot.left.cardId}
               rotation={SLOT_ROTATIONS.left}
               size="sm"
-              className="rounded-lg shadow-xl border border-slate-200/40"
+              className="rounded-lg shadow-xl"
             />
           </div>
         )}
@@ -255,17 +257,17 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
             className="w-full h-full flex items-center justify-center"
             style={{
               transform: isCollecting && collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`]
-                ? `translate3d(${collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`].y}px, 0) scale(0.55)`
+                ? `translate3d(${collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`].y}px, 0) scale(0.3)`
                 : undefined,
-              transition: isCollecting ? 'transform 0.45s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.45s ease-in' : undefined,
-              opacity: isCollecting ? 0.3 : 1,
+              transition: isCollecting ? 'transform 0.7s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.7s cubic-bezier(0.4, 0.0, 0.2, 1)' : undefined,
+              opacity: isCollecting ? 0 : 1,
             }}
           >
             <PlayingCard
               cardId={cardsBySlot.right.cardId}
               rotation={SLOT_ROTATIONS.right}
               size="sm"
-              className="rounded-lg shadow-xl border border-slate-200/40"
+              className="rounded-lg shadow-xl"
             />
           </div>
         )}

@@ -57,7 +57,7 @@ export const GameTable: React.FC<GameTableProps> = ({
   publicState,
   myPosition,
   isHost,
-  remainingSeconds = 30,
+  remainingSeconds = 15,
   notification,
   onBid,
   onSelectTrump,
@@ -235,6 +235,31 @@ export const GameTable: React.FC<GameTableProps> = ({
   const leftOpponent = publicState.players.find((p) => p.position === leftOpponentPos);
   const rightOpponent = publicState.players.find((p) => p.position === rightOpponentPos);
   const me = publicState.players.find((p) => p.position === myPosition);
+
+  // Check if player has passed the bid
+  const hasPlayerPassed = (pos: PlayerPosition) =>
+    publicState.bids.some((b) => b.playerIndex === pos && b.bid === 'PASS');
+
+  const meHasPassed = hasPlayerPassed(myPosition);
+  const leftHasPassed = hasPlayerPassed(leftOpponentPos);
+  const partnerHasPassed = hasPlayerPassed(partnerPos);
+  const rightHasPassed = hasPlayerPassed(rightOpponentPos);
+
+  // Relative seat position of the player who selected / set the trump
+  const getRelativePosition = (pos: PlayerPosition): 'bottom' | 'left' | 'top' | 'right' => {
+    const diff = (pos - myPosition + 4) % 4;
+    switch (diff) {
+      case 0: return 'bottom';
+      case 1: return 'left';
+      case 2: return 'top';
+      case 3: return 'right';
+      default: return 'bottom';
+    }
+  };
+
+  const trumpSetterRelPos = publicState.highestBidder !== null
+    ? getRelativePosition(publicState.highestBidder)
+    : (publicState.phase === 'BIDDING' ? null : 'right');
 
   // Playable cards calculation for current trick
   const leadCardId = publicState.currentTrickCards.length > 0 
@@ -436,6 +461,17 @@ export const GameTable: React.FC<GameTableProps> = ({
         {/* Top Seat: Partner (Seat 3) - Ample clearance below top scoreboard */}
         {partner && (
           <div className="absolute top-18 sm:top-20 md:top-22 left-1/2 -translate-x-1/2 z-25">
+            {/* If partner set the trump: place Trump Indicator beside partner seat */}
+            {trumpSetterRelPos === 'top' && (
+              <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-auto">
+                <PhysicalTrumpIndicator
+                  publicState={publicState}
+                  myPosition={myPosition}
+                  onTriggerEpicReveal={handleTriggerEpicReveal}
+                />
+              </div>
+            )}
+
             <OpponentSeat
               player={partner}
               seatPosition="top"
@@ -444,6 +480,7 @@ export const GameTable: React.FC<GameTableProps> = ({
               isBidder={publicState.highestBidder === partnerPos}
               bidAmount={publicState.highestBid || undefined}
               playerPoints={publicState.playerPoints ? publicState.playerPoints[partnerPos] : 0}
+              hasPassed={partnerHasPassed}
             />
           </div>
         )}
@@ -451,6 +488,17 @@ export const GameTable: React.FC<GameTableProps> = ({
         {/* Left Seat: Opponent Left (Seat 2) */}
         {leftOpponent && (
           <div className="absolute left-2 sm:left-6 top-[44%] -translate-y-1/2 z-20">
+            {/* If left opponent set the trump: place Trump Indicator above left seat */}
+            {trumpSetterRelPos === 'left' && (
+              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto">
+                <PhysicalTrumpIndicator
+                  publicState={publicState}
+                  myPosition={myPosition}
+                  onTriggerEpicReveal={handleTriggerEpicReveal}
+                />
+              </div>
+            )}
+
             <OpponentSeat
               player={leftOpponent}
               seatPosition="left"
@@ -459,6 +507,7 @@ export const GameTable: React.FC<GameTableProps> = ({
               isBidder={publicState.highestBidder === leftOpponentPos}
               bidAmount={publicState.highestBid || undefined}
               playerPoints={publicState.playerPoints ? publicState.playerPoints[leftOpponentPos] : 0}
+              hasPassed={leftHasPassed}
             />
           </div>
         )}
@@ -466,14 +515,16 @@ export const GameTable: React.FC<GameTableProps> = ({
         {/* Right Seat: Opponent Right (Seat 4, Varun) */}
         {rightOpponent && (
           <div className="absolute right-2 sm:right-6 top-[44%] -translate-y-1/2 z-20">
-            {/* Physical Trump Indicator positioned directly above Varun */}
-            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto">
-              <PhysicalTrumpIndicator
-                publicState={publicState}
-                myPosition={myPosition}
-                onTriggerEpicReveal={handleTriggerEpicReveal}
-              />
-            </div>
+            {/* If right opponent set the trump (or fallback): place Trump Indicator directly above Varun */}
+            {trumpSetterRelPos === 'right' && (
+              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto">
+                <PhysicalTrumpIndicator
+                  publicState={publicState}
+                  myPosition={myPosition}
+                  onTriggerEpicReveal={handleTriggerEpicReveal}
+                />
+              </div>
+            )}
 
             <OpponentSeat
               player={rightOpponent}
@@ -483,6 +534,7 @@ export const GameTable: React.FC<GameTableProps> = ({
               isBidder={publicState.highestBidder === rightOpponentPos}
               bidAmount={publicState.highestBid || undefined}
               playerPoints={publicState.playerPoints ? publicState.playerPoints[rightOpponentPos] : 0}
+              hasPassed={rightHasPassed}
             />
           </div>
         )}
@@ -585,8 +637,19 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
       </main>
 
-      {/* 5. Bottom-Left Area: Ask to Reveal Trump + Krish (You) Player Seat */}
+      {/* 5. Bottom-Left Area: Trump Indicator (if You set trump) + Ask to Reveal Trump + Krish (You) Player Seat */}
       <div className="fixed bottom-3 left-3 sm:bottom-4 sm:left-5 z-40 flex flex-col items-start gap-2 select-none pointer-events-auto">
+        {/* If bottom player (You) set the trump: place Trump Indicator near bottom seat */}
+        {trumpSetterRelPos === 'bottom' && (
+          <div className="flex flex-col items-start pointer-events-auto mb-1">
+            <PhysicalTrumpIndicator
+              publicState={publicState}
+              myPosition={myPosition}
+              onTriggerEpicReveal={handleTriggerEpicReveal}
+            />
+          </div>
+        )}
+
         <AskToRevealTrumpButton
           canRevealTrump={canRevealTrump}
           onRevealTrump={handleRevealTrumpAction}
@@ -622,18 +685,27 @@ export const GameTable: React.FC<GameTableProps> = ({
               </span>
             )}
 
-            {/* Turn Indicator Tag */}
-            {isBottomTurn && (
+            {/* Turn or Passed Indicator Tag */}
+            {isBottomTurn ? (
               <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider text-white bg-sky-500 shadow-xs z-10">
                 TURN
               </span>
-            )}
+            ) : meHasPassed ? (
+              <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider text-slate-700 bg-slate-200/95 border border-slate-300 shadow-xs z-10">
+                PASSED
+              </span>
+            ) : null}
 
             {/* Partnership 1 Blue Dot */}
             <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" title="Your Partnership" />
 
             {/* Avatar */}
-            <span className="text-xl sm:text-2xl leading-none shrink-0" role="img" aria-label="Avatar">
+            <span
+              data-avatar="bottom"
+              className="text-xl sm:text-2xl leading-none shrink-0"
+              role="img"
+              aria-label="Avatar"
+            >
               {me.avatar || '🦊'}
             </span>
 

@@ -84,23 +84,23 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
         transform: combinedTransform || undefined,
       }}
       className={`
-        relative select-none flex-shrink-0 bg-white opacity-100 rounded-xl
+        relative select-none flex-shrink-0 bg-transparent opacity-100 rounded-xl
         ${sizeClass}
-        ${isPlayable && !disabled ? 'cursor-grab shadow-lg ring-2 ring-amber-400' : 'shadow-md'}
-        ${isDragging ? 'cursor-grabbing shadow-2xl ring-4 ring-amber-400 z-50' : ''}
-        ${isSelected && !isDragging ? '-translate-y-8 ring-4 ring-amber-400 shadow-2xl z-30' : ''}
+        ${isPlayable && !disabled ? 'cursor-grab' : ''}
+        ${isDragging ? 'cursor-grabbing z-50' : ''}
+        ${isSelected && !isDragging ? '-translate-y-8 z-30' : ''}
         ${disabled ? 'cursor-not-allowed opacity-90' : ''}
         ${animateThrow ? 'animate-throw' : ''}
         ${className}
       `}
       title={getCardTitle()}
     >
-      {/* Authentic Card Image (100% Fully Opaque Pure White Background) */}
+      {/* Authentic Card Image */}
       <img
         src={assetUrl}
         alt={getCardTitle()}
         onError={() => setUseFallbackPng(true)}
-        className="w-full h-full object-contain filter drop-shadow-sm pointer-events-none rounded-xl"
+        className="w-full h-full object-contain pointer-events-none rounded-xl"
         loading="eager"
         draggable={false}
       />

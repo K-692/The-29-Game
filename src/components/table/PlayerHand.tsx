@@ -100,10 +100,6 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
     if (distance >= DRAG_THRESHOLD) {
       if (!isActualDrag) {
         setIsActualDrag(true);
-        if (!hasPlayedSlideSoundRef.current) {
-          soundManager.playSlide();
-          hasPlayedSlideSoundRef.current = true;
-        }
       }
 
       setDragOffset({ x: dx, y: dy });
@@ -275,8 +271,8 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
                 size="md"
                 className={`
                   rounded-xl shadow-xl transition-all
-                  ${isPlayable ? 'ring-2 ring-amber-400' : 'ring-1 ring-slate-300'}
-                  ${isHovered ? 'shadow-2xl ring-4 ring-amber-400' : ''}
+                  ${isPlayable ? 'ring-2 ring-amber-400 shadow-[0_0_16px_rgba(251,191,36,0.8)]' : ''}
+                  ${isHovered ? 'shadow-[0_0_24px_rgba(251,191,36,1)] ring-3 ring-amber-300' : ''}
                 `}
               />
             </div>

@@ -126,8 +126,6 @@ export const CardPlayFlightAnimation: React.FC<CardPlayFlightAnimationProps> = (
       isMoving: false,
     });
 
-    soundManager.playSlide();
-
     // Trigger transition to target position in next animation frame
     const raf = requestAnimationFrame(() => {
       const timer = setTimeout(() => {
@@ -176,7 +174,7 @@ export const CardPlayFlightAnimation: React.FC<CardPlayFlightAnimationProps> = (
           cardId={cardId}
           rotation={animState.targetRotation}
           size="sm"
-          className="rounded-lg shadow-2xl border border-slate-200/40"
+          className="rounded-lg shadow-2xl"
         />
       </div>
     </div>

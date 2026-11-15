@@ -194,7 +194,7 @@ export class RoomManager {
       seats,
       gameState: null,
       turnTimer: null,
-      remainingSeconds: 30,
+      remainingSeconds: 15,
       turnDeadline: 0,
       botTurnTimeout: null,
       activeTurn: null,
@@ -804,7 +804,7 @@ export class RoomManager {
         ? 'TRUMP_SELECTION'
         : 'PLAY_CARD';
 
-    const totalDuration = 30; // Strictly 30 seconds for all human turns
+    const totalDuration = 15; // Strictly 15 seconds for all human turns
     const now = Date.now();
     room.remainingSeconds = totalDuration;
     room.turnDeadline = now + totalDuration * 1000;
