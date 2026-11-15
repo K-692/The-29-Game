@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PublicGameState, PlayerPosition } from '../../engine/types';
-import { Suit, SUIT_COLORS, SUIT_SYMBOLS } from '../../assets/cardManifest';
 import { PlayingCard } from '../card/PlayingCard';
 import { soundManager } from '../../common/SoundManager';
-import { Sparkles, Crown } from 'lucide-react';
+import { Crown } from 'lucide-react';
 
 interface PhysicalTrumpIndicatorProps {
   publicState: PublicGameState;
@@ -148,27 +147,27 @@ export const PhysicalTrumpIndicator: React.FC<PhysicalTrumpIndicatorProps> = ({
 
   return (
     <>
-      {/* Physical Trump Card Indicator Container at Top-Right */}
+      {/* Physical Trump Card Indicator: Sits directly above right player seat (Varun) */}
       <div
         ref={containerRef}
-        className="relative flex items-center gap-1.5 select-none pointer-events-auto"
-        title={isTrumpRevealed ? `Revealed Trump: ${revealedTrumpSuit || 'No Trump'}` : 'Concealed Trump Card (Click "Ask to Reveal Trump" when legal)'}
+        className="flex flex-col items-center select-none pointer-events-auto"
+        title={isTrumpRevealed ? `Revealed Trump: ${revealedTrumpSuit || 'No Trump'}` : 'Concealed Trump Card'}
       >
         {/* 3D Card Container with Flip Animation */}
         <div
-          className="relative w-12 h-16 sm:w-14 sm:h-20 transition-transform duration-300 hover:scale-105"
+          className="relative w-11 h-15 sm:w-13 sm:h-[4.6rem] transition-transform duration-300 hover:scale-105"
           style={{ perspective: '800px' }}
         >
           <div
-            className="w-full h-full relative transition-transform duration-700 shadow-md rounded-lg"
+            className="w-full h-full relative transition-transform duration-700 shadow-lg rounded-lg"
             style={{
               transformStyle: 'preserve-3d',
               transform: showFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
             }}
           >
-            {/* FRONT FACE: Concealed Trump (Face-Down Card Back) */}
+            {/* FRONT FACE: Concealed Trump (Face-Down Card Back - Strictly NO text on top of card) */}
             <div
-              className="absolute inset-0 w-full h-full rounded-lg overflow-hidden border border-amber-300/60 shadow-md bg-white"
+              className="absolute inset-0 w-full h-full rounded-lg overflow-hidden border border-amber-300/70 shadow-md bg-white"
               style={{
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',
@@ -176,22 +175,16 @@ export const PhysicalTrumpIndicator: React.FC<PhysicalTrumpIndicatorProps> = ({
             >
               <img
                 src="/assets/cards/card_back.svg"
-                alt="Concealed Trump"
+                alt="Concealed Trump Card"
                 className="w-full h-full object-contain pointer-events-none"
                 loading="eager"
                 draggable={false}
               />
-              {/* Subtle Concealed Stamp */}
-              <div className="absolute inset-x-0 bottom-0 bg-slate-900/80 backdrop-blur-xs py-0.5 text-center">
-                <span className="text-[8px] font-black uppercase tracking-wider text-amber-300">
-                  TRUMP
-                </span>
-              </div>
             </div>
 
-            {/* BACK FACE: Revealed Trump (6-Number Display Card or Clean NO TRUMP Card) */}
+            {/* BACK FACE: Revealed Trump (Strictly NO text/badges on top of card face) */}
             <div
-              className="absolute inset-0 w-full h-full rounded-lg overflow-hidden border border-amber-400 shadow-lg bg-white"
+              className="absolute inset-0 w-full h-full rounded-lg overflow-hidden border border-amber-400 shadow-xl bg-white"
               style={{
                 backfaceVisibility: 'hidden',
                 WebkitBackfaceVisibility: 'hidden',
@@ -210,71 +203,35 @@ export const PhysicalTrumpIndicator: React.FC<PhysicalTrumpIndicatorProps> = ({
                   </span>
                 </div>
               ) : trumpMode === 'seventh-card' && (seventhCardStage === 'showing-7th' || seventhCardStage === 'gliding') && revealedSeventhCard ? (
-                // Stage 1 & 2: Authentic 7th card displayed
+                // Stage 1 & 2: Authentic 7th card displayed cleanly without badges on top
                 <div className="w-full h-full relative">
                   <PlayingCard cardId={revealedSeventhCard} size="xs" className="w-full h-full rounded-lg" />
-                  <div className="absolute top-0 inset-x-0 bg-cyan-600/90 py-0.5 text-center">
-                    <span className="text-[7px] font-black uppercase tracking-widest text-white">7TH CARD</span>
-                  </div>
                 </div>
               ) : (
-                // Normal Suit OR 7th Card Stage 3: Six-Number Display Card
+                // Normal Suit OR 7th Card Stage 3: Clean Six-Number Display Card
                 <div className="w-full h-full relative">
                   <PlayingCard cardId={suitDisplayCardId} size="xs" className="w-full h-full rounded-lg" />
-                  {revealedTrumpSuit && (
-                    <div className="absolute top-0 inset-x-0 bg-slate-900/85 py-0.5 text-center flex items-center justify-center gap-0.5">
-                      <span className={`text-[10px] leading-none ${SUIT_COLORS[revealedTrumpSuit] === 'red' ? 'text-rose-500' : 'text-slate-100'}`}>
-                        {SUIT_SYMBOLS[revealedTrumpSuit]}
-                      </span>
-                      <span className="text-[7px] font-black uppercase tracking-widest text-amber-300">
-                        TRUMP
-                      </span>
-                    </div>
-                  )}
                 </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Status Badge Label next to card */}
-        <div className="hidden sm:flex flex-col text-left leading-tight">
-          <span className="text-[9px] uppercase tracking-wider font-extrabold text-slate-500">
-            {isTrumpRevealed ? 'Trump' : 'Trump Card'}
-          </span>
-          <div className="flex items-center gap-1">
-            {isTrumpRevealed ? (
-              trumpMode === 'no-trump' ? (
-                <span className="text-xs font-black text-amber-700">NO TRUMP</span>
-              ) : revealedTrumpSuit ? (
-                <>
-                  <span className={`text-sm font-black ${SUIT_COLORS[revealedTrumpSuit] === 'red' ? 'text-rose-600' : 'text-slate-900'}`}>
-                    {SUIT_SYMBOLS[revealedTrumpSuit]}
-                  </span>
-                  <span className="text-xs font-black text-slate-800 uppercase">
-                    {revealedTrumpSuit}
-                  </span>
-                </>
-              ) : null
-            ) : (
-              <span className="text-xs font-bold text-amber-800 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-amber-500" />
-                Concealed
-              </span>
-            )}
-          </div>
-        </div>
+        {/* Clean text "Trump" written strictly BELOW and OUTSIDE of the card */}
+        <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-amber-300 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] mt-1">
+          Trump
+        </span>
       </div>
 
-      {/* Stage 2: Gliding 7th Card from Top-Right to Owner Hand */}
+      {/* Stage 2: Gliding 7th Card from Trump position to Owner Hand */}
       {seventhCardStage === 'gliding' && revealedSeventhCard && glideCoords && (
         <div
           className="fixed z-50 pointer-events-none transition-all duration-500 ease-out"
           style={{
             left: glideCoords.targetX,
             top: glideCoords.targetY,
-            width: 56,
-            height: 80,
+            width: 52,
+            height: 74,
             transform: 'scale(1.1) rotate(-4deg)',
             filter: 'drop-shadow(0 10px 20px rgba(0,0,0,0.35))',
             animation: 'glideToOwner 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards',

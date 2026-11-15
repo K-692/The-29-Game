@@ -368,15 +368,8 @@ export const GameTable: React.FC<GameTableProps> = ({
           )}
         </div>
 
-        {/* Right Section: Physical Trump Indicator (Top-Right) & Audio Controls & Help */}
+        {/* Right Section: Audio Controls & Help */}
         <div className="flex items-center gap-2 pointer-events-auto">
-          {/* Physical Playing-Card Trump Indicator at Top-Right */}
-          <PhysicalTrumpIndicator
-            publicState={publicState}
-            myPosition={myPosition}
-            onTriggerEpicReveal={handleTriggerEpicReveal}
-          />
-
           {/* Sound Controls */}
           <div className="flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md px-2 py-1.5 rounded-2xl text-slate-700">
             <button
@@ -434,9 +427,9 @@ export const GameTable: React.FC<GameTableProps> = ({
 
       {/* 3. Full-Screen Table Canvas: Relative distribution of 4 seats and center */}
       <main className="relative flex-1 w-full h-full overflow-hidden">
-        {/* Top Seat: Partner (Seat 3) - Centered below top controls, 100% visible */}
+        {/* Top Seat: Partner (Seat 3) - Ample clearance below top scoreboard */}
         {partner && (
-          <div className="absolute top-14 sm:top-16 left-1/2 -translate-x-1/2 z-25">
+          <div className="absolute top-20 sm:top-24 md:top-28 left-1/2 -translate-x-1/2 z-25">
             <OpponentSeat
               player={partner}
               seatPosition="top"
@@ -464,9 +457,16 @@ export const GameTable: React.FC<GameTableProps> = ({
           </div>
         )}
 
-        {/* Right Seat: Opponent Right (Seat 4) */}
-        {rightOpponent && (
-          <div className="absolute right-2 sm:right-6 top-[44%] -translate-y-1/2 z-20">
+        {/* Right Area: Trump Card (Just above Varun) + Opponent Right (Seat 4, Varun) */}
+        <div className="absolute right-2 sm:right-6 top-[44%] -translate-y-1/2 z-20 flex flex-col items-center gap-2">
+          {/* Physical Trump Indicator positioned just above Varun */}
+          <PhysicalTrumpIndicator
+            publicState={publicState}
+            myPosition={myPosition}
+            onTriggerEpicReveal={handleTriggerEpicReveal}
+          />
+
+          {rightOpponent && (
             <OpponentSeat
               player={rightOpponent}
               seatPosition="right"
@@ -476,8 +476,8 @@ export const GameTable: React.FC<GameTableProps> = ({
               bidAmount={publicState.highestBid || undefined}
               playerPoints={publicState.playerPoints ? publicState.playerPoints[rightOpponentPos] : 0}
             />
-          </div>
-        )}
+          )}
+        </div>
 
         {/* IN-TABLE ACTIVE OVERLAYS (STRICTLY NO MODALS!) */}
         {/* A. Bidding Panel with Restored PASS button */}

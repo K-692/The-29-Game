@@ -169,11 +169,9 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
         data-trick-slot="bottom"
         className="absolute bottom-2 left-1/2 -translate-x-1/2 w-22 h-[7.7rem] sm:w-26 sm:h-[9.1rem] md:w-30 md:h-[10.5rem] lg:w-32 lg:h-[11.2rem] flex items-center justify-center pointer-events-none"
       >
-        {cardsBySlot.bottom && (
+        {cardsBySlot.bottom && cardsBySlot.bottom.cardId !== flyingCardId && (
           <div
-            className={`w-full h-full flex items-center justify-center transition-all ${
-              cardsBySlot.bottom.cardId === flyingCardId ? 'opacity-0' : 'opacity-100'
-            }`}
+            className="w-full h-full flex items-center justify-center"
             style={{
               transform: isCollecting && collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`]
                 ? `translate3d(${collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`].y}px, 0) scale(0.55)`
@@ -198,11 +196,9 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
         data-trick-slot="top"
         className="absolute top-2 left-1/2 -translate-x-1/2 w-22 h-[7.7rem] sm:w-26 sm:h-[9.1rem] md:w-30 md:h-[10.5rem] lg:w-32 lg:h-[11.2rem] flex items-center justify-center pointer-events-none"
       >
-        {cardsBySlot.top && (
+        {cardsBySlot.top && cardsBySlot.top.cardId !== flyingCardId && (
           <div
-            className={`w-full h-full flex items-center justify-center transition-all ${
-              cardsBySlot.top.cardId === flyingCardId ? 'opacity-0' : 'opacity-100'
-            }`}
+            className="w-full h-full flex items-center justify-center"
             style={{
               transform: isCollecting && collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`]
                 ? `translate3d(${collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`].y}px, 0) scale(0.55)`
@@ -227,11 +223,9 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
         data-trick-slot="left"
         className="absolute left-3 top-1/2 -translate-y-1/2 w-22 h-[7.7rem] sm:w-26 sm:h-[9.1rem] md:w-30 md:h-[10.5rem] lg:w-32 lg:h-[11.2rem] flex items-center justify-center pointer-events-none"
       >
-        {cardsBySlot.left && (
+        {cardsBySlot.left && cardsBySlot.left.cardId !== flyingCardId && (
           <div
-            className={`w-full h-full flex items-center justify-center transition-all ${
-              cardsBySlot.left.cardId === flyingCardId ? 'opacity-0' : 'opacity-100'
-            }`}
+            className="w-full h-full flex items-center justify-center"
             style={{
               transform: isCollecting && collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`]
                 ? `translate3d(${collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`].y}px, 0) scale(0.55)`
@@ -256,11 +250,9 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
         data-trick-slot="right"
         className="absolute right-3 top-1/2 -translate-y-1/2 w-22 h-[7.7rem] sm:w-26 sm:h-[9.1rem] md:w-30 md:h-[10.5rem] lg:w-32 lg:h-[11.2rem] flex items-center justify-center pointer-events-none"
       >
-        {cardsBySlot.right && (
+        {cardsBySlot.right && cardsBySlot.right.cardId !== flyingCardId && (
           <div
-            className={`w-full h-full flex items-center justify-center transition-all ${
-              cardsBySlot.right.cardId === flyingCardId ? 'opacity-0' : 'opacity-100'
-            }`}
+            className="w-full h-full flex items-center justify-center"
             style={{
               transform: isCollecting && collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`]
                 ? `translate3d(${collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`].y}px, 0) scale(0.55)`

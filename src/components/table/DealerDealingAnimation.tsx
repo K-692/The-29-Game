@@ -40,10 +40,10 @@ export const DealerDealingAnimation: React.FC<DealerDealingAnimationProps> = ({
   const dealerRel = getRelativePosition(dealerIndex);
 
   useEffect(() => {
-    // 16 cards sequentially: 4 cards to each of the 4 players
+    // 16 cards sequentially: 4 cards to each of the 4 players, strictly one card at a time
     const TOTAL_CARDS = 16;
-    const INTERVAL_MS = 110;
-    const FLIGHT_DURATION_MS = 280;
+    const INTERVAL_MS = 150;
+    const FLIGHT_DURATION_MS = 140;
 
     let currentCard = 0;
     const interval = setInterval(() => {
