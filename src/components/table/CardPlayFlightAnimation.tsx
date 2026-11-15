@@ -57,10 +57,10 @@ export const CardPlayFlightAnimation: React.FC<CardPlayFlightAnimationProps> = (
 
     // 1. Measure Exact Target Slot Coordinates
     const slotEl = document.querySelector(`[data-trick-slot="${relPos}"]`);
-    let targetX = window.innerWidth / 2 - 50;
-    let targetY = window.innerHeight / 2 - 70;
-    let slotWidth = 100;
-    let slotHeight = 140;
+    let targetX = window.innerWidth / 2 - 40;
+    let targetY = window.innerHeight / 2 - 55;
+    let slotWidth = 80;
+    let slotHeight = 112;
 
     if (slotEl) {
       const slotRect = slotEl.getBoundingClientRect();
@@ -175,8 +175,8 @@ export const CardPlayFlightAnimation: React.FC<CardPlayFlightAnimationProps> = (
         <PlayingCard
           cardId={cardId}
           rotation={animState.targetRotation}
-          size="md"
-          className="rounded-xl shadow-2xl border border-slate-200/40"
+          size="sm"
+          className="rounded-lg shadow-2xl border border-slate-200/40"
         />
       </div>
     </div>

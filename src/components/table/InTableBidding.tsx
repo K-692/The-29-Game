@@ -53,18 +53,18 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
   };
 
   return (
-    <div className="w-full max-w-sm sm:max-w-md mx-auto bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3.5 z-30 select-none text-slate-900 animate-fade-in max-h-[85vh] overflow-y-auto">
+    <div className="w-full max-w-sm sm:max-w-md mx-auto bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xl space-y-2 sm:space-y-2.5 z-30 select-none text-slate-900 animate-fade-in">
       {/* Element 1: Current bidder and bid information */}
-      <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+      <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
         <div className="flex items-center gap-2">
-          <span className="text-xl sm:text-2xl" role="img" aria-label="Bidder Avatar">
+          <span className="text-lg sm:text-xl" role="img" aria-label="Bidder Avatar">
             {activeAvatar}
           </span>
           <div>
             <span className="text-xs sm:text-sm font-black text-slate-900 block leading-tight">
               {isMyTurn ? 'Your Turn to Bid' : `${activeName} is bidding`}
             </span>
-            <span className="text-[11px] font-semibold text-slate-500">
+            <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500">
               Current bid: <strong className="text-amber-700 font-extrabold">{currentHighestBid > 0 ? currentHighestBid : 'None (16 min)'}</strong>
             </span>
           </div>
@@ -72,33 +72,33 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
 
         {/* 30s Countdown Timer */}
         <span
-          className={`flex items-center gap-1 font-mono text-xs font-black px-2.5 py-1 rounded-xl shadow-xs ${
+          className={`flex items-center gap-1 font-mono text-[11px] sm:text-xs font-black px-2 py-0.5 rounded-lg shadow-xs ${
             isUrgent
               ? 'bg-rose-500 text-white animate-pulse'
               : 'bg-amber-100 text-amber-950 border border-amber-300'
           }`}
           title="30-Second Bidding Turn Timer"
         >
-          <Clock className="w-3.5 h-3.5" />
+          <Clock className="w-3 h-3" />
           <span>00:{remainingSeconds.toString().padStart(2, '0')}</span>
         </span>
       </div>
 
       {isMyTurn ? (
-        <div className="space-y-3 pt-0.5">
+        <div className="space-y-2 pt-0.5">
           {/* Element 2: Grid of all legal bid values (Single-tap immediate submit) */}
           <div>
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
               Select Bid to Submit:
             </span>
-            <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 sm:gap-2">
+            <div className="grid grid-cols-5 gap-1 sm:gap-1.5">
               {legalOptions.map((val) => (
                 <button
                   key={val}
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => handleBidClick(val)}
-                  className={`py-2.5 sm:py-3 px-1 rounded-xl font-mono font-black text-sm sm:text-base border shadow-sm transition-all flex items-center justify-center ${
+                  className={`py-1.5 sm:py-2 px-0.5 rounded-lg font-mono font-black text-xs sm:text-sm border shadow-xs transition-all flex items-center justify-center ${
                     isSubmitting
                       ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
                       : 'bg-amber-50 hover:bg-amber-400 hover:text-slate-950 border-amber-300 text-slate-900 active:scale-95 cursor-pointer'
@@ -112,13 +112,13 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
           </div>
 
           {/* Element 3: Prominent PASS button (Always visible to active bidder unless dealer is forced to open) */}
-          <div className="pt-1">
+          <div className="pt-0.5">
             {!isForcedDealer ? (
               <button
                 type="button"
                 disabled={isSubmitting}
                 onClick={() => handleBidClick('PASS')}
-                className={`w-full py-3 px-4 rounded-xl font-black text-sm uppercase tracking-wider border-2 shadow-sm transition-all flex items-center justify-center gap-2 ${
+                className={`w-full py-2 sm:py-2.5 px-3 rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider border-2 shadow-sm transition-all flex items-center justify-center gap-1.5 ${
                   isSubmitting
                     ? 'bg-slate-100 text-slate-400 border-slate-300 cursor-not-allowed'
                     : 'bg-rose-50 hover:bg-rose-100 active:scale-98 text-rose-700 border-rose-300 cursor-pointer'
@@ -127,19 +127,19 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
               >
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin text-slate-500" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" />
                     SUBMITTING...
                   </>
                 ) : (
                   <>
-                    <XCircle className="w-4 h-4 text-rose-600" />
+                    <XCircle className="w-3.5 h-3.5 text-rose-600" />
                     PASS
                   </>
                 )}
               </button>
             ) : (
               <div
-                className="w-full py-2.5 px-3 rounded-xl text-center text-xs font-bold text-amber-900 bg-amber-50 border-2 border-amber-300 shadow-sm flex items-center justify-center gap-1.5"
+                className="w-full py-2 px-3 rounded-xl text-center text-xs font-bold text-amber-900 bg-amber-50 border-2 border-amber-300 shadow-sm flex items-center justify-center gap-1.5"
                 title="First 3 players passed: As dealer, you must open with minimum 16"
               >
                 <span>⚠️ Dealer Forced Opening (Must bid 16+)</span>
@@ -148,7 +148,7 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
           </div>
         </div>
       ) : (
-        <div className="text-center py-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-600 font-medium">
+        <div className="text-center py-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 font-medium">
           Waiting for {activeName} to place a bid or pass...
         </div>
       )}

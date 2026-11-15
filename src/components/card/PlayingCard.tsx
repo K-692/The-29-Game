@@ -17,10 +17,10 @@ export interface PlayingCardProps {
   rotation?: number; // In degrees, for natural scatter
 }
 
-// Increased card dimensions for prominent, readable cards
+// Card dimensions tuned for optimal hierarchy: prominent in hand, balanced on table
 const SIZE_CLASSES = {
   xs: 'w-12 h-[4.2rem] rounded-md',
-  sm: 'w-16 h-[5.6rem] rounded-lg',
+  sm: 'w-16 h-[5.6rem] sm:w-18 sm:h-[6.3rem] md:w-20 md:h-[7rem] rounded-lg',
   md: 'w-22 h-[7.7rem] sm:w-26 sm:h-[9.1rem] md:w-30 md:h-[10.5rem] lg:w-32 lg:h-[11.2rem] rounded-xl',
   lg: 'w-26 h-[9.1rem] sm:w-30 sm:h-[10.5rem] md:w-34 md:h-[11.9rem] rounded-xl',
   xl: 'w-32 h-[11.2rem] sm:w-38 sm:h-[13.3rem] rounded-2xl',

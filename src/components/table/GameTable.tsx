@@ -84,11 +84,27 @@ export const GameTable: React.FC<GameTableProps> = ({
     }
   }, [publicState.phase, publicState.roundNumber]);
 
-  // Epic full-window reveal effect state
+  // Epic full-window reveal effect state: Universal across all players
   const [showEpicReveal, setShowEpicReveal] = useState(false);
   const handleTriggerEpicReveal = () => {
     setShowEpicReveal(true);
   };
+
+  const prevIsTrumpRevealedRef = useRef<boolean>(publicState.isTrumpRevealed);
+  useEffect(() => {
+    if (!prevIsTrumpRevealedRef.current && publicState.isTrumpRevealed) {
+      setShowEpicReveal(true);
+      soundManager.playTrump();
+    }
+    prevIsTrumpRevealedRef.current = publicState.isTrumpRevealed;
+  }, [publicState.isTrumpRevealed]);
+
+  useEffect(() => {
+    if (publicState.phase === 'BIDDING' || publicState.phase === 'TRUMP_SELECTION') {
+      prevIsTrumpRevealedRef.current = false;
+      setShowEpicReveal(false);
+    }
+  }, [publicState.phase, publicState.roundNumber]);
 
   // Card-playing flight animation state with robust action deduplication
   const [flyingCard, setFlyingCard] = useState<{
@@ -354,17 +370,7 @@ export const GameTable: React.FC<GameTableProps> = ({
               )}
             </div>
           ) : (
-            <div className="flex items-center gap-2">
-              <Scoreboard publicState={publicState} myTeam={myTeam} />
-              {publicState.highestBid > 0 && (
-                <div className="hidden md:flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-emerald-300 text-emerald-900 px-2.5 py-1 rounded-xl text-xs font-bold shadow-xs">
-                  <span role="img" aria-label="Trophy">🏆</span>
-                  <span>{highestBidderPlayer?.avatar || '🦊'} {highestBidderName}</span>
-                  <span className="text-emerald-500 font-bold">·</span>
-                  <span className="font-mono font-black">{publicState.highestBid}</span>
-                </div>
-              )}
-            </div>
+            <Scoreboard publicState={publicState} myTeam={myTeam} />
           )}
         </div>
 
@@ -484,7 +490,7 @@ export const GameTable: React.FC<GameTableProps> = ({
         {/* IN-TABLE ACTIVE OVERLAYS (STRICTLY NO MODALS!) */}
         {/* A. Bidding Panel with Restored PASS button */}
         {publicState.phase === 'BIDDING' && !showDealingAnimation && (
-          <div className="absolute top-[50%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-full max-w-lg px-2">
+          <div className="absolute top-[44%] sm:top-[46%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-full max-w-lg px-2">
             <InTableBidding
               currentHighestBid={publicState.highestBid}
               highestBidder={publicState.highestBidder}
@@ -507,7 +513,7 @@ export const GameTable: React.FC<GameTableProps> = ({
 
         {/* B. Trump Selector */}
         {publicState.phase === 'TRUMP_SELECTION' && (
-          <div className="absolute top-[50%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-full max-w-lg px-2">
+          <div className="absolute top-[44%] sm:top-[46%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-full max-w-lg px-2">
             <InTableTrumpSelector
               handCardIds={publicState.myHand}
               highestBid={publicState.highestBid}
@@ -523,7 +529,7 @@ export const GameTable: React.FC<GameTableProps> = ({
 
         {/* C. Round Summary with 3s transition */}
         {publicState.phase === 'ROUND_ENDED' && latestSummary && (
-          <div className="absolute top-[50%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-full max-w-lg px-2">
+          <div className="absolute top-[46%] sm:top-[48%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 w-full max-w-lg px-2">
             <InTableRoundSummary
               summary={latestSummary}
               isHost={isHost}

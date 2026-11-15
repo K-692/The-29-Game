@@ -42,8 +42,8 @@ export const DealerDealingAnimation: React.FC<DealerDealingAnimationProps> = ({
   useEffect(() => {
     // 16 cards sequentially: 4 cards to each of the 4 players, strictly one card at a time
     const TOTAL_CARDS = 16;
-    const INTERVAL_MS = 150;
-    const FLIGHT_DURATION_MS = 140;
+    const INTERVAL_MS = 130;
+    const FLIGHT_DURATION_MS = 110;
 
     let currentCard = 0;
     const interval = setInterval(() => {
@@ -112,7 +112,7 @@ export const DealerDealingAnimation: React.FC<DealerDealingAnimationProps> = ({
       // Remove after landing
       setTimeout(() => {
         setActiveFlyingCards((prev) => prev.filter((c) => c.id !== cardId));
-      }, FLIGHT_DURATION_MS + 50);
+      }, FLIGHT_DURATION_MS + 10);
 
       currentCard++;
       setDealIndex(currentCard);
@@ -131,7 +131,7 @@ export const DealerDealingAnimation: React.FC<DealerDealingAnimationProps> = ({
         <span>Dealing First 4 Cards ({dealIndex}/16)...</span>
       </div>
 
-      {/* Flying Card Backs */}
+      {/* Flying Card Backs - Strictly one card in flight at a time */}
       {activeFlyingCards.map((card) => {
         const currentX = card.startX + (card.targetX - card.startX) * card.progress;
         const currentY = card.startY + (card.targetY - card.startY) * card.progress;
@@ -145,7 +145,7 @@ export const DealerDealingAnimation: React.FC<DealerDealingAnimationProps> = ({
               left: `${currentX}px`,
               top: `${currentY}px`,
               transform: `translate(-50%, -50%) rotate(${rotation}deg) scale(${card.progress === 1 ? 0.8 : 1})`,
-              transition: 'left 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), top 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.28s ease-out',
+              transition: 'left 0.11s cubic-bezier(0.2, 0.8, 0.2, 1), top 0.11s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.11s ease-out',
             }}
             className="w-12 h-16 sm:w-16 sm:h-22 rounded-lg overflow-hidden shadow-2xl border border-amber-900/40 bg-white"
           >

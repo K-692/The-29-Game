@@ -157,17 +157,17 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
     <div
       ref={dropZoneRef}
       id="trick-area"
-      className="relative w-80 h-64 sm:w-96 sm:h-72 md:w-[28rem] md:h-80 flex items-center justify-center select-none pointer-events-none"
+      className="relative w-64 h-52 sm:w-72 sm:h-60 md:w-80 md:h-64 flex items-center justify-center select-none pointer-events-none"
     >
       {/* Invisible drop target hitbox */}
       <div className="absolute inset-0 pointer-events-auto" />
 
-      {/* 4 Dedicated Slots with Fixed Anchors */}
+      {/* 4 Dedicated Slots with Fixed Anchors - Compact size='sm' to prevent table seat overlaps */}
       {/* 1. BOTTOM SLOT */}
       <div
         ref={slotRefs.bottom}
         data-trick-slot="bottom"
-        className="absolute bottom-2 left-1/2 -translate-x-1/2 w-22 h-[7.7rem] sm:w-26 sm:h-[9.1rem] md:w-30 md:h-[10.5rem] lg:w-32 lg:h-[11.2rem] flex items-center justify-center pointer-events-none"
+        className="absolute bottom-2 left-1/2 -translate-x-1/2 w-16 h-[5.6rem] sm:w-18 sm:h-[6.3rem] md:w-20 md:h-[7rem] flex items-center justify-center pointer-events-none"
       >
         {cardsBySlot.bottom && cardsBySlot.bottom.cardId !== flyingCardId && (
           <div
@@ -183,8 +183,8 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
             <PlayingCard
               cardId={cardsBySlot.bottom.cardId}
               rotation={SLOT_ROTATIONS.bottom}
-              size="md"
-              className="rounded-xl shadow-xl border border-slate-200/40"
+              size="sm"
+              className="rounded-lg shadow-xl border border-slate-200/40"
             />
           </div>
         )}
@@ -194,7 +194,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
       <div
         ref={slotRefs.top}
         data-trick-slot="top"
-        className="absolute top-2 left-1/2 -translate-x-1/2 w-22 h-[7.7rem] sm:w-26 sm:h-[9.1rem] md:w-30 md:h-[10.5rem] lg:w-32 lg:h-[11.2rem] flex items-center justify-center pointer-events-none"
+        className="absolute top-2 left-1/2 -translate-x-1/2 w-16 h-[5.6rem] sm:w-18 sm:h-[6.3rem] md:w-20 md:h-[7rem] flex items-center justify-center pointer-events-none"
       >
         {cardsBySlot.top && cardsBySlot.top.cardId !== flyingCardId && (
           <div
@@ -210,8 +210,8 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
             <PlayingCard
               cardId={cardsBySlot.top.cardId}
               rotation={SLOT_ROTATIONS.top}
-              size="md"
-              className="rounded-xl shadow-xl border border-slate-200/40"
+              size="sm"
+              className="rounded-lg shadow-xl border border-slate-200/40"
             />
           </div>
         )}
@@ -221,7 +221,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
       <div
         ref={slotRefs.left}
         data-trick-slot="left"
-        className="absolute left-3 top-1/2 -translate-y-1/2 w-22 h-[7.7rem] sm:w-26 sm:h-[9.1rem] md:w-30 md:h-[10.5rem] lg:w-32 lg:h-[11.2rem] flex items-center justify-center pointer-events-none"
+        className="absolute left-3 top-1/2 -translate-y-1/2 w-16 h-[5.6rem] sm:w-18 sm:h-[6.3rem] md:w-20 md:h-[7rem] flex items-center justify-center pointer-events-none"
       >
         {cardsBySlot.left && cardsBySlot.left.cardId !== flyingCardId && (
           <div
@@ -237,8 +237,8 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
             <PlayingCard
               cardId={cardsBySlot.left.cardId}
               rotation={SLOT_ROTATIONS.left}
-              size="md"
-              className="rounded-xl shadow-xl border border-slate-200/40"
+              size="sm"
+              className="rounded-lg shadow-xl border border-slate-200/40"
             />
           </div>
         )}
@@ -248,7 +248,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
       <div
         ref={slotRefs.right}
         data-trick-slot="right"
-        className="absolute right-3 top-1/2 -translate-y-1/2 w-22 h-[7.7rem] sm:w-26 sm:h-[9.1rem] md:w-30 md:h-[10.5rem] lg:w-32 lg:h-[11.2rem] flex items-center justify-center pointer-events-none"
+        className="absolute right-3 top-1/2 -translate-y-1/2 w-16 h-[5.6rem] sm:w-18 sm:h-[6.3rem] md:w-20 md:h-[7rem] flex items-center justify-center pointer-events-none"
       >
         {cardsBySlot.right && cardsBySlot.right.cardId !== flyingCardId && (
           <div
@@ -264,8 +264,8 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
             <PlayingCard
               cardId={cardsBySlot.right.cardId}
               rotation={SLOT_ROTATIONS.right}
-              size="md"
-              className="rounded-xl shadow-xl border border-slate-200/40"
+              size="sm"
+              className="rounded-lg shadow-xl border border-slate-200/40"
             />
           </div>
         )}

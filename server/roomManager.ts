@@ -88,6 +88,7 @@ export interface LanRoom {
   botTurnTimeout: NodeJS.Timeout | null;
   activeTurn: ActiveTurnContext | null;
   revealedTrumpRequestId: string | null;
+  roundEndedTimer: NodeJS.Timeout | null;
 }
 
 export class RoomManager {
@@ -198,6 +199,7 @@ export class RoomManager {
       botTurnTimeout: null,
       activeTurn: null,
       revealedTrumpRequestId: null,
+      roundEndedTimer: null,
     };
 
     this.rooms.set(code, room);
@@ -692,6 +694,17 @@ export class RoomManager {
         if (room.gameState.phase === 'TRICK_PLAY') {
           this.startTurnTimer(room);
           this.checkAndExecuteBotTurn(room);
+        } else if (room.gameState.phase === 'ROUND_ENDED') {
+          // Auto-advance to next deal after 15 seconds if idle so the game NEVER halts
+          if (room.roundEndedTimer) clearTimeout(room.roundEndedTimer);
+          room.roundEndedTimer = setTimeout(() => {
+            if (room.gameState && room.gameState.phase === 'ROUND_ENDED') {
+              const anySeat = room.seats.find((s) => s.isHost) || room.seats[0];
+              if (anySeat) {
+                this.handleNextRound(room.code, anySeat.sessionToken);
+              }
+            }
+          }, 15000);
         }
       }, 1600);
     } else {
@@ -742,8 +755,17 @@ export class RoomManager {
     const room = this.rooms.get(code);
     if (!room || !room.gameState) return { success: false, error: 'Game not active.' };
 
-    const hostSeat = room.seats.find((s) => s.sessionToken === sessionToken && s.isHost);
-    if (!hostSeat) return { success: false, error: 'Only the host can deal the next round.' };
+    const seat = room.seats.find((s) => s.sessionToken === sessionToken);
+    if (!seat) return { success: false, error: 'Seat not found in room.' };
+
+    if (room.gameState.phase !== 'ROUND_ENDED') {
+      return { success: false, error: 'Current round has not concluded yet.' };
+    }
+
+    if (room.roundEndedTimer) {
+      clearTimeout(room.roundEndedTimer);
+      room.roundEndedTimer = null;
+    }
 
     const nextDealer = ((room.gameState.dealerIndex + 1) % 4) as PlayerPosition;
     room.gameState = startNewRound(room.gameState, nextDealer);
@@ -845,6 +867,9 @@ export class RoomManager {
     const seat = room.seats.find((s) => s.position === turnPosition);
     if (!seat) return;
     const playerHand = room.gameState.hands[turnPosition];
+
+    // Clear activeTurn so authoritative fallback can proceed without self-rejection
+    room.activeTurn = null;
 
     if (room.gameState.phase === 'BIDDING') {
       // Check if forced dealer on scheduled 4th turn
