@@ -70,6 +70,71 @@
   animation: cardGlowPulse 2s ease-in-out infinite;
 }
 
+/* Card landing animations directly in trick slots */
+@keyframes cardLandBottom {
+  0% {
+    transform: translate3d(0, 180px, 0) scale(1.08);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes cardLandTop {
+  0% {
+    transform: translate3d(0, -180px, 0) scale(0.92);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes cardLandLeft {
+  0% {
+    transform: translate3d(-220px, 0, 0) scale(0.92);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes cardLandRight {
+  0% {
+    transform: translate3d(220px, 0, 0) scale(0.92);
+    opacity: 0.85;
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-card-land-bottom {
+  animation: cardLandBottom 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-card-land-top {
+  animation: cardLandTop 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-card-land-left {
+  animation: cardLandLeft 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-card-land-right {
+  animation: cardLandRight 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  will-change: transform, opacity;
+}
+
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;

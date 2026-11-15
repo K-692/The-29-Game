@@ -10,7 +10,8 @@ interface TrickAreaProps {
   completedTricks: CompletedTrick[];
   lastCompletedTrick?: CompletedTrick | null;
   dropZoneRef?: React.Ref<HTMLDivElement>;
-  flyingCardId?: string | null;
+  currentTrickNumber?: number;
+  roundNumber?: number;
 }
 
 const SLOT_ROTATIONS: Record<'bottom' | 'top' | 'left' | 'right', number> = {
@@ -27,12 +28,14 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
   completedTricks,
   lastCompletedTrick,
   dropZoneRef,
-  flyingCardId,
+  currentTrickNumber = 1,
+  roundNumber = 1,
 }) => {
   // State for freeze-frame and collection animation
   const [frozenCards, setFrozenCards] = useState<PlayedCard[] | null>(null);
   const [isCollecting, setIsCollecting] = useState<boolean>(false);
   const [collectionVectors, setCollectionVectors] = useState<Record<string, { x: number; y: number }>>({});
+  const [retiredTrickKey, setRetiredTrickKey] = useState<string | null>(null);
 
   const slotRefs = {
     bottom: useRef<HTMLDivElement>(null),
@@ -41,7 +44,9 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
     right: useRef<HTMLDivElement>(null),
   };
 
+  const playedCardKeysRef = useRef<Set<string>>(new Set());
   const lastAnimatedTrickKeyRef = useRef<string | null>(null);
+  const prevTrickKeyRef = useRef<string | null>(null);
   const timer1Ref = useRef<NodeJS.Timeout | null>(null);
   const timer2Ref = useRef<NodeJS.Timeout | null>(null);
 
@@ -57,29 +62,53 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
     }
   };
 
+  const currentTrickKey = `R${roundNumber}_T${currentTrickNumber}`;
+
+  // Reset tracking when trick advances
+  useEffect(() => {
+    if (prevTrickKeyRef.current !== currentTrickKey) {
+      prevTrickKeyRef.current = currentTrickKey;
+      playedCardKeysRef.current.clear();
+      if (timer1Ref.current) clearTimeout(timer1Ref.current);
+      if (timer2Ref.current) clearTimeout(timer2Ref.current);
+      setFrozenCards(null);
+      setIsCollecting(false);
+      setCollectionVectors({});
+    }
+  }, [currentTrickKey]);
+
+  // Play placement sound when new card arrives on felt
+  useEffect(() => {
+    playedCards.forEach((pc) => {
+      const key = `${pc.cardId}_${pc.playerIndex}`;
+      if (!playedCardKeysRef.current.has(key)) {
+        playedCardKeysRef.current.add(key);
+        soundManager.playCardPlace();
+      }
+    });
+  }, [playedCards]);
+
   // Check if a 4-card trick is present
   const isFourCards = playedCards.length === 4;
 
   useEffect(() => {
-    // Only begin the freeze-frame when all 4 cards have fully landed (flyingCardId is null)
-    if (!isFourCards || flyingCardId) {
+    if (!isFourCards) {
       return;
     }
 
-    const latestTrick = lastCompletedTrick || (completedTricks.length > 0 ? completedTricks[completedTricks.length - 1] : null);
-    if (!latestTrick) return;
-
-    const trickKey = `trick_${latestTrick.trickNumber}_len${completedTricks.length}_w${latestTrick.winner}`;
-    if (lastAnimatedTrickKeyRef.current === trickKey) {
+    // Guard: already animated or retired this trick
+    if (lastAnimatedTrickKeyRef.current === currentTrickKey || retiredTrickKey === currentTrickKey) {
       return;
     }
-    lastAnimatedTrickKeyRef.current = trickKey;
+    lastAnimatedTrickKeyRef.current = currentTrickKey;
 
     const cardsToAnimate = [...playedCards];
     setFrozenCards(cardsToAnimate);
     setIsCollecting(false);
 
-    const targetRelPos = getRelativePosition(latestTrick.winner);
+    const latestTrick = lastCompletedTrick || (completedTricks.length > 0 ? completedTricks[completedTricks.length - 1] : null);
+    const winnerPos = latestTrick ? latestTrick.winner : myPosition;
+    const targetRelPos = getRelativePosition(winnerPos);
 
     if (timer1Ref.current) clearTimeout(timer1Ref.current);
     if (timer2Ref.current) clearTimeout(timer2Ref.current);
@@ -111,10 +140,10 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
         } else {
           // Dynamic fallback offsets based on table orientation
           switch (targetRelPos) {
-            case 'bottom': vectors[key] = { x: 0, y: 340 }; break;
-            case 'top': vectors[key] = { x: 0, y: -340 }; break;
-            case 'left': vectors[key] = { x: -420, y: 0 }; break;
-            case 'right': vectors[key] = { x: 420, y: 0 }; break;
+            case 'bottom': vectors[key] = { x: 0, y: 360 }; break;
+            case 'top': vectors[key] = { x: 0, y: -360 }; break;
+            case 'left': vectors[key] = { x: -440, y: 0 }; break;
+            case 'right': vectors[key] = { x: 440, y: 0 }; break;
           }
         }
       });
@@ -124,13 +153,14 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
       soundManager.playTrickShove();
     }, 800);
 
-    // Step 3: At 1500ms (800ms hold + 700ms slide), collection finishes and state is cleanly unmounted
+    // Step 3: At 1450ms (800ms hold + 650ms slide), collection finishes and trick is authoritatively retired
     timer2Ref.current = setTimeout(() => {
+      setRetiredTrickKey(currentTrickKey);
       setFrozenCards(null);
       setIsCollecting(false);
       setCollectionVectors({});
-    }, 1500);
-  }, [isFourCards, flyingCardId, lastCompletedTrick, completedTricks.length, myPosition]);
+    }, 1450);
+  }, [isFourCards, currentTrickKey, retiredTrickKey, lastCompletedTrick, completedTricks.length, myPosition]);
 
   useEffect(() => {
     return () => {
@@ -139,8 +169,10 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
     };
   }, []);
 
-  // Cards to render: either currently frozen cards (during collection) or played cards
-  const cardsToRender = frozenCards || playedCards;
+  // Cards to render:
+  // If this trick has finished collection (retired), render nothing so cards NEVER pop back onto the felt!
+  const isRetired = currentTrickKey === retiredTrickKey;
+  const cardsToRender = isRetired ? [] : (frozenCards || playedCards);
 
   // Group cards by their relative slot
   const cardsBySlot: Record<'bottom' | 'top' | 'left' | 'right', PlayedCard | null> = {
@@ -164,22 +196,26 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
       {/* Invisible drop target hitbox */}
       <div className="absolute inset-0 pointer-events-auto" />
 
-      {/* 4 Dedicated Slots with Fixed Anchors - Compact size='sm' to prevent table seat overlaps */}
+      {/* 4 Dedicated Slots with Fixed Anchors */}
       {/* 1. BOTTOM SLOT */}
       <div
         ref={slotRefs.bottom}
         data-trick-slot="bottom"
-        className="absolute bottom-2 left-1/2 -translate-x-1/2 w-16 h-[5.6rem] sm:w-18 sm:h-[6.3rem] md:w-20 md:h-[7rem] flex items-center justify-center pointer-events-none"
+        className="absolute bottom-2 left-1/2 -translate-x-1/2 w-16 h-[5.6rem] sm:w-[4.5rem] sm:h-[6.3rem] md:w-20 md:h-[7rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
       >
-        {cardsBySlot.bottom && cardsBySlot.bottom.cardId !== flyingCardId && (
+        {cardsBySlot.bottom && (
           <div
-            className="w-full h-full flex items-center justify-center"
+            key={`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`}
+            className={`w-full h-full flex items-center justify-center ${isCollecting ? '' : 'animate-card-land-bottom'}`}
             style={{
               transform: isCollecting && collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`]
-                ? `translate3d(${collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`].y}px, 0) scale(0.3)`
+                ? `translate3d(${collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`].y}px, 0) scale(0.25)`
                 : undefined,
-              transition: isCollecting ? 'transform 0.7s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.7s cubic-bezier(0.4, 0.0, 0.2, 1)' : undefined,
+              transition: isCollecting
+                ? 'transform 0.65s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.65s cubic-bezier(0.4, 0.0, 0.2, 1)'
+                : undefined,
               opacity: isCollecting ? 0 : 1,
+              willChange: 'transform, opacity',
             }}
           >
             <PlayingCard
@@ -196,17 +232,21 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
       <div
         ref={slotRefs.top}
         data-trick-slot="top"
-        className="absolute top-2 left-1/2 -translate-x-1/2 w-16 h-[5.6rem] sm:w-18 sm:h-[6.3rem] md:w-20 md:h-[7rem] flex items-center justify-center pointer-events-none"
+        className="absolute top-2 left-1/2 -translate-x-1/2 w-16 h-[5.6rem] sm:w-[4.5rem] sm:h-[6.3rem] md:w-20 md:h-[7rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
       >
-        {cardsBySlot.top && cardsBySlot.top.cardId !== flyingCardId && (
+        {cardsBySlot.top && (
           <div
-            className="w-full h-full flex items-center justify-center"
+            key={`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`}
+            className={`w-full h-full flex items-center justify-center ${isCollecting ? '' : 'animate-card-land-top'}`}
             style={{
               transform: isCollecting && collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`]
-                ? `translate3d(${collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`].y}px, 0) scale(0.3)`
+                ? `translate3d(${collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`].y}px, 0) scale(0.25)`
                 : undefined,
-              transition: isCollecting ? 'transform 0.7s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.7s cubic-bezier(0.4, 0.0, 0.2, 1)' : undefined,
+              transition: isCollecting
+                ? 'transform 0.65s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.65s cubic-bezier(0.4, 0.0, 0.2, 1)'
+                : undefined,
               opacity: isCollecting ? 0 : 1,
+              willChange: 'transform, opacity',
             }}
           >
             <PlayingCard
@@ -223,17 +263,21 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
       <div
         ref={slotRefs.left}
         data-trick-slot="left"
-        className="absolute left-3 top-1/2 -translate-y-1/2 w-16 h-[5.6rem] sm:w-18 sm:h-[6.3rem] md:w-20 md:h-[7rem] flex items-center justify-center pointer-events-none"
+        className="absolute left-3 top-1/2 -translate-y-1/2 w-16 h-[5.6rem] sm:w-[4.5rem] sm:h-[6.3rem] md:w-20 md:h-[7rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
       >
-        {cardsBySlot.left && cardsBySlot.left.cardId !== flyingCardId && (
+        {cardsBySlot.left && (
           <div
-            className="w-full h-full flex items-center justify-center"
+            key={`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`}
+            className={`w-full h-full flex items-center justify-center ${isCollecting ? '' : 'animate-card-land-left'}`}
             style={{
               transform: isCollecting && collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`]
-                ? `translate3d(${collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`].y}px, 0) scale(0.3)`
+                ? `translate3d(${collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`].y}px, 0) scale(0.25)`
                 : undefined,
-              transition: isCollecting ? 'transform 0.7s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.7s cubic-bezier(0.4, 0.0, 0.2, 1)' : undefined,
+              transition: isCollecting
+                ? 'transform 0.65s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.65s cubic-bezier(0.4, 0.0, 0.2, 1)'
+                : undefined,
               opacity: isCollecting ? 0 : 1,
+              willChange: 'transform, opacity',
             }}
           >
             <PlayingCard
@@ -250,17 +294,21 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
       <div
         ref={slotRefs.right}
         data-trick-slot="right"
-        className="absolute right-3 top-1/2 -translate-y-1/2 w-16 h-[5.6rem] sm:w-18 sm:h-[6.3rem] md:w-20 md:h-[7rem] flex items-center justify-center pointer-events-none"
+        className="absolute right-3 top-1/2 -translate-y-1/2 w-16 h-[5.6rem] sm:w-[4.5rem] sm:h-[6.3rem] md:w-20 md:h-[7rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
       >
-        {cardsBySlot.right && cardsBySlot.right.cardId !== flyingCardId && (
+        {cardsBySlot.right && (
           <div
-            className="w-full h-full flex items-center justify-center"
+            key={`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`}
+            className={`w-full h-full flex items-center justify-center ${isCollecting ? '' : 'animate-card-land-right'}`}
             style={{
               transform: isCollecting && collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`]
-                ? `translate3d(${collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`].y}px, 0) scale(0.3)`
+                ? `translate3d(${collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`].y}px, 0) scale(0.25)`
                 : undefined,
-              transition: isCollecting ? 'transform 0.7s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.7s cubic-bezier(0.4, 0.0, 0.2, 1)' : undefined,
+              transition: isCollecting
+                ? 'transform 0.65s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.65s cubic-bezier(0.4, 0.0, 0.2, 1)'
+                : undefined,
               opacity: isCollecting ? 0 : 1,
+              willChange: 'transform, opacity',
             }}
           >
             <PlayingCard

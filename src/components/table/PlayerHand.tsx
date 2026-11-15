@@ -13,10 +13,9 @@ interface PlayerHandProps {
   playableCardIds: string[];
   isMyTurn: boolean;
   dropTargetRect: DOMRect | null;
-  onPlayCard: (cardId: string, originRect?: { left: number; top: number; width: number; height: number }) => void;
+  onPlayCard: (cardId: string) => void;
   onDragStateChange?: (state: DragState) => void;
   disabled?: boolean;
-  inFlightCardId?: string | null;
 }
 
 export const PlayerHand: React.FC<PlayerHandProps> = ({
@@ -27,13 +26,11 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
   onPlayCard,
   onDragStateChange,
   disabled = false,
-  inFlightCardId = null,
 }) => {
   const [hoveredCardId, setHoveredCardId] = useState<string | null>(null);
   const [activeDragCardId, setActiveDragCardId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isActualDrag, setIsActualDrag] = useState<boolean>(false);
-  const [clickHint, setClickHint] = useState<string | null>(null);
   const [pendingPlayCardId, setPendingPlayCardId] = useState<string | null>(null);
 
   const pointerStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -64,15 +61,11 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>, cardId: string) => {
     if (disabled || !isMyTurn) {
-      setClickHint('Wait for your turn to play');
-      setTimeout(() => setClickHint(null), 2500);
       return;
     }
 
     const isPlayable = playableCardIds.includes(cardId);
     if (!isPlayable) {
-      setClickHint('You must follow the suit led!');
-      setTimeout(() => setClickHint(null), 2500);
       return;
     }
 
@@ -147,26 +140,11 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
       }
 
       if (isOver && playableCardIds.includes(cardId)) {
-        // Capture origin bounding rect before releasing so flight originates exactly from where card was released
-        const rect = e.currentTarget.getBoundingClientRect();
-        const originRect = {
-          left: rect.left,
-          top: rect.top,
-          width: rect.width,
-          height: rect.height,
-        };
-
         // Suppress snap-back: mark card as pending in-flight so it does not snap back to hand
         setPendingPlayCardId(cardId);
-        onPlayCard(cardId, originRect);
+        onPlayCard(cardId);
       } else {
         soundManager.playSlide();
-      }
-    } else {
-      // STRICT DRAG-ONLY: A click or tap NEVER plays a card! Show helpful guidance hint.
-      if (isMyTurn && playableCardIds.includes(cardId)) {
-        setClickHint('Drag card into table center to play');
-        setTimeout(() => setClickHint(null), 2500);
       }
     }
 
@@ -198,13 +176,6 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
 
   return (
     <div id="player-hand" className="relative flex flex-col items-center w-full max-w-5xl mx-auto select-none overflow-visible">
-      {/* Subtle feedback message only when user attempts an illegal click */}
-      {clickHint && (
-        <div className="mb-1 px-3 py-0.5 rounded-full bg-white/95 border border-slate-200 text-slate-700 font-semibold text-xs shadow-sm z-20 animate-fade-in">
-          {clickHint}
-        </div>
-      )}
-
       {/* Horizontal Hand of Playing Cards - Generously Spread & Prominent */}
       <div
         className="flex items-end justify-center px-4 pt-12 pb-2 overflow-visible w-full"
@@ -214,7 +185,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
           const isPlayable = isMyTurn && !disabled && playableCardIds.includes(cardId);
           const isDraggingThis = activeDragCardId === cardId && isActualDrag;
           const isHovered = hoveredCardId === cardId && !isDraggingThis;
-          const isCardInFlight = cardId === pendingPlayCardId || cardId === inFlightCardId;
+          const isCardInFlight = cardId === pendingPlayCardId;
 
           // Compute z-index so playable cards strictly render above unplayable sibling cards
           let zIndex = index + 10;

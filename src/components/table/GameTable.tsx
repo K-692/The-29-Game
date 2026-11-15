@@ -23,7 +23,6 @@ import { InTableRoundSummary } from './InTableRoundSummary';
 import { MatchOverModal } from './MatchOverModal';
 import { RulesDrawer } from './RulesDrawer';
 import { DealerDealingAnimation } from './DealerDealingAnimation';
-import { CardPlayFlightAnimation } from './CardPlayFlightAnimation';
 import { InTableNotification } from '../../services/lanClient';
 import { 
   ArrowLeft, 
@@ -106,47 +105,7 @@ export const GameTable: React.FC<GameTableProps> = ({
     }
   }, [publicState.phase, publicState.roundNumber]);
 
-  // Card-playing flight animation state with robust action deduplication
-  const [flyingCard, setFlyingCard] = useState<{
-    actionId: string;
-    cardId: string;
-    playerIndex: PlayerPosition;
-    originRect?: { left: number; top: number; width: number; height: number } | null;
-  } | null>(null);
-
-  const pendingOriginRectsRef = useRef<Record<string, { left: number; top: number; width: number; height: number }>>({});
-  const playedActionsSetRef = useRef(new Set<string>());
-
-  useEffect(() => {
-    // Reset played actions deduplication when round advances
-    playedActionsSetRef.current.clear();
-    pendingOriginRectsRef.current = {};
-  }, [publicState.roundNumber]);
-
-  useEffect(() => {
-    const currentCount = publicState.currentTrickCards.length;
-    if (currentCount > 0) {
-      const latestCard = publicState.currentTrickCards[currentCount - 1];
-      const actionId = `${publicState.roundNumber}_${publicState.currentTrickNumber}_${latestCard.playerIndex}_${latestCard.cardId}`;
-      if (!playedActionsSetRef.current.has(actionId)) {
-        playedActionsSetRef.current.add(actionId);
-        const originRect = latestCard.playerIndex === myPosition
-          ? pendingOriginRectsRef.current[latestCard.cardId] || null
-          : null;
-        setFlyingCard({
-          actionId,
-          cardId: latestCard.cardId,
-          playerIndex: latestCard.playerIndex,
-          originRect,
-        });
-      }
-    }
-  }, [publicState.currentTrickCards, publicState.roundNumber, publicState.currentTrickNumber, myPosition]);
-
-  const handlePlayCard = (cardId: string, originRect?: { left: number; top: number; width: number; height: number }) => {
-    if (originRect) {
-      pendingOriginRectsRef.current[cardId] = originRect;
-    }
+  const handlePlayCard = (cardId: string) => {
     onPlayCard(cardId);
   };
 
@@ -439,24 +398,6 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
       </div>
 
-      {/* Floating In-Table Notification Toast (Silent on timeouts) */}
-      {notification && notification.type !== 'TIMEOUT_AUTO_PLAY' && (
-        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-40 max-w-md w-11/12 animate-fade-in pointer-events-none">
-          <div
-            className={`px-4 py-2 rounded-2xl border shadow-xl text-xs font-bold text-center flex items-center justify-center gap-2 ${
-              notification.type === 'TRUMP_REVEALED'
-                ? 'bg-amber-50 border-amber-300 text-amber-900'
-                : notification.type === 'PAIR_DECLARED'
-                ? 'bg-purple-50 border-purple-300 text-purple-900'
-                : 'bg-white border-slate-200 text-slate-800'
-            }`}
-          >
-            <Sparkles className="w-4 h-4 text-amber-500 shrink-0" />
-            <span>{notification.message}</span>
-          </div>
-        </div>
-      )}
-
       {/* 3. Full-Screen Table Canvas: Relative distribution of 4 seats and center */}
       <main className="relative flex-1 w-full h-full overflow-hidden">
         {/* Top Seat: Partner (Seat 3) - Ample clearance below top scoreboard */}
@@ -603,7 +544,8 @@ export const GameTable: React.FC<GameTableProps> = ({
               completedTricks={publicState.completedTricks}
               lastCompletedTrick={publicState.lastCompletedTrick}
               dropZoneRef={dropZoneRef}
-              flyingCardId={flyingCard?.cardId}
+              currentTrickNumber={publicState.currentTrickNumber}
+              roundNumber={publicState.roundNumber}
             />
           </div>
         )}
@@ -633,7 +575,6 @@ export const GameTable: React.FC<GameTableProps> = ({
             onDragStateChange={handleDragStateChange}
             onPlayCard={handlePlayCard}
             disabled={publicState.phase !== 'TRICK_PLAY'}
-            inFlightCardId={flyingCard?.playerIndex === myPosition ? flyingCard.cardId : null}
           />
         </div>
       </main>
@@ -762,17 +703,6 @@ export const GameTable: React.FC<GameTableProps> = ({
           </div>
         )}
       </div>
-
-      {/* 7. Card-Playing Flight Animation (Face-up smooth flight from player seat/hand to center trick) */}
-      {flyingCard && (
-        <CardPlayFlightAnimation
-          cardId={flyingCard.cardId}
-          playerIndex={flyingCard.playerIndex}
-          myPosition={myPosition}
-          originRect={flyingCard.originRect}
-          onAnimationComplete={() => setFlyingCard(null)}
-        />
-      )}
 
       {/* 8. Full-Window Epic Trump-Reveal Effect (1000ms golden-white luminous burst) */}
       {showEpicReveal && (
