@@ -9,6 +9,8 @@ export interface LanSeat {
   avatar?: string;
   isHost: boolean;
   connected: boolean;
+  /** Seat is played by a computer player. */
+  isCpu?: boolean;
   /** Seat is claimed by a player (they may be briefly disconnected). */
   occupied?: boolean;
 }

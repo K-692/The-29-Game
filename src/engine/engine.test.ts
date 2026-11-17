@@ -1,3 +1,4 @@
+import { getRandomBotNames, REALISTIC_BOT_NAMES } from './botNames';
 import { describe, it, expect } from 'vitest';
 import { CARD_MANIFEST, getAllCards, CardIdentity, Suit, Rank } from '../assets/cardManifest';
 import { create29Deck, deal29Deck, shuffleDeck } from './deck';
@@ -296,6 +297,19 @@ describe('Dealer Selection, Seating & Bidding Order Rules', () => {
 
     const round3 = startNewRound(round2);
     expect(round3.dealerIndex).toBe(((initialDealer + 2) % 4) as PlayerPosition);
+  });
+});
+
+describe('Computer Player Names', () => {
+  it('uses realistic names with no Bot/CPU/Computer labels', () => {
+    expect(REALISTIC_BOT_NAMES.length).toBeGreaterThanOrEqual(10);
+    for (const n of REALISTIC_BOT_NAMES) expect(n).not.toMatch(/bot|cpu|computer/i);
+  });
+
+  it('picks distinct names that avoid the humans at the table', () => {
+    const names = getRandomBotNames(3, [REALISTIC_BOT_NAMES[0]]);
+    expect(new Set(names).size).toBe(3);
+    expect(names).not.toContain(REALISTIC_BOT_NAMES[0]);
   });
 });
 

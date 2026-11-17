@@ -333,10 +333,12 @@ export const GameTable: React.FC<GameTableProps> = ({
   const highestBidderName = highestBidderPlayer ? (highestBidderPlayer.position === myPosition ? 'You' : highestBidderPlayer.name) : 'None';
 
   // Determine if turn countdown timer should be shown
+  // Computer players answer within ~1s, so a 15s countdown during their turn would only mislead.
   const showTurnTimer = Boolean(
-    publicState.phase === 'BIDDING' ||
-    publicState.phase === 'TRUMP_SELECTION' ||
-    publicState.phase === 'TRICK_PLAY'
+    (publicState.phase === 'BIDDING' ||
+      publicState.phase === 'TRUMP_SELECTION' ||
+      publicState.phase === 'TRICK_PLAY') &&
+    !activePlayer?.isCpu
   );
 
   return (
@@ -362,7 +364,7 @@ export const GameTable: React.FC<GameTableProps> = ({
 
           <div className="flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md px-2.5 sm:px-3 py-1.5 rounded-2xl text-slate-800">
             <img src="/assets/game_logo.png" alt="The 29 Game" className="w-5 h-5 sm:w-6 sm:h-6 object-contain drop-shadow" />
-            <div className="flex items-center gap-1 text-[11px] sm:text-xs font-mono font-bold">
+            <div className="flex items-center gap-1 text-[11px] sm:text-xs font-mono font-bold whitespace-nowrap">
               <Wifi className="w-3 h-3 text-emerald-600" />
               <span>ROOM: {publicState.roomCode}</span>
             </div>
@@ -439,7 +441,7 @@ export const GameTable: React.FC<GameTableProps> = ({
       <main className="relative flex-1 w-full h-full overflow-hidden">
         {/* Top Seat: Partner (Seat 3) - Ample clearance below top scoreboard */}
         {partner && (
-          <div className="absolute top-18 sm:top-20 md:top-22 left-1/2 -translate-x-1/2 z-25">
+          <div className="absolute top-[4.5rem] sm:top-20 md:top-[5.5rem] left-1/2 -translate-x-1/2 z-[25]">
             {/* If partner set the trump: place Trump Indicator beside partner seat */}
             {trumpSetterRelPos === 'top' && (
               <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-auto">
@@ -563,14 +565,14 @@ export const GameTable: React.FC<GameTableProps> = ({
 
         {/* B1. Special Trump Announcement (1-second table display for Joker / 7th Card) */}
         {publicState.phase === 'TRUMP_ANNOUNCEMENT' && publicState.specialAnnouncement && (
-          <div className="absolute top-[44%] sm:top-[46%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-35 w-full max-w-sm px-2">
+          <div className="absolute top-[44%] sm:top-[46%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-[35] w-full max-w-sm px-2">
             <CentralTrumpAnnouncement announcement={publicState.specialAnnouncement} />
           </div>
         )}
 
         {/* B2. Double / Re-Double In-Table Decision (10s timers) */}
         {(publicState.phase === 'DOUBLE_DECISION' || publicState.phase === 'REDOUBLE_DECISION') && (
-          <div className="absolute top-[44%] sm:top-[46%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-35 w-full max-w-md px-2">
+          <div className="absolute top-[44%] sm:top-[46%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-[35] w-full max-w-md px-2">
             <InTableDoubleDecision
               key={`${publicState.roundNumber}_${publicState.phase}`}
               players={publicState.players}
@@ -597,7 +599,7 @@ export const GameTable: React.FC<GameTableProps> = ({
 
         {/* B3. King-Queen Pair / Royals Announcement (2s floating visual) */}
         {pairAnnouncement && (
-          <div className="absolute top-[35%] sm:top-[38%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-45 w-full max-w-sm px-2">
+          <div className="absolute top-[35%] sm:top-[38%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-[45] w-full max-w-sm px-2">
             <InTablePairAnnouncement
               pair={pairAnnouncement.pair}
               playerName={pairAnnouncement.playerName}

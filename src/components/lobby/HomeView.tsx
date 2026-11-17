@@ -106,7 +106,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             Twenty-Nine Card Game
           </p>
           <p className="text-[11px] sm:text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
-            Four friends, one Wi-Fi network. Host a room on one device and everyone else joins from their phone or laptop.
+            Host a room on one device and friends on the same Wi-Fi join from their phone or laptop. Empty seats are played by the computer.
           </p>
         </div>
 

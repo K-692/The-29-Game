@@ -83,7 +83,12 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
           </div>
         </div>
 
-        {/* 15s Countdown Timer */}
+        {/* 15s Countdown Timer (computer players answer within ~1s, so show "thinking" instead) */}
+        {activePlayer?.isCpu ? (
+          <span className="flex items-center gap-1 text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 animate-pulse">
+            thinking…
+          </span>
+        ) : (
         <span
           className={`flex items-center gap-1 font-mono text-[11px] sm:text-xs font-black px-2 py-0.5 rounded-lg shadow-xs ${
             isUrgent
@@ -95,6 +100,7 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
           <Clock className="w-3 h-3" />
           <span>00:{remainingSeconds.toString().padStart(2, '0')}</span>
         </span>
+        )}
       </div>
 
       {isMyTurn ? (

@@ -30,6 +30,15 @@ import {
   startNewRound 
 } from '../src/engine/gameManager.js';
 import { getAutoCardPlay, getAutoTrumpSelection } from '../src/engine/autoPlay.js';
+import {
+  getBotBidDecision,
+  getBotCardPlay,
+  getBotDoubleDecision,
+  getBotRedoubleDecision,
+  getBotTrumpSelection,
+  shouldBotRequestTrumpReveal,
+} from '../src/engine/bot.js';
+import { getRandomBotNames } from '../src/engine/botNames.js';
 import { getPlayableCards } from '../src/engine/tricks.js';
 import { isLegalBid } from '../src/engine/bidding.js';
 
@@ -55,6 +64,8 @@ export interface SeatInfo {
   playerName: string;
   avatar: string;
   isHost: boolean;
+  /** Played by the server's computer player (fills seats no human took). */
+  isCpu: boolean;
   socketId: string | null;
   connected: boolean;
   sessionToken: string;
@@ -86,6 +97,11 @@ export interface LanRoom {
   roundEndedTimer: NodeJS.Timeout | null;
   trumpAnnouncementTimer?: NodeJS.Timeout | null;
   trickTransitionTimer?: NodeJS.Timeout | null;
+  /** Pending computer-player action and the state it was scheduled for. */
+  cpuTimer?: NodeJS.Timeout | null;
+  cpuTimerKey?: string | null;
+  /** Deletes a started room nobody has come back to. */
+  abandonTimer?: NodeJS.Timeout | null;
   /** Lobby-only: grace timers that free a seat if its player does not come back. */
   seatReleaseTimers?: Partial<Record<PlayerPosition, NodeJS.Timeout>>;
 }
@@ -102,6 +118,12 @@ export const DEAL_ANIMATION_GRACE_MS = 1500;
 export const LOBBY_SEAT_HOLD_MS = 20000;
 /** Pause showing the full 4-card trick before it is collected. */
 export const TRICK_DISPLAY_MS = 1600;
+/** How long a computer player "thinks" before acting (randomised within this range). */
+export const CPU_THINK_MS: [number, number] = [900, 1500];
+/** Computer players wait a little longer on Double/Re-Double so humans can read the panel. */
+export const CPU_DECISION_MS: [number, number] = [1600, 2600];
+/** A started room with no human connected is removed after this long. */
+export const ABANDONED_ROOM_MS = 10 * 60 * 1000;
 
 const SEAT_LABELS: Record<PlayerPosition, string> = {
   0: 'Bottom - Team A',
@@ -153,6 +175,7 @@ export class RoomManager {
     seat.connected = false;
     seat.sessionToken = '';
     seat.isHost = false;
+    seat.isCpu = false;
   }
 
   private isSeatTaken(seat: SeatInfo): boolean {
@@ -184,6 +207,11 @@ export class RoomManager {
     if (room.roundEndedTimer) clearTimeout(room.roundEndedTimer);
     if (room.trumpAnnouncementTimer) clearTimeout(room.trumpAnnouncementTimer);
     if (room.trickTransitionTimer) clearTimeout(room.trickTransitionTimer);
+    if (room.cpuTimer) clearTimeout(room.cpuTimer);
+    if (room.abandonTimer) clearTimeout(room.abandonTimer);
+    room.abandonTimer = null;
+    room.cpuTimer = null;
+    room.cpuTimerKey = null;
     for (const t of Object.values(room.seatReleaseTimers || {})) {
       if (t) clearTimeout(t);
     }
@@ -215,6 +243,7 @@ export class RoomManager {
           name: seat.playerName,
           avatar: seat.avatar,
           isHost: seat.isHost,
+          isCpu: seat.isCpu,
           connected: seat.connected,
         };
       }),
@@ -244,6 +273,7 @@ export class RoomManager {
         playerName: isMine ? hostName : `Empty Seat (${SEAT_LABELS[pos]})`,
         avatar: initialAvatars[pos],
         isHost: isMine,
+        isCpu: false,
         socketId: isMine ? socket.id : null,
         connected: isMine,
         sessionToken: isMine ? sessionToken : '',
@@ -294,14 +324,15 @@ export class RoomManager {
     let targetIndex = -1;
 
     if (room.isStarted) {
-      const canTake = (s: SeatInfo) => !s.connected || !s.socketId;
+      // A late arrival can replace a computer player or a disconnected human.
+      const canTake = (s: SeatInfo) => s.isCpu || !s.connected || !s.socketId;
       if (preferredSeat !== undefined && canTake(room.seats[preferredSeat])) {
         targetIndex = preferredSeat;
       } else {
         targetIndex = room.seats.findIndex(canTake);
       }
       if (targetIndex === -1) {
-        return { success: false, error: `Room ${code} match is in progress and all 4 players are connected.` };
+        return { success: false, error: `Room ${code} match is in progress and all 4 seats have human players.` };
       }
     } else {
       if (preferredSeat !== undefined && !this.isSeatTaken(room.seats[preferredSeat])) {
@@ -316,7 +347,9 @@ export class RoomManager {
 
     const sessionToken = this.generateSessionToken();
     const seat = room.seats[targetIndex];
+    const replacedCpu = seat.isCpu ? seat.playerName : null;
     this.clearSeatReleaseTimer(room, seat.position);
+    seat.isCpu = false;
     seat.playerId = socket.id;
     seat.playerName = playerName;
     seat.socketId = socket.id;
@@ -328,7 +361,17 @@ export class RoomManager {
     if (room.isStarted) {
       this.ensureHost(room);
       this.syncPlayersFromSeats(room);
-      this.broadcastNotification(room, 'INFO', `${playerName} took over Seat ${seat.position + 1}.`);
+      this.broadcastNotification(
+        room,
+        'INFO',
+        replacedCpu
+          ? `${playerName} joined and takes over from computer player ${replacedCpu}.`
+          : `${playerName} took over Seat ${seat.position + 1}.`
+      );
+      // If it is this seat's move right now, give the new human a full turn.
+      if (!this.resumeIfPaused(room) && room.activeTurn && !room.activeTurn.resolved && this.isSeatDeciding(room, seat.position)) {
+        this.restartCurrentCountdown(room);
+      }
       this.broadcastGameState(room);
       this.sendTimerSnapshot(room, socket);
     }
@@ -372,6 +415,7 @@ export class RoomManager {
     targetSeat.connected = true;
     targetSeat.sessionToken = sessionToken;
     targetSeat.isHost = isHost;
+    targetSeat.isCpu = false;
 
     this.broadcastRoomUpdate(room);
     return { success: true };
@@ -408,6 +452,7 @@ export class RoomManager {
 
     this.broadcastRoomUpdate(room);
     if (room.gameState) {
+      this.resumeIfPaused(room);
       this.broadcastGameState(room);
       this.sendTimerSnapshot(room, socket);
     }
@@ -449,20 +494,24 @@ export class RoomManager {
     if (!room.isStarted) {
       this.emptySeat(seat);
     } else {
-      seat.connected = false;
-      seat.socketId = null;
-      // Invalidate the old token so the seat is free to take over.
-      seat.sessionToken = `left_${this.generateSessionToken()}`;
+      // A computer player keeps the seat so the remaining humans can play on.
+      // Anyone joining later with the room code can take it back over.
+      this.makeCpuSeat(room, seat);
       seat.isHost = false;
       this.syncPlayersFromSeats(room);
     }
 
     if (this.deleteRoomIfEmpty(room)) return { success: true };
 
+
     this.ensureHost(room);
     this.syncPlayersFromSeats(room);
     this.broadcastRoomUpdate(room);
-    this.broadcastNotification(room, 'INFO', `${name} left the table.`);
+    this.broadcastNotification(
+      room,
+      'INFO',
+      room.isStarted ? `${name} left — computer player ${seat.playerName} takes the seat.` : `${name} left the table.`
+    );
     if (room.gameState) {
       this.broadcastGameState(room);
       this.accelerateIfDisconnectedTurn(room);
@@ -496,8 +545,12 @@ export class RoomManager {
       } else {
         this.ensureHost(room);
         this.syncPlayersFromSeats(room);
-        this.broadcastGameState(room);
-        this.accelerateIfDisconnectedTurn(room);
+        if (!this.hasConnectedHuman(room)) {
+          this.pauseRoom(room);
+        } else {
+          this.broadcastGameState(room);
+          this.accelerateIfDisconnectedTurn(room);
+        }
       }
 
       this.broadcastRoomUpdate(room);
@@ -549,12 +602,13 @@ export class RoomManager {
       return { success: false, error: 'The match is already in progress.' };
     }
 
-    const missing = room.seats.filter((s) => !s.connected || !s.socketId);
-    if (missing.length > 0) {
-      return {
-        success: false,
-        error: `Waiting for ${missing.length} more player${missing.length > 1 ? 's' : ''} — all 4 seats must be filled to start.`,
-      };
+    // Every seat without a connected human is played by a computer player.
+    for (const seat of room.seats) {
+      const hasHuman = !seat.isCpu && seat.connected && Boolean(seat.socketId);
+      if (!hasHuman && !seat.isCpu) {
+        this.clearSeatReleaseTimer(room, seat.position);
+        this.makeCpuSeat(room, seat);
+      }
     }
 
     this.clearRoomTimers(room);
@@ -566,6 +620,7 @@ export class RoomManager {
       position: seat.position,
       team: seat.team,
       isHost: seat.isHost,
+      isCpu: seat.isCpu,
       isReady: true,
       connected: seat.connected,
     }));
@@ -620,6 +675,12 @@ export class RoomManager {
   ) {
     this.stopCountdown(room);
     if (!room.gameState) return;
+    if (!this.hasConnectedHuman(room)) {
+      // Nobody is at the table: hold the game until a human comes back.
+      room.activeTurn = null;
+      room.turnDeadline = 0;
+      return;
+    }
 
     const now = Date.now();
     room.turnDeadline = now + opts.durationMs;
@@ -1212,6 +1273,205 @@ export class RoomManager {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Computer players
+  // ---------------------------------------------------------------------------
+
+  private hasConnectedHuman(room: LanRoom): boolean {
+    return room.seats.some((s) => !s.isCpu && s.connected && Boolean(s.socketId));
+  }
+
+  /** Turns a seat into a computer player with a realistic name and its own avatar. */
+  private makeCpuSeat(room: LanRoom, seat: SeatInfo) {
+    const others = room.seats.filter((s) => s !== seat && this.isSeatTaken(s));
+    const [name] = getRandomBotNames(1, others.map((s) => s.playerName));
+    const [avatar] = getRandomDistinctAvatars(1, others.map((s) => s.avatar));
+    seat.isCpu = true;
+    seat.connected = true;
+    seat.socketId = null;
+    seat.playerId = `cpu_${seat.position}_${Math.random().toString(36).substring(2, 8)}`;
+    seat.playerName = name || `Player ${seat.position + 1}`;
+    seat.avatar = avatar || seat.avatar;
+    seat.sessionToken = `tok_cpu_${seat.position}_${this.generateSessionToken()}`;
+  }
+
+  /** Whether `pos` still has to act in the current phase. */
+  private isSeatDeciding(room: LanRoom, pos: PlayerPosition): boolean {
+    const gs = room.gameState;
+    if (!gs) return false;
+    const biddingTeam = teamOf(gs.highestBidder ?? 0);
+    switch (gs.phase) {
+      case 'BIDDING':
+        return gs.currentTurn === pos;
+      case 'TRUMP_SELECTION':
+        return gs.highestBidder === pos;
+      case 'DOUBLE_DECISION':
+        return teamOf(pos) !== biddingTeam && !gs.doubleVotes?.[pos];
+      case 'REDOUBLE_DECISION':
+        return teamOf(pos) === biddingTeam && !gs.redoubleVotes?.[pos];
+      case 'TRICK_PLAY':
+        return gs.currentTurn === pos && gs.currentTrickCards.length < 4;
+      default:
+        return false;
+    }
+  }
+
+  /** Restarts the countdown for whatever decision is currently open. */
+  private restartCurrentCountdown(room: LanRoom) {
+    const phase = room.gameState?.phase;
+    if (phase === 'DOUBLE_DECISION') this.startDoublePhase(room);
+    else if (phase === 'REDOUBLE_DECISION') this.startRedoublePhase(room);
+    else this.startTurnTimer(room);
+  }
+
+  /** Every human has dropped: freeze timers and computer players. */
+  private pauseRoom(room: LanRoom) {
+    this.stopCountdown(room);
+    room.activeTurn = null;
+    room.turnDeadline = 0;
+    if (room.cpuTimer) clearTimeout(room.cpuTimer);
+    room.cpuTimer = null;
+    room.cpuTimerKey = null;
+    if (room.abandonTimer) clearTimeout(room.abandonTimer);
+    room.abandonTimer = setTimeout(() => {
+      if (this.hasConnectedHuman(room)) return;
+      this.clearRoomTimers(room);
+      this.rooms.delete(room.code);
+    }, ABANDONED_ROOM_MS);
+  }
+
+  /** Resumes a paused match when a human is back. Returns true if it resumed. */
+  private resumeIfPaused(room: LanRoom): boolean {
+    if (room.abandonTimer) {
+      clearTimeout(room.abandonTimer);
+      room.abandonTimer = null;
+    }
+    const gs = room.gameState;
+    if (!gs || room.activeTurn || room.trickTransitionTimer || room.trumpAnnouncementTimer) return false;
+    if (!this.hasConnectedHuman(room)) return false;
+    const actionable = ['BIDDING', 'TRUMP_SELECTION', 'DOUBLE_DECISION', 'REDOUBLE_DECISION', 'TRICK_PLAY'];
+    if (!actionable.includes(gs.phase)) return false;
+    this.restartCurrentCountdown(room);
+    return true;
+  }
+
+  /** The computer-controlled seat that should act next, if any. */
+  private pickCpuActor(room: LanRoom): SeatInfo | null {
+    const gs = room.gameState;
+    if (!gs || !this.hasConnectedHuman(room)) return null;
+    for (const seat of room.seats) {
+      if (seat.isCpu && this.isSeatDeciding(room, seat.position)) return seat;
+    }
+    return null;
+  }
+
+  /**
+   * Schedules the next computer-player move for the current state. Idempotent:
+   * repeated broadcasts of the same state keep the already-scheduled move.
+   */
+  private scheduleCpuAction(room: LanRoom) {
+    const gs = room.gameState;
+    if (!gs) return;
+    const key = `${gs.roundNumber}_${gs.version}_${gs.phase}`;
+    if (room.cpuTimer && room.cpuTimerKey === key) return;
+    if (room.cpuTimer) clearTimeout(room.cpuTimer);
+    room.cpuTimer = null;
+    room.cpuTimerKey = null;
+
+    const actor = this.pickCpuActor(room);
+    if (!actor) return;
+
+    const isDecision = gs.phase === 'DOUBLE_DECISION' || gs.phase === 'REDOUBLE_DECISION';
+    const [lo, hi] = isDecision ? CPU_DECISION_MS : CPU_THINK_MS;
+    let delay = lo + Math.floor(Math.random() * (hi - lo));
+    if (gs.phase === 'BIDDING' && gs.bids.length === 0) delay += DEAL_ANIMATION_GRACE_MS;
+
+    const version = gs.version;
+    room.cpuTimerKey = key;
+    room.cpuTimer = setTimeout(() => {
+      room.cpuTimer = null;
+      room.cpuTimerKey = null;
+      // The state moved on (or a human took the seat) while "thinking": re-evaluate.
+      if (!room.gameState || room.gameState.version !== version || !actor.isCpu) {
+        this.scheduleCpuAction(room);
+        return;
+      }
+      this.runCpuAction(room, actor);
+    }, delay);
+  }
+
+  /** Performs one decision for a computer player, using only what that seat may know. */
+  private runCpuAction(room: LanRoom, seat: SeatInfo) {
+    const gs = room.gameState;
+    if (!gs) return;
+    const pos = seat.position;
+    const tok = seat.sessionToken;
+    const hand = gs.hands[pos] || [];
+    // Only the bidder knows a concealed trump.
+    const knownTrump = gs.isTrumpRevealed || gs.highestBidder === pos ? gs.trumpSuit : null;
+    let res: { success: boolean; error?: string } = { success: true };
+
+    switch (gs.phase) {
+      case 'BIDDING': {
+        const forced =
+          gs.bids.length === 3 &&
+          gs.bids.every((b) => b.bid === 'PASS') &&
+          pos === gs.dealerIndex &&
+          gs.rules.forcedDealerBid;
+        res = this.handleBid(room.code, tok, getBotBidDecision(hand, gs.highestBid, gs.rules, forced), true);
+        if (!res.success) res = this.handleBid(room.code, tok, forced ? gs.rules.minBid : 'PASS', true);
+        break;
+      }
+      case 'TRUMP_SELECTION':
+        res = this.handleSelectTrump(room.code, tok, getBotTrumpSelection(hand), true);
+        break;
+      case 'DOUBLE_DECISION':
+        res = this.handleDoubleDecision(room.code, tok, getBotDoubleDecision(hand, gs.highestBid) ? 'DOUBLE' : 'PASS');
+        break;
+      case 'REDOUBLE_DECISION':
+        res = this.handleRedoubleDecision(
+          room.code,
+          tok,
+          getBotRedoubleDecision(hand, gs.highestBid, knownTrump) ? 'REDOUBLE' : 'PASS'
+        );
+        break;
+      case 'TRICK_PLAY': {
+        const lead = gs.currentTrickCards[0]?.cardId ?? null;
+        const leadSuit = lead ? CARD_MANIFEST[lead]?.suit : null;
+        const canFollow = leadSuit ? hand.some((id) => CARD_MANIFEST[id]?.suit === leadSuit) : true;
+        if (!gs.isTrumpRevealed && lead && !canFollow) {
+          let wantsReveal: boolean;
+          if (knownTrump) {
+            wantsReveal = shouldBotRequestTrumpReveal(hand, lead, knownTrump, false, gs.currentTrickCards, pos);
+          } else {
+            // Doesn't know the trump: ask for it when the trick is worth fighting for.
+            const trickPoints = gs.currentTrickCards.reduce((sum, pc) => sum + (CARD_MANIFEST[pc.cardId]?.points || 0), 0);
+            wantsReveal = trickPoints >= 2;
+          }
+          if (wantsReveal) {
+            // The reveal broadcasts a new state; the card is played on the next CPU tick.
+            res = this.handleRevealTrump(room.code, tok, { requestId: `cpu_${pos}_${gs.roundNumber}_${gs.version}` });
+            if (res.success) return;
+          }
+        }
+        const card = getBotCardPlay(hand, lead, gs.trumpSuit, gs.isTrumpRevealed, gs.currentTrickCards, pos, gs.trumpMode);
+        res = this.handlePlayCard(room.code, tok, card, true);
+        if (!res.success) {
+          const legal = getPlayableCards(hand, lead, gs.trumpSuit, gs.isTrumpRevealed, gs.trumpMode);
+          if (legal[0]) res = this.handlePlayCard(room.code, tok, legal[0], true);
+        }
+        break;
+      }
+      default:
+        return;
+    }
+
+    if (!res.success) {
+      // The turn timer's fallback will still move the game on.
+      console.warn(`[cpu] ${seat.playerName} could not act in ${gs.phase}: ${res.error}`);
+    }
+  }
+
   /**
    * Broadcasts sanitized public room information to all sockets in the room.
    */
@@ -1228,6 +1488,7 @@ export class RoomManager {
         playerName: s.playerName,
         avatar: s.avatar,
         isHost: s.isHost,
+        isCpu: s.isCpu,
         connected: s.connected,
         occupied: this.isSeatTaken(s),
       })),
@@ -1252,6 +1513,9 @@ export class RoomManager {
         });
       }
     }
+    // Every state change is broadcast, so this is the single place that lets
+    // computer players react to it.
+    this.scheduleCpuAction(room);
   }
 
   /**

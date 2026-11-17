@@ -110,24 +110,27 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     expect(room.seats[2].socketId).toBeNull(); // Seat 2 is now vacant
   });
 
-  it('should refuse to start until all 4 seats are filled by real players', () => {
+  it('should fill vacant seats with computer players when the host starts', () => {
     const io = createMockIo();
     const mgr = new RoomManager(io);
     const hostSocket = createMockSocket('host_socket_1');
     const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
+    mgr.joinRoom(createMockSocket('bob'), room.code, 'Bob', 2);
 
-    const early = mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
-    expect(early.success).toBe(false);
-    expect(early.error).toMatch(/3 more players/);
-    expect(room.isStarted).toBe(false);
-
-    fillSeats(mgr, room.code);
     const startRes = mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
     expect(startRes.success).toBe(true);
     expect(room.isStarted).toBe(true);
-    expect(room.seats.map((s) => s.playerName)).toEqual(['Alice', 'Friend 1', 'Friend 2', 'Friend 3']);
 
-    // 4 cards dealt to each player
+    expect(room.seats.map((s) => s.isCpu)).toEqual([false, true, false, true]);
+    expect(room.seats[0].playerName).toBe('Alice');
+    expect(room.seats[2].playerName).toBe('Bob');
+    for (const cpu of room.seats.filter((s) => s.isCpu)) {
+      expect(cpu.playerName).not.toMatch(/bot|cpu|computer|empty/i);
+      expect(cpu.connected).toBe(true);
+    }
+    // Avatars stay distinct and the game state knows who is a computer player
+    expect(new Set(room.seats.map((s) => s.avatar)).size).toBe(4);
+    expect(room.gameState!.players.map((p) => Boolean(p.isCpu))).toEqual([false, true, false, true]);
     for (const pos of [0, 1, 2, 3] as const) {
       expect(room.gameState?.hands[pos]).toHaveLength(4);
     }

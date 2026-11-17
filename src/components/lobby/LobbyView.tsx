@@ -4,6 +4,7 @@ import { PlayerPosition } from '../../engine/types';
 import { LanSeat, lanClient } from '../../services/lanClient';
 import { 
   ArrowLeft, 
+  Bot,
   Loader2,
   Check, 
   Copy, 
@@ -178,6 +179,8 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
           >
             {isReconnecting ? (
               <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
+            ) : !isOccupied && !isMySeat ? (
+              <Bot className="w-5 h-5 text-indigo-400/70" />
             ) : isOccupied || isMySeat ? (
               <User className="w-5 h-5" />
             ) : (
@@ -199,11 +202,11 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               ) : isOccupied ? (
                 <span>{seat?.playerName}</span>
               ) : (
-                <span className="text-slate-400 italic">Waiting for a player…</span>
+                <span className="text-slate-400 italic">Open seat</span>
               )}
             </div>
             <div className="text-[11px] text-slate-500">
-              {isReconnecting ? 'Reconnecting…' : isOccupied || isMySeat ? 'Connected' : 'Open seat — share the invite link'}
+              {isReconnecting ? 'Reconnecting…' : isOccupied || isMySeat ? 'Connected' : 'A computer player fills this seat if nobody joins'}
             </div>
           </div>
         </div>
@@ -226,8 +229,8 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   };
 
   const playerCount = seats.filter((s) => s.connected && (s.occupied ?? Boolean(s.playerId))).length;
-  const missing = 4 - playerCount;
-  const canStart = missing === 0;
+  const cpuCount = 4 - playerCount;
+  const canStart = playerCount >= 1;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-6">
@@ -323,7 +326,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
 
         {/* Informational Banner */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3.5 text-center text-xs text-slate-400">
-          💡 29 is played by exactly 4 people. The match can start once every seat is filled. Partners sit opposite each other.
+          💡 Partners sit opposite each other. Any open seat is played by a computer player, and friends who join later can take a computer player's seat mid-match.
         </div>
       </main>
 
@@ -332,7 +335,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         <div className="text-xs text-slate-400 flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-emerald-400" />
           <span>
-            {playerCount} / 4 players connected{missing > 0 ? ` • waiting for ${missing} more` : ' • ready to start'}
+            {playerCount} human{playerCount !== 1 ? 's' : ''} connected{cpuCount > 0 ? ` • ${cpuCount} computer player${cpuCount > 1 ? 's' : ''} will join` : ' • full table'}
           </span>
         </div>
 
@@ -345,7 +348,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 transform active:scale-95 disabled:from-slate-700 disabled:to-slate-700 disabled:text-slate-400 disabled:shadow-none disabled:cursor-not-allowed disabled:active:scale-100"
             >
               <Play className={`w-4 h-4 ${canStart ? 'fill-slate-950' : 'fill-slate-400'}`} />
-              {canStart ? 'Start Match' : `Waiting for ${missing} more player${missing > 1 ? 's' : ''}`}
+              {cpuCount > 0 ? `Start Match (${playerCount} + ${cpuCount} CPU)` : 'Start Match'}
             </button>
             {startError && <span className="text-[11px] text-rose-300 font-semibold">{startError}</span>}
           </div>
