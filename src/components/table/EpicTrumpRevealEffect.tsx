@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
+import { asset } from '../../common/asset';
 import { Suit, SUIT_COLORS, SUIT_SYMBOLS } from '../../assets/cardManifest';
 import { TrumpMode } from '../../engine/types';
 
@@ -85,7 +86,7 @@ export const EpicTrumpRevealEffect: React.FC<EpicTrumpRevealEffectProps> = ({ su
         <div className="relative w-36 h-52 sm:w-44 sm:h-64 trump-card" style={{ transformStyle: 'preserve-3d' }}>
           {/* Back */}
           <div className="absolute inset-0 rounded-2xl overflow-hidden shadow-soft" style={{ backfaceVisibility: 'hidden' }}>
-            <img src="/assets/cards/card_back.svg" alt="" className="w-full h-full object-cover" />
+            <img src={asset('/assets/cards/card_back.svg')} alt="" className="w-full h-full object-cover" />
           </div>
           {/* Face */}
           <div

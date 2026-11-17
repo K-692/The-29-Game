@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { asset } from '../../common/asset';
 import confetti from 'canvas-confetti';
 import { soundManager } from '../../common/SoundManager';
 import { Team } from '../../engine/types';
@@ -44,7 +45,7 @@ export const MatchOverModal: React.FC<MatchOverModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-felt-950/60 backdrop-blur-sm animate-fade-in">
       <div className="panel w-full max-w-xs p-6 text-center space-y-4">
-        <img src="/assets/game_logo.png" alt="29" className="w-14 h-14 mx-auto rounded-xl" />
+        <img src={asset('/assets/game_logo.png')} alt="29" className="w-14 h-14 mx-auto rounded-xl" />
         <div>
           <div className="eyebrow">Match over</div>
           <h2 className="panel-title text-3xl mt-1">{isMyTeamWinner ? 'You won' : 'You lost'}</h2>
