@@ -742,23 +742,26 @@ export const advance = (room: RoomRecord, now: number, rng: RandomSource = defau
       if (step.kind === 'TRICK_TRANSITION') {
         room.game = completeTrickTransition(gs, step.trick);
         if (room.game.phase === 'ROUND_ENDED') {
-          room.pending = { kind: 'AUTO_NEXT_ROUND', dueAt: step.dueAt + AUTO_NEXT_ROUND_MS };
+          room.pending = { kind: 'AUTO_NEXT_ROUND', dueAt: now + AUTO_NEXT_ROUND_MS };
         }
       } else if (step.kind === 'TRUMP_ANNOUNCEMENT') {
         room.game = applyTrumpAnnouncementComplete(gs);
       } else if (step.kind === 'AUTO_NEXT_ROUND') {
         if (gs.phase === 'ROUND_ENDED') startNextRound(room);
       }
-      refreshTiming(room, Math.max(now, step.dueAt), rng);
+      refreshTiming(room, now, rng);
       changed = true;
       continue;
     }
 
     if (!hasConnectedHuman(room, now)) break;
 
+    // Steps are timed from when they actually happen (not when they were due),
+    // so a late request never shortens what players see (e.g. the full trick),
+    // and each request shows one step at a time.
     const cpu = pickCpuActor(room);
     if (cpu && room.cpuDueAt !== null && now >= room.cpuDueAt) {
-      const at = room.cpuDueAt;
+      const at = now;
       if (runCpuAction(room, cpu, at, rng)) {
         refreshTiming(room, at, rng);
         changed = true;
@@ -768,7 +771,7 @@ export const advance = (room: RoomRecord, now: number, rng: RandomSource = defau
     }
 
     if (room.clock && now >= room.clock.deadline) {
-      const at = room.clock.deadline;
+      const at = now;
       if (runTimeout(room, at, rng)) {
         refreshTiming(room, at, rng);
         changed = true;
