@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { asset } from '../../common/asset';
 import { PlayerPosition } from '../../engine/types';
 import { soundManager } from '../../common/SoundManager';
 
@@ -180,11 +181,11 @@ export const DealerDealingAnimation: React.FC<DealerDealingAnimationProps> = ({
             className="w-12 h-16 sm:w-16 sm:h-22 rounded-lg overflow-hidden shadow-2xl border border-felt-900/40 bg-cream-50"
           >
             <img
-              src="/assets/cards/card_back.svg"
+              src={asset('/assets/cards/card_back.svg')}
               alt="Dealing Card"
               className="w-full h-full object-cover"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = '/assets/cards/card_back.png';
+                (e.target as HTMLImageElement).src = asset('/assets/cards/card_back.png');
               }}
             />
           </div>

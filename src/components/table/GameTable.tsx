@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { asset } from '../../common/asset';
 import { 
   GameState, 
   PlayerPosition, 
@@ -25,7 +26,7 @@ import { InTableRoundSummary } from './InTableRoundSummary';
 import { MatchOverModal } from './MatchOverModal';
 import { RulesDrawer } from './RulesDrawer';
 import { DealerDealingAnimation } from './DealerDealingAnimation';
-import { ConnectionStatus, InTableNotification } from '../../services/lanClient';
+import { ConnectionStatus, InTableNotification } from '../../services/gameClient';
 import { PairDeclaration } from '../../engine/types';
 import { 
   ArrowLeft, 
@@ -356,7 +357,7 @@ export const GameTable: React.FC<GameTableProps> = ({
     <div className="fixed inset-0 w-screen h-screen overflow-hidden flex flex-col select-none bg-felt-800">
       {/* 1. Full-screen Edge-to-Edge Table Background */}
       <img
-        src="/assets/table.jpg"
+        src={asset('/assets/table.jpg')}
         alt="The 29 Game Table"
         className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0"
       />
@@ -372,7 +373,7 @@ export const GameTable: React.FC<GameTableProps> = ({
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div className="hidden sm:flex items-center gap-2 h-9 pl-1.5 pr-3 rounded-full bg-felt-900/85 border border-cream-100/15 text-cream-100 shadow-soft">
-            <img src="/assets/game_logo.png" alt="29" className="w-6 h-6 rounded-md" />
+            <img src={asset('/assets/game_logo.png')} alt="29" className="w-6 h-6 rounded-md" />
             <span className="font-mono text-xs tracking-[0.2em]">{publicState.roomCode}</span>
           </div>
         </div>
@@ -684,12 +685,12 @@ export const GameTable: React.FC<GameTableProps> = ({
         </div>
       )}
 
-      {/* 7. LAN connection banner (only while our own socket is down) */}
+      {/* 7. Connection banner (only while we can't reach the game server) */}
       {connectionStatus !== 'connected' && (
         <div className="fixed top-28 left-1/2 -translate-x-1/2 z-[60] pointer-events-none animate-fade-in">
           <div className="flex items-center gap-2 bg-suit-red/95 text-cream-50 text-xs px-4 py-2 rounded-full shadow-soft border border-cream-100/30">
             <Wifi className="w-4 h-4 animate-pulse" />
-            Connection to the LAN host lost — reconnecting…
+            Connection lost — reconnecting…
           </div>
         </div>
       )}

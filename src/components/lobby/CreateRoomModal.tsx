@@ -27,7 +27,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({ initialName, o
   };
 
   return (
-    <Dialog title="Host a room" subtitle="Friends on your Wi-Fi can join with the room code." onClose={onClose}>
+    <Dialog title="Host a room" subtitle="Share the room code or link — friends can join from anywhere." onClose={onClose}>
       <form onSubmit={handleCreate} className="space-y-4">
         <label className="block space-y-1.5">
           <span className="eyebrow">Your name</span>

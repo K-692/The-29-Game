@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { asset } from '../../common/asset';
 import QRCode from 'qrcode';
 import { PlayerPosition } from '../../engine/types';
-import { LanSeat, lanClient } from '../../services/lanClient';
+import { RoomSeat as LanSeat } from '../../services/gameClient';
 import { ArrowLeft, Check, Copy, QrCode, Bot, Loader2 } from 'lucide-react';
 
 interface LobbyViewProps {
@@ -29,32 +30,8 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   const [showQr, setShowQr] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
 
-  // Build the invite link from the host's real LAN IP. Opening the page as
-  // "localhost" on the host would otherwise produce a link nobody else can use.
-  const [lanOrigin, setLanOrigin] = useState<string>(() =>
-    typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
-  );
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`${lanClient.getHostUrl()}/api/lan-info`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((info: { primaryIp?: string; port?: number } | null) => {
-        if (cancelled || !info?.primaryIp || typeof window === 'undefined') return;
-        const { protocol, port, hostname } = window.location;
-        const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
-        if (!isLocal) return; // already opened via a LAN address
-        // In Vite dev (5173) share the dev page; otherwise share the host server.
-        const sharePort = port === '5173' ? '5173' : String(info.port ?? port);
-        setLanOrigin(`${protocol}//${info.primaryIp}${sharePort ? `:${sharePort}` : ''}`);
-      })
-      .catch(() => {
-        /* keep window origin */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  // Online: the invite link is simply this page with the room code.
+  const lanOrigin = typeof window !== 'undefined' ? window.location.origin : '';
   const inviteUrl = `${lanOrigin}${typeof window !== 'undefined' ? window.location.pathname : '/'}?room=${roomCode}`;
 
   useEffect(() => {
@@ -66,7 +43,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   }, [inviteUrl]);
 
   const handleCopyLink = () => {
-    // navigator.clipboard is unavailable on plain-http LAN addresses; fall back to a hidden textarea.
+    // navigator.clipboard is unavailable in some browsers / insecure contexts; fall back to a hidden textarea.
     const fallbackCopy = () => {
       const ta = document.createElement('textarea');
       ta.value = inviteUrl;
@@ -147,7 +124,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         <button onClick={onLeave} className="flex items-center gap-1.5 text-sm text-cream-300/80 hover:text-cream-50">
           <ArrowLeft className="w-4 h-4" /> Leave
         </button>
-        <img src="/assets/game_logo.png" alt="29" className="w-9 h-9 rounded-lg" />
+        <img src={asset('/assets/game_logo.png')} alt="29" className="w-9 h-9 rounded-lg" />
       </header>
 
       <main className="flex-1 flex flex-col items-center justify-center gap-8 py-6">

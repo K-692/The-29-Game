@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { asset } from '../../common/asset';
 import { PublicGameState, PlayerPosition } from '../../engine/types';
 import { PlayingCard } from '../card/PlayingCard';
 import { soundManager } from '../../common/SoundManager';
@@ -183,7 +184,7 @@ export const PhysicalTrumpIndicator: React.FC<PhysicalTrumpIndicatorProps> = ({
               }}
             >
               <img
-                src="/assets/cards/card_back.svg"
+                src={asset('/assets/cards/card_back.svg')}
                 alt="Concealed Trump Card"
                 className="w-full h-full object-contain pointer-events-none"
                 loading="eager"

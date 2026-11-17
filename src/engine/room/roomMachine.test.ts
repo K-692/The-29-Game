@@ -202,4 +202,23 @@ describe('Double / Re-double and timers online', () => {
     expect(room.game!.bids.length).toBe(1);
     expect(room.game!.bids[0].playerIndex).toBe(turn);
   });
+
+  it('asking for trump reveals it and announces a King-Queen pair (bid 19+)', () => {
+    const { room, tokens, now } = toDoubleWindow(20);
+    act(room, tokens[1], { type: 'DOUBLE', decision: 'PASS' }, now + 1);
+    act(room, tokens[3], { type: 'DOUBLE', decision: 'PASS' }, now + 2);
+    const gs = room.game!;
+    gs.hands = { 0: ['J_HEARTS', '7_DIAMONDS'], 1: ['7_CLUBS', '8_CLUBS'], 2: ['9_HEARTS', 'K_SPADES', 'Q_SPADES'], 3: ['A_HEARTS'] };
+    gs.currentTurn = 0;
+    gs.currentTrickLead = 0;
+    gs.currentTrickCards = [];
+    room.clock = null;
+    expect(act(room, tokens[0], { type: 'PLAY', cardId: 'J_HEARTS' }, now + 10).ok).toBe(true);
+    expect(act(room, tokens[1], { type: 'REVEAL', requestId: 'r1' }, now + 20).ok).toBe(true);
+    expect(room.game!.isTrumpRevealed).toBe(true);
+    expect(room.game!.pairDeclaration?.adjustedTarget).toBe(16);
+    expect(room.notes.some((n) => n.type === 'PAIR_DECLARED')).toBe(true);
+    // Duplicate request is idempotent
+    expect(act(room, tokens[1], { type: 'REVEAL', requestId: 'r1' }, now + 30).ok).toBe(true);
+  });
 });

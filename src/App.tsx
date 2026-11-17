@@ -6,12 +6,7 @@ import { LobbyView } from './components/lobby/LobbyView';
 import { GameTable } from './components/table/GameTable';
 import { CardPreviewGallery } from './components/card/CardPreviewGallery';
 import { HowToPlayModal } from './components/lobby/HowToPlayModal';
-import {
-  ConnectionStatus,
-  lanClient,
-  LanRoomState,
-  InTableNotification,
-} from './services/lanClient';
+import { ConnectionStatus, gameClient, RoomState, InTableNotification } from './services/gameClient';
 import {
   GameRulesConfig,
   PlayerPosition,
@@ -42,8 +37,8 @@ export default function App() {
   const [showHowToPlay, setShowHowToPlay] = useState(false);
   const [joinCodeParam, setJoinCodeParam] = useState<string>('');
 
-  // Active LAN Game State
-  const [roomState, setRoomState] = useState<LanRoomState | null>(null);
+  // Active online game state
+  const [roomState, setRoomState] = useState<RoomState | null>(null);
   const [publicState, setPublicState] = useState<PublicGameState | null>(null);
   const [myPosition, setMyPosition] = useState<PlayerPosition>(0);
   const [remainingSeconds, setRemainingSeconds] = useState<number>(15);
@@ -68,14 +63,14 @@ export default function App() {
 
   // One-time socket setup and subscriptions (listeners survive host changes / reconnects).
   useEffect(() => {
-    const saved = lanClient.getSavedSession();
-    lanClient.connect(saved?.hostUrl);
-    setConnectionStatus(lanClient.getStatus());
+    const saved = gameClient.getSavedSession();
+    gameClient.connect();
+    setConnectionStatus(gameClient.getStatus());
 
     const unsubs = [
-      lanClient.onConnectionStatus(setConnectionStatus),
+      gameClient.onConnectionStatus(setConnectionStatus),
 
-      lanClient.onRoomUpdate((room) => {
+      gameClient.onRoomUpdate((room) => {
         setRoomState(room);
         if (viewRef.current === 'home' || viewRef.current === 'gallery') {
           setShowCreateModal(false);
@@ -86,7 +81,7 @@ export default function App() {
         }
       }),
 
-      lanClient.onGameStateUpdate(({ publicState: pubState, myPosition: pos }) => {
+      gameClient.onGameStateUpdate(({ publicState: pubState, myPosition: pos }) => {
         setPublicState(pubState);
         setMyPosition(pos);
         setStartError(null);
@@ -95,8 +90,8 @@ export default function App() {
         if (viewRef.current !== 'table') setView('table');
       }),
 
-      lanClient.onTimerTick((tick) => {
-        // Use the server's remaining seconds directly: device clocks on a LAN often disagree.
+      gameClient.onTimerTick((tick) => {
+        // Use the server's remaining seconds directly: device clocks often disagree.
         setRemainingSeconds(tick.remainingSeconds);
         if (
           tick.turnPosition === myPositionRef.current &&
@@ -108,7 +103,7 @@ export default function App() {
         }
       }),
 
-      lanClient.onInTableNotification((notif) => {
+      gameClient.onInTableNotification((notif) => {
         if (notif.type === 'TIMEOUT_AUTO_PLAY') return;
         setNotification(notif);
         if (notif.type === 'PAIR_DECLARED') {
@@ -119,7 +114,7 @@ export default function App() {
         }, 4500);
       }),
 
-      lanClient.onSessionLost(() => {
+      gameClient.onSessionLost(() => {
         resetToHome();
       }),
     ];
@@ -151,14 +146,14 @@ export default function App() {
     preferredSeat: PlayerPosition
   ): Promise<string | null> => {
     handleUpdateName(hostName);
-    const res = await lanClient.createRoom(hostName, rules, preferredSeat);
+    const res = await gameClient.createRoom(hostName, rules, preferredSeat);
     if (res.success && res.roomCode) {
       setMyPosition(res.position ?? preferredSeat);
       setShowCreateModal(false);
       setView('lobby');
       return null;
     }
-    return res.error || 'Could not create the room. Is the LAN host server running?';
+    return res.error || 'Could not create the room. Check your internet connection and try again.';
   };
 
   // 2. Join Room Flow
@@ -169,10 +164,7 @@ export default function App() {
     preferredSeat?: PlayerPosition
   ): Promise<string | null> => {
     handleUpdateName(playerName);
-    if (hostAddress) {
-      lanClient.connect(hostAddress);
-    }
-    const res = await lanClient.joinRoom(code, playerName, preferredSeat);
+    const res = await gameClient.joinRoom(code, playerName, preferredSeat);
     if (res.success && res.roomCode) {
       setMyPosition(res.position ?? 0);
       setShowJoinModal(false);
@@ -180,12 +172,12 @@ export default function App() {
       setView((v) => (v === 'table' ? v : 'lobby'));
       return null;
     }
-    return res.error || 'Could not join. Check the room code and that you are on the same Wi-Fi as the host.';
+    return res.error || 'Could not join. Check the room code and your internet connection.';
   };
 
   // 3. Lobby: Select / Switch seat
   const handleSelectSeat = async (pos: PlayerPosition) => {
-    const res = await lanClient.selectSeat(pos);
+    const res = await gameClient.selectSeat(pos);
     if (res.success) {
       setMyPosition(pos);
     } else if (res.error) {
@@ -196,7 +188,7 @@ export default function App() {
   // 4. Lobby: Start Match
   const handleStartMatch = async () => {
     setStartError(null);
-    const res = await lanClient.startMatch();
+    const res = await gameClient.startMatch();
     if (!res.success && res.error) {
       setStartError(res.error);
     }
@@ -204,7 +196,7 @@ export default function App() {
 
   // 5. Leave Room / Return to Home
   const handleLeaveToHome = async () => {
-    await lanClient.leaveRoom();
+    await gameClient.leaveRoom();
     resetToHome();
   };
 
@@ -216,43 +208,43 @@ export default function App() {
 
   // In-Table Game Actions
   const handleBid = async (bid: number | 'PASS') => {
-    const res = await lanClient.placeBid(bid);
+    const res = await gameClient.placeBid(bid);
     if (!res.success) showActionError(res.error);
   };
 
   const handleSelectTrump = (choice: TrumpSelectionChoice) => {
-    lanClient.selectTrump(choice).then((res) => {
+    gameClient.selectTrump(choice).then((res) => {
       if (!res.success) showActionError(res.error);
     });
   };
 
   const handleRevealTrump = (payload?: { requestId?: string; playerPosition?: PlayerPosition; roundNumber?: number; trickNumber?: number }) =>
-    lanClient.revealTrump(payload);
+    gameClient.revealTrump(payload);
 
   const handlePlayCard = async (cardId: string) => {
-    const res = await lanClient.playCard(cardId);
+    const res = await gameClient.playCard(cardId);
     if (!res.success) showActionError(res.error);
     return res;
   };
 
   const handleDoubleDecision = async (decision: 'DOUBLE' | 'PASS') => {
-    const res = await lanClient.submitDoubleDecision(decision);
+    const res = await gameClient.submitDoubleDecision(decision);
     if (!res.success) showActionError(res.error);
     return res;
   };
 
   const handleRedoubleDecision = async (decision: 'REDOUBLE' | 'PASS') => {
-    const res = await lanClient.submitRedoubleDecision(decision);
+    const res = await gameClient.submitRedoubleDecision(decision);
     if (!res.success) showActionError(res.error);
     return res;
   };
 
   const handleNextRound = () => {
-    lanClient.nextRound();
+    gameClient.nextRound();
   };
 
   const handleRematch = () => {
-    lanClient.startMatch().then((res) => {
+    gameClient.startMatch().then((res) => {
       if (!res.success) showActionError(res.error);
     });
   };

@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown } from 'lucide-react';
 import { PlayerPosition } from '../../engine/types';
-import { lanClient } from '../../services/lanClient';
 import { Dialog, DialogError } from '../common/Dialog';
 
 interface JoinRoomModalProps {
@@ -14,8 +12,6 @@ interface JoinRoomModalProps {
 export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({ initialRoomCode = '', initialName, onClose, onJoin }) => {
   const [code, setCode] = useState(initialRoomCode.toUpperCase());
   const [name, setName] = useState(initialName || '');
-  const [hostAddress, setHostAddress] = useState(() => lanClient.getDefaultHostUrl());
-  const [showHost, setShowHost] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,7 +21,7 @@ export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({ initialRoomCode = 
     setBusy(true);
     setError(null);
     // No seat preference: the first open seat is taken; seats can be switched in the lobby.
-    const err = await onJoin(code.trim().toUpperCase(), name.trim(), hostAddress.trim());
+    const err = await onJoin(code.trim().toUpperCase(), name.trim(), '');
     if (err) {
       setError(err);
       setBusy(false);
@@ -60,29 +56,6 @@ export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({ initialRoomCode = 
             className="field"
           />
         </label>
-
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowHost((v) => !v)}
-            className="flex items-center gap-1 text-xs text-cream-300/80 hover:text-cream-50"
-          >
-            Host address
-            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showHost ? 'rotate-180' : ''}`} />
-          </button>
-          {showHost && (
-            <div className="mt-2 space-y-1">
-              <input
-                value={hostAddress}
-                onChange={(e) => setHostAddress(e.target.value)}
-                placeholder="192.168.1.x"
-                className="field font-mono text-xs"
-                aria-label="Host address"
-              />
-              <p className="text-[11px] text-cream-300/60">Only change this if the host is a different computer.</p>
-            </div>
-          )}
-        </div>
 
         <DialogError message={error} />
         <button type="submit" disabled={busy || !code.trim() || !name.trim()} className="btn-primary w-full py-3">

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { asset } from '../../common/asset';
 import { HelpCircle, LogIn, Plus, Volume2, VolumeX, Pencil } from 'lucide-react';
 import { soundManager } from '../../common/SoundManager';
 
@@ -51,7 +52,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
       <main className="flex-1 flex flex-col items-center justify-center gap-7 w-full max-w-xs mx-auto text-center">
         <img
-          src="/assets/game_logo.png"
+          src={asset('/assets/game_logo.png')}
           alt="29 Card Game"
           className="w-36 h-36 sm:w-44 sm:h-44 object-contain drop-shadow-[0_18px_30px_rgba(0,0,0,0.35)]"
         />
@@ -93,7 +94,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
         </div>
 
         <p className="text-xs text-cream-300/70 leading-relaxed">
-          Play with friends on the same Wi-Fi. Empty seats are played by the computer.
+          Play online with friends anywhere. Empty seats are played by the computer.
         </p>
       </main>
     </div>
