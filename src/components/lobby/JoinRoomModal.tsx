@@ -7,7 +7,7 @@ interface JoinRoomModalProps {
   initialRoomCode?: string;
   initialName: string;
   onClose: () => void;
-  onJoin: (roomCode: string, playerName: string, hostAddress: string, preferredSeat?: PlayerPosition) => void;
+  onJoin: (roomCode: string, playerName: string, hostAddress: string, preferredSeat?: PlayerPosition) => Promise<string | null>;
 }
 
 export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({
@@ -21,10 +21,19 @@ export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({
   const [hostAddress, setHostAddress] = useState(() => lanClient.getDefaultHostUrl());
   const [preferredSeat, setPreferredSeat] = useState<PlayerPosition>(2); // Default to Seat 3 (Partner)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!code.trim() || !name.trim()) return;
-    onJoin(code.trim().toUpperCase(), name.trim(), hostAddress.trim(), preferredSeat);
+    if (!code.trim() || !name.trim() || busy) return;
+    setBusy(true);
+    setError(null);
+    const err = await onJoin(code.trim().toUpperCase(), name.trim(), hostAddress.trim(), preferredSeat);
+    if (err) {
+      setError(err);
+      setBusy(false);
+    }
   };
 
   return (
@@ -73,7 +82,7 @@ export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter your name"
-              maxLength={24}
+              maxLength={20}
               required
               className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-4 py-2.5 text-sm text-slate-100 outline-none transition-colors"
             />
@@ -105,19 +114,26 @@ export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({
               type="text"
               value={hostAddress}
               onChange={(e) => setHostAddress(e.target.value)}
-              placeholder="http://192.168.1.x:3000"
+              placeholder="192.168.1.x (port 3000 is assumed)"
               className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-4 py-2 text-xs font-mono text-slate-300 outline-none transition-colors"
             />
             <span className="text-[10px] text-slate-500 block">
-              Auto-filled if playing from the host computer or connected browser.
+              Pre-filled with the address this page was opened from. Change it only if the host is a different computer.
             </span>
           </div>
 
+          {error && (
+            <div role="alert" className="text-xs font-semibold text-rose-200 bg-rose-950/60 border border-rose-500/50 rounded-xl px-3 py-2">
+              {error}
+            </div>
+          )}
+
           <button
             type="submit"
-            className="w-full py-3.5 rounded-xl font-black text-sm bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-xl shadow-amber-500/25 transition-all transform active:scale-95 flex items-center justify-center gap-2 mt-2"
+            disabled={busy}
+            className="w-full py-3.5 rounded-xl font-black text-sm bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-xl shadow-amber-500/25 transition-all transform active:scale-95 disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-2 mt-2"
           >
-            <LogIn className="w-4 h-4" /> Join Room on LAN
+            {busy ? 'Connecting…' : (<><LogIn className="w-4 h-4" /> Join Room on LAN</>)}
           </button>
         </form>
       </div>

@@ -13,7 +13,7 @@ interface PlayerHandProps {
   playableCardIds: string[];
   isMyTurn: boolean;
   dropTargetRect: DOMRect | null;
-  onPlayCard: (cardId: string) => void;
+  onPlayCard: (cardId: string) => void | Promise<{ success: boolean } | void>;
   onDragStateChange?: (state: DragState) => void;
   disabled?: boolean;
 }
@@ -142,7 +142,12 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
       if (isOver && playableCardIds.includes(cardId)) {
         // Suppress snap-back: mark card as pending in-flight so it does not snap back to hand
         setPendingPlayCardId(cardId);
-        onPlayCard(cardId);
+        Promise.resolve(onPlayCard(cardId)).then((res) => {
+          // Server rejected the play: return the card to the hand.
+          if (res && res.success === false) {
+            setPendingPlayCardId((cur) => (cur === cardId ? null : cur));
+          }
+        });
       } else {
         soundManager.playSlide();
       }

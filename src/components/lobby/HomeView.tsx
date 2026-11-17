@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { 
-  Bot, 
   HelpCircle, 
   LogIn, 
   PlusCircle, 
@@ -17,7 +16,6 @@ interface HomeViewProps {
   onUpdateName: (name: string) => void;
   onCreateRoom: () => void;
   onJoinRoom: () => void;
-  onPlayWithComputer: () => void;
   onOpenGallery?: () => void;
   onOpenHowToPlay: () => void;
 }
@@ -27,7 +25,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
   onUpdateName,
   onCreateRoom,
   onJoinRoom,
-  onPlayWithComputer,
   onOpenHowToPlay,
 }) => {
   const [isEditingName, setIsEditingName] = useState(false);
@@ -109,7 +106,7 @@ export const HomeView: React.FC<HomeViewProps> = ({
             Twenty-Nine Card Game
           </p>
           <p className="text-[11px] sm:text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
-            Play locally over LAN / Wi-Fi with friends as partners against intelligent computer bots or human opponents
+            Four friends, one Wi-Fi network. Host a room on one device and everyone else joins from their phone or laptop.
           </p>
         </div>
 
@@ -171,13 +168,6 @@ export const HomeView: React.FC<HomeViewProps> = ({
             <LogIn className="w-4 h-4 sm:w-5 sm:h-5 text-amber-400" /> Join LAN Game (Code / IP)
           </button>
 
-          {/* Play with Computer */}
-          <button
-            onClick={onPlayWithComputer}
-            className="w-full py-2.5 sm:py-3 rounded-2xl font-bold text-xs sm:text-sm bg-emerald-950/40 hover:bg-emerald-900/50 border border-emerald-500/50 text-emerald-300 shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" /> Play with Computer (1P + 3 Bots)
-          </button>
         </div>
       </main>
 

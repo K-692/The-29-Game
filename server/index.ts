@@ -11,7 +11,6 @@ import {
 } from './lanUtils.js';
 import { RoomManager } from './roomManager.js';
 import { GameRulesConfig, PlayerPosition, TrumpSelectionChoice } from '../src/engine/types.js';
-import { Suit } from '../src/assets/cardManifest.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -73,6 +72,12 @@ if (fs.existsSync(distPath)) {
 // Initialize authoritative Room Manager
 const roomManager = new RoomManager(io);
 
+/** Trims player names and keeps them short enough for the table seats. */
+const cleanName = (raw: unknown, fallback: string): string => {
+  const name = typeof raw === 'string' ? raw.replace(/\s+/g, ' ').trim().slice(0, 20) : '';
+  return name || fallback;
+};
+
 io.on('connection', (socket: Socket) => {
   // 1. Create room
   socket.on(
@@ -84,7 +89,7 @@ io.on('connection', (socket: Socket) => {
       try {
         const { room, seat } = roomManager.createRoom(
           socket,
-          data.hostName || 'Host Player',
+          cleanName(data.hostName, 'Host Player'),
           data.rules,
           data.preferredSeat ?? 0
         );
@@ -115,7 +120,7 @@ io.on('connection', (socket: Socket) => {
         const res = roomManager.joinRoom(
           socket,
           data.roomCode,
-          data.playerName || 'Player',
+          cleanName(data.playerName, 'Player'),
           data.preferredSeat
         );
         if (res.success && res.room && res.seat) {
@@ -277,7 +282,19 @@ io.on('connection', (socket: Socket) => {
     }
   );
 
-  // 14. Socket disconnect
+  // 14. Leave room (explicit Leave button)
+  socket.on(
+    'leave_room',
+    (
+      data: { roomCode: string; sessionToken: string },
+      callback?: (res: { success: boolean; error?: string }) => void
+    ) => {
+      const res = roomManager.leaveRoom(socket, data.roomCode, data.sessionToken);
+      if (callback) callback(res);
+    }
+  );
+
+  // 15. Socket disconnect
   socket.on('disconnect', () => {
     roomManager.handleDisconnect(socket.id);
   });

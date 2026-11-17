@@ -17,29 +17,22 @@ export const Scoreboard: React.FC<ScoreboardProps> = ({ publicState, myTeam }) =
 
   return (
     <div className="bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl px-3 sm:px-4 py-1.5 shadow-md flex items-center gap-2 sm:gap-3 text-xs sm:text-sm select-none text-slate-800">
-      {/* Partnership 1 (Blue / Side A) */}
-      <div className="flex items-center gap-1.5">
-        <span className="w-2.5 h-2.5 rounded-full bg-sky-500 shrink-0 shadow-xs" />
-        <span className="font-bold text-slate-800 text-xs sm:text-sm">
-          {myTeam === 0 ? 'Your Side' : 'Opponents'}:
-        </span>
-        <span className={`font-mono font-black ${matchScore.team0 >= 0 ? 'text-sky-700' : 'text-rose-600'}`}>
-          {matchScore.team0 > 0 ? `+${matchScore.team0}` : matchScore.team0}
-        </span>
-      </div>
-
-      <span className="text-slate-300 font-light">|</span>
-
-      {/* Partnership 2 (Coral / Side B) */}
-      <div className="flex items-center gap-1.5">
-        <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0 shadow-xs" />
-        <span className="font-bold text-slate-800 text-xs sm:text-sm">
-          {myTeam === 1 ? 'Your Side' : 'Opponents'}:
-        </span>
-        <span className={`font-mono font-black ${matchScore.team1 >= 0 ? 'text-rose-700' : 'text-rose-600'}`}>
-          {matchScore.team1 > 0 ? `+${matchScore.team1}` : matchScore.team1}
-        </span>
-      </div>
+      {/* Your partnership first (blue), opponents second (coral) — same for every seat */}
+      {[
+        { label: 'Your Side', score: myTeam === 0 ? matchScore.team0 : matchScore.team1, dot: 'bg-sky-500', pos: 'text-sky-700' },
+        { label: 'Opponents', score: myTeam === 0 ? matchScore.team1 : matchScore.team0, dot: 'bg-rose-500', pos: 'text-rose-700' },
+      ].map((side, idx) => (
+        <React.Fragment key={side.label}>
+          {idx === 1 && <span className="text-slate-300 font-light">|</span>}
+          <div className="flex items-center gap-1.5">
+            <span className={`w-2.5 h-2.5 rounded-full shrink-0 shadow-xs ${side.dot}`} />
+            <span className="font-bold text-slate-800 text-xs sm:text-sm">{side.label}:</span>
+            <span className={`font-mono font-black ${side.score >= 0 ? side.pos : 'text-rose-600'}`}>
+              {side.score > 0 ? `+${side.score}` : side.score}
+            </span>
+          </div>
+        </React.Fragment>
+      ))}
 
       <span className="text-slate-300 font-light">|</span>
 

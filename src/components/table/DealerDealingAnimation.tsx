@@ -44,6 +44,8 @@ export const DealerDealingAnimation: React.FC<DealerDealingAnimationProps> = ({
   };
 
   const dealerRel = getRelativePosition(dealerIndex);
+  const onDealingCompleteRef = useRef(onDealingComplete);
+  onDealingCompleteRef.current = onDealingComplete;
 
   useEffect(() => {
     // 1. Calculate 4 Rhombus points near each player, perfectly centered
@@ -93,11 +95,12 @@ export const DealerDealingAnimation: React.FC<DealerDealingAnimationProps> = ({
     const startY = dealerPoint.y;
 
     let currentStep = 0;
+    let completeTimer: ReturnType<typeof setTimeout> | null = null;
     const interval = setInterval(() => {
       if (currentStep >= TOTAL_PLAYERS) {
         clearInterval(interval);
-        setTimeout(() => {
-          onDealingComplete();
+        completeTimer = setTimeout(() => {
+          onDealingCompleteRef.current();
         }, FLIGHT_DURATION_MS + 80);
         return;
       }
@@ -134,6 +137,7 @@ export const DealerDealingAnimation: React.FC<DealerDealingAnimationProps> = ({
 
     return () => {
       clearInterval(interval);
+      if (completeTimer) clearTimeout(completeTimer);
     };
   }, [dealerIndex, myPosition, dealerRel]);
 

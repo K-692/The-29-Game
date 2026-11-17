@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { HomeView } from './components/lobby/HomeView';
 import { CreateRoomModal } from './components/lobby/CreateRoomModal';
 import { JoinRoomModal } from './components/lobby/JoinRoomModal';
@@ -6,34 +6,35 @@ import { LobbyView } from './components/lobby/LobbyView';
 import { GameTable } from './components/table/GameTable';
 import { CardPreviewGallery } from './components/card/CardPreviewGallery';
 import { HowToPlayModal } from './components/lobby/HowToPlayModal';
-import { 
-  lanClient, 
-  LanRoomState, 
-  InTableNotification 
+import {
+  ConnectionStatus,
+  lanClient,
+  LanRoomState,
+  InTableNotification,
 } from './services/lanClient';
-import { 
-  DEFAULT_RULES_CONFIG, 
-  GameRulesConfig, 
-  GameState, 
-  PlayerPosition, 
+import {
+  GameRulesConfig,
+  PlayerPosition,
   PublicGameState,
-  TrumpSelectionChoice 
+  TrumpSelectionChoice,
 } from './engine/types';
-import { Suit } from './assets/cardManifest';
 import { soundManager } from './common/SoundManager';
 
 type AppView = 'home' | 'lobby' | 'table' | 'gallery';
 
 const STORAGE_USERNAME = 'twenty_nine_username';
 
+const readStoredName = (): string => {
+  try {
+    return localStorage.getItem(STORAGE_USERNAME) || 'Player';
+  } catch {
+    return 'Player';
+  }
+};
+
 export default function App() {
   const [view, setView] = useState<AppView>('home');
-  const [userName, setUserName] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem(STORAGE_USERNAME) || 'Player';
-    }
-    return 'Player';
-  });
+  const [userName, setUserName] = useState<string>(readStoredName);
 
   // Modals on Home
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -43,89 +44,103 @@ export default function App() {
 
   // Active LAN Game State
   const [roomState, setRoomState] = useState<LanRoomState | null>(null);
-  const [gameState, setGameState] = useState<GameState | null>(null);
   const [publicState, setPublicState] = useState<PublicGameState | null>(null);
   const [myPosition, setMyPosition] = useState<PlayerPosition>(0);
   const [remainingSeconds, setRemainingSeconds] = useState<number>(15);
   const [notification, setNotification] = useState<InTableNotification | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
+  const [startError, setStartError] = useState<string | null>(null);
 
-  // Initialize Socket and Listeners
+  const myPositionRef = useRef(myPosition);
+  myPositionRef.current = myPosition;
+  const viewRef = useRef(view);
+  viewRef.current = view;
+
+  const resetToHome = useCallback(() => {
+    setRoomState(null);
+    setPublicState(null);
+    setStartError(null);
+    if (typeof window !== 'undefined' && window.history.replaceState) {
+      window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
+    }
+    setView('home');
+  }, []);
+
+  // One-time socket setup and subscriptions (listeners survive host changes / reconnects).
   useEffect(() => {
-    lanClient.connect();
+    const saved = lanClient.getSavedSession();
+    lanClient.connect(saved?.hostUrl);
+    setConnectionStatus(lanClient.getStatus());
 
-    const unsubRoom = lanClient.onRoomUpdate((updatedRoom) => {
-      setRoomState(updatedRoom);
-      if (updatedRoom.isStarted && view === 'lobby') {
-        setView('table');
-      }
-    });
+    const unsubs = [
+      lanClient.onConnectionStatus(setConnectionStatus),
 
-    const unsubGame = lanClient.onGameStateUpdate(({ gameState: fullState, publicState: pubState, myPosition: pos }) => {
-      setGameState(fullState);
-      setPublicState(pubState);
-      if (pubState.turnDeadline && pubState.turnDeadline > 0) {
-        const rem = Math.max(0, Math.ceil((pubState.turnDeadline - Date.now()) / 1000));
-        setRemainingSeconds(rem);
-      }
-      if (pos !== undefined) {
-        setMyPosition(pos);
-      }
-      setView('table');
-    });
-
-    const unsubTimer = lanClient.onTimerTick((tick) => {
-      setRemainingSeconds(tick.remainingSeconds);
-      if (tick.remainingSeconds <= 5 && tick.remainingSeconds > 0) {
-        soundManager.playEventOnce(`tick_${tick.turnDeadline || tick.phase}_${tick.remainingSeconds}`, () => soundManager.playTick());
-      }
-    });
-
-    const unsubNotif = lanClient.onInTableNotification((notif) => {
-      if (notif.type === 'TIMEOUT_AUTO_PLAY') return; // Silent timeout handling (strictly no popups)
-      setNotification(notif);
-      if (notif.type === 'TRUMP_REVEALED') {
-        soundManager.playEventOnce(`trump_notif_${notif.timestamp}`, () => soundManager.playTrump());
-      } else if (notif.type === 'PAIR_DECLARED') {
-        soundManager.playEventOnce(`pair_notif_${notif.timestamp}`, () => soundManager.playWin());
-      }
-      setTimeout(() => {
-        setNotification((current) => (current?.timestamp === notif.timestamp ? null : current));
-      }, 4500);
-    });
-
-    // Check URL query param ?room=XYZ
-    if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      const roomParam = urlParams.get('room');
-      if (roomParam) {
-        setJoinCodeParam(roomParam.trim().toUpperCase());
-        setShowJoinModal(true);
-      } else {
-        // Attempt session reconnect if returning to same LAN room
-        const saved = lanClient.getSavedSession();
-        if (saved) {
-          lanClient.reconnectSeat(saved.roomCode, saved.sessionToken).then((res) => {
-            if (res.success && res.position !== undefined) {
-              setMyPosition(res.position);
-            }
-          });
+      lanClient.onRoomUpdate((room) => {
+        setRoomState(room);
+        if (viewRef.current === 'home' || viewRef.current === 'gallery') {
+          setShowCreateModal(false);
+          setShowJoinModal(false);
         }
-      }
+        if (!room.isStarted && viewRef.current !== 'lobby') {
+          setView('lobby');
+        }
+      }),
+
+      lanClient.onGameStateUpdate(({ publicState: pubState, myPosition: pos }) => {
+        setPublicState(pubState);
+        setMyPosition(pos);
+        setStartError(null);
+        setShowCreateModal(false);
+        setShowJoinModal(false);
+        if (viewRef.current !== 'table') setView('table');
+      }),
+
+      lanClient.onTimerTick((tick) => {
+        // Use the server's remaining seconds directly: device clocks on a LAN often disagree.
+        setRemainingSeconds(tick.remainingSeconds);
+        if (
+          tick.turnPosition === myPositionRef.current &&
+          (tick.phase === 'BIDDING' || tick.phase === 'TRUMP_SELECTION' || tick.phase === 'TRICK_PLAY') &&
+          tick.remainingSeconds <= 5 &&
+          tick.remainingSeconds > 0
+        ) {
+          soundManager.playEventOnce(`tick_${tick.turnId || tick.turnDeadline}_${tick.remainingSeconds}`, () => soundManager.playTick());
+        }
+      }),
+
+      lanClient.onInTableNotification((notif) => {
+        if (notif.type === 'TIMEOUT_AUTO_PLAY') return;
+        setNotification(notif);
+        if (notif.type === 'PAIR_DECLARED') {
+          soundManager.playEventOnce(`pair_notif_${notif.timestamp}`, () => soundManager.playWin());
+        }
+        window.setTimeout(() => {
+          setNotification((current) => (current?.timestamp === notif.timestamp ? null : current));
+        }, 4500);
+      }),
+
+      lanClient.onSessionLost(() => {
+        resetToHome();
+      }),
+    ];
+
+    // Invite link: ?room=XYZ opens the join dialog (unless we're already seated somewhere).
+    const roomParam = new URLSearchParams(window.location.search).get('room');
+    if (roomParam && !saved) {
+      setJoinCodeParam(roomParam.trim().toUpperCase());
+      setShowJoinModal(true);
     }
 
-    return () => {
-      unsubRoom();
-      unsubGame();
-      unsubTimer();
-      unsubNotif();
-    };
-  }, [view]);
+    return () => unsubs.forEach((u) => u());
+  }, [resetToHome]);
 
   const handleUpdateName = (newName: string) => {
-    const trimmed = newName.trim();
+    const trimmed = newName.trim().slice(0, 20);
     setUserName(trimmed);
-    if (typeof window !== 'undefined') {
+    try {
       localStorage.setItem(STORAGE_USERNAME, trimmed);
+    } catch {
+      /* ignore */
     }
   };
 
@@ -134,16 +149,16 @@ export default function App() {
     hostName: string,
     rules: GameRulesConfig,
     preferredSeat: PlayerPosition
-  ) => {
+  ): Promise<string | null> => {
     handleUpdateName(hostName);
     const res = await lanClient.createRoom(hostName, rules, preferredSeat);
     if (res.success && res.roomCode) {
       setMyPosition(res.position ?? preferredSeat);
       setShowCreateModal(false);
       setView('lobby');
-    } else {
-      alert(res.error || 'Failed to create LAN room');
+      return null;
     }
+    return res.error || 'Could not create the room. Is the LAN host server running?';
   };
 
   // 2. Join Room Flow
@@ -152,119 +167,84 @@ export default function App() {
     playerName: string,
     hostAddress: string,
     preferredSeat?: PlayerPosition
-  ) => {
+  ): Promise<string | null> => {
     handleUpdateName(playerName);
     if (hostAddress) {
       lanClient.connect(hostAddress);
     }
     const res = await lanClient.joinRoom(code, playerName, preferredSeat);
     if (res.success && res.roomCode) {
-      setMyPosition(res.position ?? 1);
+      setMyPosition(res.position ?? 0);
       setShowJoinModal(false);
-      setView('lobby');
-    } else {
-      alert(res.error || 'Failed to join LAN room. Verify host IP and room code.');
+      // Lobby join → lobby; in-progress match → the game_state_update switches to the table.
+      setView((v) => (v === 'table' ? v : 'lobby'));
+      return null;
     }
+    return res.error || 'Could not join. Check the room code and that you are on the same Wi-Fi as the host.';
   };
 
-  // 3. Play with Computer (Instant 1P + 3 Bots match)
-  const handlePlayWithComputer = async () => {
-    const res = await lanClient.createRoom(userName, DEFAULT_RULES_CONFIG, 0);
-    if (res.success) {
-      setMyPosition(0);
-      setShowCreateModal(false);
-      // Immediately start match (server will auto-fill seats 1, 2, 3 with CPU bots!)
-      await lanClient.startMatch();
-      setView('table');
-    } else {
-      alert(res.error || 'Failed to start instant match');
-    }
-  };
-
-  // 4. Lobby: Select / Switch seat
+  // 3. Lobby: Select / Switch seat
   const handleSelectSeat = async (pos: PlayerPosition) => {
     const res = await lanClient.selectSeat(pos);
     if (res.success) {
       setMyPosition(pos);
     } else if (res.error) {
-      alert(res.error);
+      setStartError(res.error);
     }
   };
 
-  // 5. Lobby: Start Match
+  // 4. Lobby: Start Match
   const handleStartMatch = async () => {
+    setStartError(null);
     const res = await lanClient.startMatch();
     if (!res.success && res.error) {
-      alert(res.error);
+      setStartError(res.error);
     }
   };
 
-  // 6. Leave Room / Return to Home
-  const handleLeaveToHome = () => {
-    lanClient.clearSavedSession();
-    setRoomState(null);
-    setGameState(null);
-    setPublicState(null);
+  // 5. Leave Room / Return to Home
+  const handleLeaveToHome = async () => {
+    await lanClient.leaveRoom();
+    resetToHome();
+  };
 
-    // Clean URL params if present
-    if (typeof window !== 'undefined' && window.history.pushState) {
-      const cleanUrl = window.location.origin + window.location.pathname;
-      window.history.pushState({}, document.title, cleanUrl);
-    }
-
-    setView('home');
+  const showActionError = (error?: string) => {
+    if (!error) return;
+    soundManager.playError();
+    setNotification({ type: 'INFO', message: error, timestamp: Date.now() });
   };
 
   // In-Table Game Actions
   const handleBid = async (bid: number | 'PASS') => {
     const res = await lanClient.placeBid(bid);
-    if (!res.success && res.error) {
-      console.warn('Bid action rejected:', res.error);
-      soundManager.playError();
-      setNotification({
-        type: 'INFO',
-        message: res.error,
-        timestamp: Date.now(),
-      });
-    }
+    if (!res.success) showActionError(res.error);
   };
 
   const handleSelectTrump = (choice: TrumpSelectionChoice) => {
-    lanClient.selectTrump(choice);
+    lanClient.selectTrump(choice).then((res) => {
+      if (!res.success) showActionError(res.error);
+    });
   };
 
-  const handleRevealTrump = async (payload?: { requestId?: string; playerPosition?: PlayerPosition; roundNumber?: number; trickNumber?: number }) => {
-    const res = await lanClient.revealTrump(payload);
-    if (!res.success && res.error) {
-      console.warn('Trump reveal rejected:', res.error);
-    }
-    return res;
-  };
+  const handleRevealTrump = (payload?: { requestId?: string; playerPosition?: PlayerPosition; roundNumber?: number; trickNumber?: number }) =>
+    lanClient.revealTrump(payload);
 
   const handlePlayCard = async (cardId: string) => {
     const res = await lanClient.playCard(cardId);
-    if (!res.success && res.error) {
-      console.warn('Play card rejected:', res.error);
-      soundManager.playError();
-      setNotification({
-        type: 'INFO',
-        message: res.error,
-        timestamp: Date.now(),
-      });
-    }
+    if (!res.success) showActionError(res.error);
     return res;
   };
 
-  const handleDeclarePair = () => {
-    lanClient.declarePair();
+  const handleDoubleDecision = async (decision: 'DOUBLE' | 'PASS') => {
+    const res = await lanClient.submitDoubleDecision(decision);
+    if (!res.success) showActionError(res.error);
+    return res;
   };
 
-  const handleDoubleDecision = (decision: 'DOUBLE' | 'PASS') => {
-    lanClient.submitDoubleDecision(decision);
-  };
-
-  const handleRedoubleDecision = (decision: 'REDOUBLE' | 'PASS') => {
-    lanClient.submitRedoubleDecision(decision);
+  const handleRedoubleDecision = async (decision: 'REDOUBLE' | 'PASS') => {
+    const res = await lanClient.submitRedoubleDecision(decision);
+    if (!res.success) showActionError(res.error);
+    return res;
   };
 
   const handleNextRound = () => {
@@ -272,27 +252,26 @@ export default function App() {
   };
 
   const handleRematch = () => {
-    lanClient.startMatch();
+    lanClient.startMatch().then((res) => {
+      if (!res.success) showActionError(res.error);
+    });
   };
 
   const isHost = Boolean(roomState?.seats.find((s) => s.position === myPosition)?.isHost);
 
   return (
     <div className="w-full min-h-screen bg-slate-950 text-slate-100 font-sans">
-      {/* 1. Home View */}
       {view === 'home' && (
         <HomeView
           displayName={userName}
           onUpdateName={handleUpdateName}
           onCreateRoom={() => setShowCreateModal(true)}
           onJoinRoom={() => setShowJoinModal(true)}
-          onPlayWithComputer={handlePlayWithComputer}
           onOpenGallery={() => setView('gallery')}
           onOpenHowToPlay={() => setShowHowToPlay(true)}
         />
       )}
 
-      {/* 2. Lobby View */}
       {view === 'lobby' && roomState && (
         <LobbyView
           roomCode={roomState.roomCode}
@@ -302,38 +281,33 @@ export default function App() {
           onSelectSeat={handleSelectSeat}
           onStartMatch={handleStartMatch}
           onLeave={handleLeaveToHome}
+          startError={startError}
         />
       )}
 
-      {/* 3. Game Table View (100% In-Table, Strictly No Popups) */}
-      {view === 'table' && publicState && gameState && (
+      {view === 'table' && publicState && (
         <GameTable
-          gameState={gameState}
           publicState={publicState}
           myPosition={myPosition}
           isHost={isHost}
           remainingSeconds={remainingSeconds}
           notification={notification}
+          connectionStatus={connectionStatus}
           onBid={handleBid}
           onSelectTrump={handleSelectTrump}
           onDoubleDecision={handleDoubleDecision}
           onRedoubleDecision={handleRedoubleDecision}
           onRevealTrump={handleRevealTrump}
           onPlayCard={handlePlayCard}
-          onDeclarePair={handleDeclarePair}
           onNextRound={handleNextRound}
           onRematch={handleRematch}
           onLeave={handleLeaveToHome}
         />
       )}
 
-      {/* 4. Original Card Assets Gallery (EPS Vector Inspection) */}
-      {view === 'gallery' && (
-        <CardPreviewGallery onBack={() => setView('home')} />
-      )}
+      {view === 'gallery' && <CardPreviewGallery onBack={() => setView('home')} />}
 
-      {/* Modals on Home (Only on Home View) */}
-      {showCreateModal && (
+      {view === 'home' && showCreateModal && (
         <CreateRoomModal
           initialName={userName}
           onClose={() => setShowCreateModal(false)}
@@ -341,7 +315,7 @@ export default function App() {
         />
       )}
 
-      {showJoinModal && (
+      {view === 'home' && showJoinModal && (
         <JoinRoomModal
           initialRoomCode={joinCodeParam}
           initialName={userName}
@@ -350,9 +324,7 @@ export default function App() {
         />
       )}
 
-      {showHowToPlay && (
-        <HowToPlayModal onClose={() => setShowHowToPlay(false)} />
-      )}
+      {showHowToPlay && <HowToPlayModal onClose={() => setShowHowToPlay(false)} />}
     </div>
   );
 }

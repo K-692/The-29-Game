@@ -176,15 +176,18 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
     if (timer1Ref.current) clearTimeout(timer1Ref.current);
     if (timer2Ref.current) clearTimeout(timer2Ref.current);
 
-    // Step 1: Hold all 4 cards on the felt for 750ms so trick outcome is clearly visible
+    // Timeline (server holds the full trick for TRICK_DISPLAY_MS = 1600ms):
+    //   0–280ms   4th card lands
+    //   280–900ms all 4 cards visible together
+    //   900–1420ms cards sweep together to the winner
+    //   1460ms    trick retired, ~140ms before the server starts the next trick
     timer1Ref.current = setTimeout(() => {
       // Step 2: Trigger collection animation where all 4 cards move together towards winning player
       setIsCollecting(true);
       soundManager.playEventOnce(`trick_collect_${currentTrickKey}`, 'shove');
       onTrickWinnerDetermined?.(winnerPos);
-    }, 750);
+    }, 900);
 
-    // Step 3: At 1350ms (750ms hold + 520ms animation + 80ms cushion), collection finishes and trick is authoritatively retired
     timer2Ref.current = setTimeout(() => {
       setRetiredTrickKey(currentTrickKey);
       setFrozenCards(null);
@@ -192,7 +195,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
       setWinningRelPos(null);
       setTargetVector(null);
       onTrickWinnerDetermined?.(null);
-    }, 1350);
+    }, 1460);
   }, [
     isFourCards, 
     currentTrickKey, 

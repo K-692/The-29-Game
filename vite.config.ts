@@ -6,8 +6,10 @@ export default defineConfig({
   plugins: [react()],
   base: './', // Ensures relative asset resolution on GitHub Pages
   server: {
-    port: 3000,
-    open: true,
+    // Vite dev UI on 5173; the LAN game server (npm run lan:dev) stays on 3000.
+    port: 5173,
+    strictPort: true,
+    host: true, // expose on the LAN so phones can open the dev build too
   },
   build: {
     outDir: 'dist',

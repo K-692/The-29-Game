@@ -5,7 +5,7 @@ import { Server, Sliders, Users, X, ShieldCheck } from 'lucide-react';
 interface CreateRoomModalProps {
   initialName: string;
   onClose: () => void;
-  onCreate: (hostName: string, rules: GameRulesConfig, preferredSeat: PlayerPosition) => void;
+  onCreate: (hostName: string, rules: GameRulesConfig, preferredSeat: PlayerPosition) => Promise<string | null>;
 }
 
 export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
@@ -18,10 +18,19 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
   const [rules, setRules] = useState<GameRulesConfig>(DEFAULT_RULES_CONFIG);
   const [showAdvancedRules, setShowAdvancedRules] = useState(false);
 
-  const handleCreate = (e: React.FormEvent) => {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
-    onCreate(name.trim(), rules, preferredSeat);
+    if (!name.trim() || busy) return;
+    setBusy(true);
+    setError(null);
+    const err = await onCreate(name.trim(), rules, preferredSeat);
+    if (err) {
+      setError(err);
+      setBusy(false);
+    }
   };
 
   return (
@@ -54,7 +63,7 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter your name"
-              maxLength={24}
+              maxLength={20}
               required
               className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-4 py-2.5 text-sm text-slate-100 outline-none transition-colors"
             />
@@ -129,11 +138,18 @@ export const CreateRoomModal: React.FC<CreateRoomModalProps> = ({
             )}
           </div>
 
+          {error && (
+            <div role="alert" className="text-xs font-semibold text-rose-200 bg-rose-950/60 border border-rose-500/50 rounded-xl px-3 py-2">
+              {error}
+            </div>
+          )}
+
           <button
             type="submit"
-            className="w-full py-3.5 rounded-xl font-black text-sm bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-xl shadow-amber-500/25 transition-all transform active:scale-95 flex items-center justify-center gap-2"
+            disabled={busy}
+            className="w-full py-3.5 rounded-xl font-black text-sm bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-xl shadow-amber-500/25 transition-all transform active:scale-95 disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-2"
           >
-            Create Room & Open Table
+            {busy ? 'Connecting…' : (<>Create Room & Open Table</>)}
           </button>
         </form>
       </div>

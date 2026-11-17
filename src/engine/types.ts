@@ -44,7 +44,6 @@ export interface PlayerInfo {
   position: PlayerPosition;
   team: Team;
   isHost: boolean;
-  isCpu: boolean;
   isReady: boolean;
   connected: boolean;
   avatarSeed?: string;

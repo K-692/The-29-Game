@@ -34,6 +34,16 @@ function createMockIo() {
   } as any;
 }
 
+/** Seats three more human players so the host can start (no computer players exist). */
+function fillSeats(mgr: RoomManager, code: string) {
+  const sockets = [1, 2, 3].map((i) => createMockSocket(`player_socket_${code}_${i}`));
+  sockets.forEach((sock, i) => {
+    const res = mgr.joinRoom(sock, code, `Friend ${i + 1}`);
+    expect(res.success).toBe(true);
+  });
+  return sockets;
+}
+
 describe('LAN Room Manager & Multiplayer Logic', () => {
   it('should generate unpredictable 6-character room codes', () => {
     const io = createMockIo();
@@ -100,32 +110,129 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     expect(room.seats[2].socketId).toBeNull(); // Seat 2 is now vacant
   });
 
-  it('should auto-fill all vacant seats with CPU bots when host starts match', () => {
+  it('should refuse to start until all 4 seats are filled by real players', () => {
     const io = createMockIo();
     const mgr = new RoomManager(io);
     const hostSocket = createMockSocket('host_socket_1');
     const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
 
-    // Only Alice is in the room. When Alice starts the match, seats 1, 2, 3 must become bots!
+    const early = mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
+    expect(early.success).toBe(false);
+    expect(early.error).toMatch(/3 more players/);
+    expect(room.isStarted).toBe(false);
+
+    fillSeats(mgr, room.code);
     const startRes = mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
     expect(startRes.success).toBe(true);
     expect(room.isStarted).toBe(true);
-    expect(room.gameState).not.toBeNull();
-
-    // Verify seats
-    expect(room.seats[0].isCpu).toBe(false); // Alice
-    expect(room.seats[1].isCpu).toBe(true);  // Bot
-    expect(room.seats[2].isCpu).toBe(true);  // Bot Partner
-    expect(room.seats[3].isCpu).toBe(true);  // Bot
+    expect(room.seats.map((s) => s.playerName)).toEqual(['Alice', 'Friend 1', 'Friend 2', 'Friend 3']);
 
     // 4 cards dealt to each player
-    expect(room.gameState?.hands[0]).toHaveLength(4);
-    expect(room.gameState?.hands[1]).toHaveLength(4);
-    expect(room.gameState?.hands[2]).toHaveLength(4);
-    expect(room.gameState?.hands[3]).toHaveLength(4);
-
-    // Initial phase is BIDDING
+    for (const pos of [0, 1, 2, 3] as const) {
+      expect(room.gameState?.hands[pos]).toHaveLength(4);
+    }
     expect(room.gameState?.phase).toBe('BIDDING');
+  });
+
+  it('should only let the host start, and not restart a match in progress', () => {
+    const io = createMockIo();
+    const mgr = new RoomManager(io);
+    const hostSocket = createMockSocket('host_only');
+    const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
+    fillSeats(mgr, room.code);
+
+    const guest = room.seats[1];
+    expect(mgr.startMatch(hostSocket, room.code, guest.sessionToken).success).toBe(false);
+    expect(mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken).success).toBe(true);
+    const again = mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
+    expect(again.success).toBe(false);
+    expect(again.error).toMatch(/in progress/);
+  });
+
+  it('should hand the host role over when the host leaves the lobby', () => {
+    const io = createMockIo();
+    const mgr = new RoomManager(io);
+    const hostSocket = createMockSocket('host_leaving');
+    const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
+    fillSeats(mgr, room.code);
+
+    mgr.leaveRoom(hostSocket, room.code, hostSeat.sessionToken);
+    expect(room.seats[0].sessionToken).toBe('');
+    expect(room.seats.filter((s) => s.isHost)).toHaveLength(1);
+    expect(room.seats[1].isHost).toBe(true);
+  });
+
+  it('should let a new player take over a disconnected seat mid-match', () => {
+    const io = createMockIo();
+    const mgr = new RoomManager(io);
+    const hostSocket = createMockSocket('host_takeover');
+    const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
+    const [s1] = fillSeats(mgr, room.code);
+    mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
+
+    // Full table: nobody else can join
+    expect(mgr.joinRoom(createMockSocket('late'), room.code, 'Late').success).toBe(false);
+
+    mgr.handleDisconnect(s1.id);
+    expect(room.seats[1].connected).toBe(false);
+
+    const sub = createMockSocket('substitute');
+    const res = mgr.joinRoom(sub, room.code, 'Sub');
+    expect(res.success).toBe(true);
+    expect(res.seat?.position).toBe(1);
+    expect(room.gameState?.players[1].name).toBe('Sub');
+    expect(room.gameState?.players[1].connected).toBe(true);
+  });
+
+  it('should send each player only their own hand (no full game state leak)', () => {
+    const io = createMockIo();
+    const sent: Array<{ to: string; event: string; data: any }> = [];
+    io.to = (target: string) => ({
+      emit: (event: string, data: any) => sent.push({ to: target, event, data }),
+    });
+    const mgr = new RoomManager(io);
+    const hostSocket = createMockSocket('host_private');
+    const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
+    fillSeats(mgr, room.code);
+    mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
+
+    const updates = sent.filter((m) => m.event === 'game_state_update');
+    expect(updates.length).toBe(4);
+    for (const u of updates) {
+      expect(u.data.gameState).toBeUndefined();
+      expect(u.data.publicState.hands).toBeUndefined();
+      expect(u.data.publicState.myHand).toEqual(room.gameState!.hands[u.data.myPosition as 0 | 1 | 2 | 3]);
+    }
+  });
+
+  it('should reject a 5th card while the completed trick is being collected', () => {
+    const io = createMockIo();
+    const mgr = new RoomManager(io);
+    const hostSocket = createMockSocket('host_fifth');
+    const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
+    fillSeats(mgr, room.code);
+    mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
+
+    room.gameState!.phase = 'TRICK_PLAY';
+    room.gameState!.currentTurn = 0;
+    room.gameState!.currentTrickLead = 0;
+    room.gameState!.currentTrickCards = [];
+    room.gameState!.trumpSuit = 'SPADES';
+    room.gameState!.hands[0] = ['J_HEARTS', '7_CLUBS'];
+    room.gameState!.hands[1] = ['9_HEARTS', '8_CLUBS'];
+    room.gameState!.hands[2] = ['A_HEARTS', 'K_CLUBS'];
+    room.gameState!.hands[3] = ['10_HEARTS', 'Q_CLUBS'];
+    room.activeTurn = null;
+
+    const plays = ['J_HEARTS', '9_HEARTS', 'A_HEARTS', '10_HEARTS'];
+    plays.forEach((card, pos) => {
+      expect(mgr.handlePlayCard(room.code, room.seats[pos].sessionToken, card).success).toBe(true);
+    });
+    expect(room.gameState!.currentTrickCards).toHaveLength(4);
+    // Seat 3 is still "currentTurn" during the pause — must be rejected
+    const extra = mgr.handlePlayCard(room.code, room.seats[3].sessionToken, 'Q_CLUBS');
+    expect(extra.success).toBe(false);
+    expect(room.gameState!.currentTrickCards).toHaveLength(4);
   });
 
   it('should prevent outside players from joining after match has started (room locked)', () => {
@@ -134,6 +241,7 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     const hostSocket = createMockSocket('host_socket_1');
     const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
 
+    fillSeats(mgr, room.code);
     mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
 
     // An outside player tries to join locked room
@@ -141,7 +249,7 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     const joinRes = mgr.joinRoom(outsiderSocket, room.code, 'Eve');
 
     expect(joinRes.success).toBe(false);
-    expect(joinRes.error).toContain('already in progress');
+    expect(joinRes.error).toContain('in progress');
   });
 
   it('should allow disconnected players to reconnect to their exact seat with session token', () => {
@@ -154,6 +262,8 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     const joinRes = mgr.joinRoom(clientSocket, room.code, 'Bob', 2);
     const bobToken = joinRes.seat!.sessionToken;
 
+    mgr.joinRoom(createMockSocket('c_left'), room.code, 'Carl', 1);
+    mgr.joinRoom(createMockSocket('c_right'), room.code, 'Dina', 3);
     mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
 
     // Bob disconnects
@@ -171,38 +281,16 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     expect(reconnectRes.gameState).toBeDefined();
   });
 
-  it('should assign authentic Indian human names to auto-filled CPU players with no bot tags', () => {
-    const io = createMockIo();
-    const mgr = new RoomManager(io);
-    const hostSocket = createMockSocket('host_socket_names');
-    const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Aarav', DEFAULT_RULES_CONFIG, 0);
-
-    mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
-
-    // Seats 1, 2, 3 are CPU
-    const cpuSeats = room.seats.filter((s) => s.isCpu);
-    expect(cpuSeats).toHaveLength(3);
-    for (const s of cpuSeats) {
-      expect(s.playerName).not.toMatch(/bot/i);
-      expect(s.playerName).not.toMatch(/cpu/i);
-      expect(s.playerName).not.toMatch(/computer/i);
-      expect(s.playerName.length).toBeGreaterThanOrEqual(2);
-    }
-  });
-
   it('should accept Joker / No Trump and 7th Card options in LAN handleSelectTrump', () => {
     const io = createMockIo();
     const mgr = new RoomManager(io);
     const hostSocket = createMockSocket('host_socket_trump');
     const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
 
+    fillSeats(mgr, room.code);
     mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
     expect(room.gameState).toBeDefined();
 
-    // Set all seats to human for deterministic step-by-step auction testing
-    room.seats.forEach((s) => {
-      s.isCpu = false;
-    });
 
     // Force dealer to Seat 3 so Seat 0 (Alice) is first bidder:
     room.gameState!.dealerIndex = 3;
@@ -240,8 +328,8 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     const hostSocket = createMockSocket('host_socket_trick');
     const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
 
+    fillSeats(mgr, room.code);
     mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
-    room.seats.forEach((s) => { s.isCpu = false; });
 
     // Transition straight to trick play with controlled hands
     room.gameState!.phase = 'TRICK_PLAY';
@@ -285,8 +373,8 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     const hostSocket = createMockSocket('host_bidding_pass');
     const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', { ...DEFAULT_RULES_CONFIG, forcedDealerBid: true }, 0);
 
+    fillSeats(mgr, room.code);
     mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
-    room.seats.forEach((s) => { s.isCpu = false; });
 
     // Set dealer to Seat 0 (Alice), so bidding order is [1, 2, 3, 0]
     room.gameState!.dealerIndex = 0;
@@ -339,8 +427,8 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     const hostSocket = createMockSocket('host_all_pass');
     const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', { ...DEFAULT_RULES_CONFIG, forcedDealerBid: false }, 0);
 
+    fillSeats(mgr, room.code);
     mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
-    room.seats.forEach((s) => { s.isCpu = false; });
 
     // Set dealer to Seat 0, bidding order [1, 2, 3, 0]
     room.gameState!.dealerIndex = 0;
@@ -369,6 +457,7 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
 
     // Deal 1: Start Match
+    fillSeats(mgr, room.code);
     mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
     expect(room.gameState?.roundNumber).toBe(1);
     const deal1Dealer = room.gameState!.dealerIndex;
@@ -408,8 +497,8 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     const hostSocket = createMockSocket('host_timeout_silent');
     const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
 
+    fillSeats(mgr, room.code);
     mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
-    room.seats.forEach((s) => { s.isCpu = false; });
 
     room.gameState!.dealerIndex = 0;
     room.gameState!.currentTurn = 1;
@@ -442,8 +531,8 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     const hostSocket = createMockSocket('host_timer_strict');
     const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
 
+    fillSeats(mgr, room.code);
     mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
-    room.seats.forEach((s) => { s.isCpu = false; });
 
     // Set up active turn with an expired deadline
     const currentTurn = room.gameState!.currentTurn;
@@ -467,8 +556,8 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     const hostSocket = createMockSocket('host_race_resolution');
     const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
 
+    fillSeats(mgr, room.code);
     mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
-    room.seats.forEach((s) => { s.isCpu = false; });
 
     const turnPos = room.gameState!.currentTurn;
     const seat = room.seats.find((s) => s.position === turnPos)!;
@@ -489,8 +578,8 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     const hostSocket = createMockSocket('host_trump_reveal');
     const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
 
+    fillSeats(mgr, room.code);
     mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
-    room.seats.forEach((s) => { s.isCpu = false; });
 
     // Fast-forward to TRICK_PLAY with concealed trump in Clubs
     room.gameState!.phase = 'TRICK_PLAY';
@@ -528,8 +617,8 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     const hostSocket = createMockSocket('host_cannot_reveal');
     const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Alice', DEFAULT_RULES_CONFIG, 0);
 
+    fillSeats(mgr, room.code);
     mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
-    room.seats.forEach((s) => { s.isCpu = false; });
 
     room.gameState!.phase = 'TRICK_PLAY';
     room.gameState!.trumpSuit = 'CLUBS';
@@ -548,12 +637,13 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     expect(room.gameState?.isTrumpRevealed).toBe(false);
   });
 
-  it('should play through an entire bot match round with 3 bots and reach ROUND_ENDED with correct summary', () => {
+  it('should play through an entire 4-player match round and reach ROUND_ENDED with correct summary', () => {
     const io = createMockIo();
     const mgr = new RoomManager(io);
     const hostSocket = createMockSocket('host_bot_round');
     const { room, seat: hostSeat } = mgr.createRoom(hostSocket, 'Krish', DEFAULT_RULES_CONFIG, 0);
 
+    fillSeats(mgr, room.code);
     const startRes = mgr.startMatch(hostSocket, room.code, hostSeat.sessionToken);
     expect(startRes.success).toBe(true);
     expect(room.gameState?.phase).toBe('BIDDING');
@@ -569,7 +659,7 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     const b0 = mgr.handleBid(room.code, hostSeat.sessionToken, 16);
     expect(b0.success).toBe(true);
 
-    // Bots 1, 2, 3 pass
+    // Players 1, 2, 3 pass
     const s1 = room.seats[1];
     const s2 = room.seats[2];
     const s3 = room.seats[3];

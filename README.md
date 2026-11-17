@@ -7,10 +7,10 @@
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-black.svg?logo=socketdotio)](https://socket.io/)
 [![Express](https://img.shields.io/badge/Express-5.3-green.svg?logo=express)](https://expressjs.com/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-38bdf8.svg?logo=tailwind-css)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Vitest-74%2F74%20Passing-brightgreen.svg?logo=vitest)](https://vitest.dev/)
+[![Tests](https://img.shields.io/badge/Vitest-88%2F88%20Passing-brightgreen.svg?logo=vitest)](https://vitest.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> A modern, zero-install, real-time **LAN (Local Area Network)** multiplayer implementation of the traditional Indian **29 (Twenty-Nine)** trick-taking card game. Features authentic traditional Indian rules, edge-to-edge full-screen table felt (`table.jpg`), original vector playing-card artwork extracted directly from an EPS collection (`poker-cards-icons-collection/OIUGSZ1.eps`), single-source-of-truth card movement animations (`HAND → IN_FLIGHT → ON_TABLE → COLLECTING → COLLECTED`) with zero snap-back or coordinate jumping, physical playing-card trump indicator at top-right with 3D flip transitions, six-number display cards (`6_HEARTS`, `6_SPADES`, `6_CLUBS`, `6_DIAMONDS`), 3-stage 7th Card reveal sequence, 1000ms full-window epic trump-reveal luminous bloom effect, strictly drag-only card playing (no accidental clicks), strict server-authoritative 30-second turn timers, larger cards with gentle horizontal overlap, bright minimalistic UI with zero "Bidder:" text prefixes, consistent partnership colour schemes (Soft Blue & Soft Coral), animal emoji avatars, bottom-left Krish (You) player seat, fully visible top partner seat, bottom-right individual trick-point counters beside the turn countdown timer, active bidder top-bar synchronization (`🦊 Aarav is bidding`), clean direct-click bidding with authoritative PASS button, card-playing face-up flight animations with idempotent action deduplication, bottom-left Ask to Reveal Trump button with unique request tracking and support for all 6 trump modes, 3-second deal transition with sequential 16-card dealer distribution animation running at the start of **every new deal**, 1-second trick collection animation, floating utility controls (zero reserved navbar height), non-scrollable landing page (`100dvh`), original sound effects (`sound-effects/`), single-round auction with forced dealer opening, six trump options (including Joker / No Trump and 7th Card), first-bidder point-card eligibility redeals, Double & Re-Double gameplay with 10s decision windows and 1x/2x/4x multipliers, King-Queen Pair / Royals logic evaluated upon legal trump reveal, 1-second central table announcements for Joker & 7th Card, improved played card sizing in the central table area, and authentic Indian AI players. Pure Host-Authoritative LAN architecture running entirely without cloud databases or third-party dependencies.
+> A modern, zero-install, real-time **LAN (Local Area Network)** multiplayer implementation of the traditional Indian **29 (Twenty-Nine)** trick-taking card game. Features authentic traditional Indian rules, edge-to-edge full-screen table felt (`table.jpg`), original vector playing-card artwork extracted directly from an EPS collection (`poker-cards-icons-collection/OIUGSZ1.eps`), single-source-of-truth card movement animations (`HAND → IN_FLIGHT → ON_TABLE → COLLECTING → COLLECTED`) with zero snap-back or coordinate jumping, physical playing-card trump indicator at top-right with 3D flip transitions, six-number display cards (`6_HEARTS`, `6_SPADES`, `6_CLUBS`, `6_DIAMONDS`), 3-stage 7th Card reveal sequence, 1000ms full-window epic trump-reveal luminous bloom effect, strictly drag-only card playing (no accidental clicks), strict server-authoritative 15-second turn timers, larger cards with gentle horizontal overlap, bright minimalistic UI with zero "Bidder:" text prefixes, consistent partnership colour schemes (Soft Blue & Soft Coral), animal emoji avatars, bottom-left Krish (You) player seat, fully visible top partner seat, bottom-right individual trick-point counters beside the turn countdown timer, active bidder top-bar synchronization (`🦊 Aarav is bidding`), clean direct-click bidding with authoritative PASS button, card-playing face-up flight animations with idempotent action deduplication, bottom-left Ask to Reveal Trump button with unique request tracking and support for all 6 trump modes, 3-second deal transition with sequential 16-card dealer distribution animation running at the start of **every new deal**, 1-second trick collection animation, floating utility controls (zero reserved navbar height), non-scrollable landing page (`100dvh`), original sound effects (`sound-effects/`), single-round auction with forced dealer opening, six trump options (including Joker / No Trump and 7th Card), first-bidder point-card eligibility redeals, Double & Re-Double gameplay with 10s decision windows and 1x/2x/4x multipliers, King-Queen Pair / Royals logic evaluated upon legal trump reveal, 1-second central table announcements for Joker & 7th Card, improved played card sizing in the central table area, and exactly four real players on the same network (no computer players). Pure Host-Authoritative LAN architecture running entirely without cloud databases or third-party dependencies.
 
 ---
 
@@ -40,7 +40,7 @@
   - Preserves exact 500:700 (5:7) aspect ratio and leaves comfortable clearance around the top scoreboard, opponent seats, and player hand.
 - **Pure Host-Authoritative LAN Architecture (Zero Cloud Dependencies)**:
   - Completely removed legacy `@supabase/supabase-js` dependencies, Supabase schema SQL files, and unused services.
-  - Authoritative game state, player sessions, room codes, turn timers, bot AI, card distribution, and scoring run 100% locally on the host computer via Node.js/Express and Socket.IO. Runs completely offline without internet connectivity.
+  - Authoritative game state, player sessions, room codes, turn timers, card distribution, and scoring run 100% locally on the host computer via Node.js/Express and Socket.IO. Runs completely offline without internet connectivity.
 
 - **Seamless Card Animation Lifecycle (`HAND → IN_FLIGHT → ON_TABLE → COLLECTING → COLLECTED`)**:
   - Eliminates card snap-back, clone flickering, and coordinate jumping.
@@ -106,11 +106,11 @@
   - The collected trick-points counter for the active player is positioned at the **bottom-right** of the window, immediately to the right of the turn timer (`Turn Timer: 00:28 | Your Points: 05`).
   - Displays the personal card points collected by the active player during the current deal, updating after each trick won, and resetting upon each new deal.
 - **Authoritative Bidding PASS Button**:
-  - The PASS button authoritatively validates, submits, and advances turns without failure across human and CPU players.
+  - The PASS button authoritatively validates, submits, and advances turns without failure for every player at the table.
   - Rejects out-of-turn actions, handles forced dealer opening (16 minimum) when the first 3 players pass, and cleanly redeals cards when all 4 players pass with forced dealer disabled.
   - Immediate optimistic UI submission state prevents duplicate clicks or race conditions.
 - **Card-Playing Face-Up Flight Animation**:
-  - When any player (bottom human or left/top/right CPU/LAN players) plays a card, the exact card face visibly glides across the table into its slot in the central trick arrangement.
+  - When any player (you or any of the other three LAN players) plays a card, the exact card face visibly glides across the table into its slot in the central trick arrangement.
   - Employs identical smooth easing (`cubic-bezier(0.2, 0.8, 0.2, 1)`), 300ms duration, and layout coordinate calculations as the dealer distribution animation.
   - Preserves authoritative server validation: the card is removed from the player's hand only once verified by the server.
 - **Active Player Seat Highlighting in Partnership Colours**:
@@ -140,7 +140,6 @@
 - **Dedicated Bottom-Right 30-Second Turn Timer**:
   - Human-player turn timer is positioned neatly at the **bottom-right** of the screen, separate from the card hand.
   - Formats cleanly as `00:30` down to `00:00` with an urgent pulse during the final 5 seconds.
-  - Does not show misleading countdowns during CPU player turns.
 - **Bottom-Left "Ask to Reveal Trump" Control**:
   - Compact, light-themed button positioned at the **lower-left** of the table.
   - Displays `ASK TO REVEAL TRUMP` only when legally permitted by 29 game rules (human turn, trick play, concealed trump, unable to follow suit).
@@ -183,11 +182,14 @@
 - **First-Bidder Point-Card Eligibility**:
   - The first bidder (player to the dealer's left) must hold at least one point-valued card (Jack=3, Nine=2, Ace=1, or Ten=1).
   - If the first bidder holds 0 point cards, all 16 dealt cards are automatically returned, reshuffled, and redealt until an eligible hand is formed, preserving the dealer and first bidder.
-- **Realistic Indian AI Players**:
-  - CPU players draw authentic Indian human names (e.g. *Aarav, Mira, Kabir, Anaya, Rohan, Tara, Ishaan, Aditi, Vihaan, Arjun*, etc.).
-  - No generic "CPU", "Bot", or "Computer" tags in player names.
+- **Four Real Players, No Bots**:
+  - 29 is played by exactly four people in two partnerships. The host can start only when all four seats are filled.
+  - If a player's turn timer runs out, the server makes a safe legal move for them (pass a bid, pick their strongest suit, play a sensible legal card) so the table never stalls. A disconnected player's turns are handled after 3 seconds instead of 15.
 - **LAN-Only Architecture**: Zero reliance on public cloud services, external WebSockets, Supabase, or Firebase. Runs entirely on the host machine over local Wi-Fi / Ethernet (`0.0.0.0:3000`).
-- **Session Reconnection**: Players receive a unique session token in `localStorage`. If a player disconnects or refreshes, they instantly reclaim their seat and hand without disrupting the match.
+- **Session Reconnection**: Each browser tab gets a session token (kept in `sessionStorage`, so two tabs never fight over one seat). After a refresh or a Wi-Fi blip the client reconnects and reclaims its seat and hand automatically.
+- **Seat Takeover**: If a player leaves or drops mid-match, anyone can rejoin with the room code and take over that seat, hand and all.
+- **Host Hand-off**: If the host leaves, the host role passes to another connected player.
+- **Private Hands**: Each device receives only its own hand; opponents' cards and the concealed trump never leave the server.
 - **Non-Blocking `?` Rules Drawer**: Slide-out drawer accessible at any moment without pausing the match or resetting the timer.
 - **QR Code & Mobile LAN Access**: Host screen displays a generated QR code and LAN Wi-Fi URL (`http://<HOST_IP>:3000`) for mobile phones and tablets to join instantly.
 
@@ -322,16 +324,23 @@ The server automatically compiles the frontend build, detects the host's private
 ════════════════════════════════════════════════════════════════════
 ```
 
-### 3. Connect Other Players
-- Open `http://<HOST_IP>:3000` (e.g. `http://192.168.1.2:3000`) on any computer, tablet, or phone on the same Wi-Fi.
-- Click **Join LAN Game**, enter your name and the 6-character room code, and pick your preferred seat.
-- Or scan the **QR Code** directly from the host's lobby screen!
+### 3. Create a Room and Invite Three Friends
+- On the host computer open `http://localhost:3000`, click **Host New LAN Room**.
+- The lobby shows an invite link built from the host's LAN IP (e.g. `http://192.168.1.2:3000/?room=AB12CD`) and a QR code. Share either one.
+- Other players open the link (or `http://<HOST_IP>:3000` → **Join LAN Game** → enter the room code). Each picks a seat; partners sit opposite each other (Seats 1 & 3 vs Seats 2 & 4).
+- When all four seats are filled the host presses **Start Match**.
+
+> **Firewall tip:** If others can't connect, allow Node.js through the host's firewall (macOS: *System Settings → Network → Firewall*; Windows: allow `node.exe` on *Private* networks). Guest/hotel Wi-Fi with "client isolation" blocks device-to-device traffic. Use a home router or a phone hotspot instead.
 
 ### 4. Running in Development Mode
-To develop with Vite hot-module replacement:
+Run the LAN game server and the Vite dev UI side by side:
+```bash
+npm run lan:dev
+```
 ```bash
 npm run dev
 ```
+The dev UI runs on `http://localhost:5173` (also exposed on your LAN IP) and talks to the game server on port 3000.
 
 ---
 
@@ -347,10 +356,11 @@ npm test
 ✓ src/engine/doubleScenarios.test.ts (6 tests)
 ✓ src/engine/trumpAndAnimation.test.ts (6 tests)
 ✓ src/engine/doubleAndPair.test.ts (16 tests)
-✓ src/engine/engine.test.ts (28 tests)
-✓ src/engine/lanRoom.test.ts (18 tests)
-Test Files  5 passed (5)
-     Tests  74 passed (74)
+✓ src/engine/engine.test.ts (26 tests)
+✓ src/engine/lanDoublePair.test.ts (12 tests)
+✓ src/engine/lanRoom.test.ts (22 tests)
+Test Files  6 passed (6)
+     Tests  88 passed (88)
 ```
 
 To run a production build verification:
@@ -385,7 +395,7 @@ npm run build
 ├── server/
 │   ├── index.ts                  # Express + Socket.IO LAN server
 │   ├── lanUtils.ts               # Local network IPv4 detection & terminal banner
-│   └── roomManager.ts            # Authoritative room state, 30s timers, avatar pool, & bot auto-play
+│   └── roomManager.ts            # Authoritative room state, turn timers, seat takeover & timeout auto-play
 ├── server.js                     # Root executable server launcher (node server.js)
 ├── src/
 │   ├── assets/
@@ -416,8 +426,7 @@ npm run build
 │   ├── engine/
 │   │   ├── bidding.ts            # Bidding logic, legal bid options, forced dealer
 │   │   ├── biddingOrder.ts       # Seating, clockwise rotation, point-card eligibility
-│   │   ├── bot.ts                # Autonomous CPU player decision engine
-│   │   ├── botNames.ts           # Authentic Indian CPU player names pool
+│   │   ├── autoPlay.ts           # Safe legal move when a player's turn timer expires
 │   │   ├── deck.ts               # 32-card Fisher-Yates generator, 2-phase dealing (4+4)
 │   │   ├── gameManager.ts        # Authoritative state machine & transitions
 │   │   ├── scoring.ts            # Card points accumulator (28+1=29), Royals Pair (+/-4)

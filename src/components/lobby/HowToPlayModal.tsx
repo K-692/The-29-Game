@@ -141,18 +141,20 @@ export const HowToPlayModal: React.FC<HowToPlayModalProps> = ({ onClose }) => {
 
           {activeTab === 'royals' && (
             <div className="space-y-4">
-              <h3 className="text-base font-bold text-amber-400">Pair / Royals Declaration (King + Queen of Trump)</h3>
+              <h3 className="text-base font-bold text-amber-400">King-Queen Pair / Royals (King + Queen of Trump)</h3>
               <p>
-                A player holding both the <strong>King and Queen of the trump suit</strong> can declare a Pair once trump has been revealed and their team has won at least one trick.
+                When the trump suit is revealed, the table checks whether any one player holds <strong>both the King and Queen of trump</strong>.
+                If so, it is announced to everyone and the contract target changes immediately. This applies only when the contract bid is <strong>19 or more</strong>,
+                and never in Joker / No Trump mode.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div className="bg-slate-950 p-3 rounded-xl border border-emerald-500/40">
-                  <span className="font-bold text-emerald-400 block mb-1">Declared by Bidding Team</span>
-                  Contract target is <strong>reduced by 4 points</strong> (e.g., a bid of 16 becomes 12 points).
+                  <span className="font-bold text-emerald-400 block mb-1">Held by the Bidding Team</span>
+                  Target is <strong>reduced by 4 points</strong>, never below 16 (e.g. a bid of 20 becomes 16).
                 </div>
                 <div className="bg-slate-950 p-3 rounded-xl border border-red-500/40">
-                  <span className="font-bold text-red-400 block mb-1">Declared by Defending Team</span>
-                  Contract target is <strong>increased by 4 points</strong> (e.g., a bid of 16 becomes 20 points).
+                  <span className="font-bold text-red-400 block mb-1">Held by the Defending Team</span>
+                  Target is <strong>increased by 4 points</strong>, never above 29 (e.g. a bid of 20 becomes 24).
                 </div>
               </div>
             </div>
