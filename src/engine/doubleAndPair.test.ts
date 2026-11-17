@@ -349,7 +349,11 @@ describe('King-Queen Pair / Royals Logic', () => {
     state = applyDoubleDecision(state, 2, 'PASS').state;
     expect(state.phase).toBe('TRICK_PLAY');
 
-    // Manually place K & Q of Hearts in P1's hand for testing
+    // Manually place K & Q of Hearts in P1's hand for testing (and make sure the
+    // random deal didn't also give them to someone else)
+    for (const p of [0, 2, 3] as const) {
+      state.hands[p] = state.hands[p].filter((id) => id !== 'K_HEARTS' && id !== 'Q_HEARTS');
+    }
     state.hands[1] = ['K_HEARTS', 'Q_HEARTS', 'J_HEARTS', '9_HEARTS'];
 
     // Legal reveal
