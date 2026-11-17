@@ -585,11 +585,17 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     expect(trumpRes.success).toBe(true);
     expect(room.gameState?.phase).toBe('DOUBLE_DECISION');
 
-    // Defending team (Seat 1) passes Double
-    const doubleRes = mgr.handleDoubleDecision(room.code, s1.sessionToken, 'PASS');
-    expect(doubleRes.success).toBe(true);
+    // Defending team (Seat 1 and Seat 3) pass Double
+    const doubleRes1 = mgr.handleDoubleDecision(room.code, s1.sessionToken, 'PASS');
+    expect(doubleRes1.success).toBe(true);
+    expect(room.gameState?.phase).toBe('DOUBLE_DECISION');
+
+    const doubleRes2 = mgr.handleDoubleDecision(room.code, s3.sessionToken, 'PASS');
+    expect(doubleRes2.success).toBe(true);
     expect(room.gameState?.phase).toBe('TRICK_PLAY');
     expect(room.gameState?.trumpSuit).toBe('SPADES');
+    // Cards dealt after Double phase concludes
+    expect(room.gameState?.hands[0].length).toBe(8);
 
     // Play all 8 tricks
     for (let trick = 1; trick <= 8; trick++) {

@@ -76,7 +76,7 @@ export default function App() {
     const unsubTimer = lanClient.onTimerTick((tick) => {
       setRemainingSeconds(tick.remainingSeconds);
       if (tick.remainingSeconds <= 5 && tick.remainingSeconds > 0) {
-        soundManager.playTick();
+        soundManager.playEventOnce(`tick_${tick.turnDeadline || tick.phase}_${tick.remainingSeconds}`, () => soundManager.playTick());
       }
     });
 
@@ -84,9 +84,9 @@ export default function App() {
       if (notif.type === 'TIMEOUT_AUTO_PLAY') return; // Silent timeout handling (strictly no popups)
       setNotification(notif);
       if (notif.type === 'TRUMP_REVEALED') {
-        soundManager.playTrump();
+        soundManager.playEventOnce(`trump_notif_${notif.timestamp}`, () => soundManager.playTrump());
       } else if (notif.type === 'PAIR_DECLARED') {
-        soundManager.playWin();
+        soundManager.playEventOnce(`pair_notif_${notif.timestamp}`, () => soundManager.playWin());
       }
       setTimeout(() => {
         setNotification((current) => (current?.timestamp === notif.timestamp ? null : current));
@@ -217,7 +217,6 @@ export default function App() {
 
   // In-Table Game Actions
   const handleBid = async (bid: number | 'PASS') => {
-    soundManager.playChip();
     const res = await lanClient.placeBid(bid);
     if (!res.success && res.error) {
       console.warn('Bid action rejected:', res.error);
@@ -231,12 +230,10 @@ export default function App() {
   };
 
   const handleSelectTrump = (choice: TrumpSelectionChoice) => {
-    soundManager.playTrump();
     lanClient.selectTrump(choice);
   };
 
   const handleRevealTrump = async (payload?: { requestId?: string; playerPosition?: PlayerPosition; roundNumber?: number; trickNumber?: number }) => {
-    soundManager.playTrump();
     const res = await lanClient.revealTrump(payload);
     if (!res.success && res.error) {
       console.warn('Trump reveal rejected:', res.error);
@@ -245,7 +242,6 @@ export default function App() {
   };
 
   const handlePlayCard = async (cardId: string) => {
-    soundManager.playCard();
     const res = await lanClient.playCard(cardId);
     if (!res.success && res.error) {
       console.warn('Play card rejected:', res.error);
@@ -260,26 +256,18 @@ export default function App() {
   };
 
   const handleDeclarePair = () => {
-    soundManager.playWin();
     lanClient.declarePair();
   };
 
   const handleDoubleDecision = (decision: 'DOUBLE' | 'PASS') => {
-    if (decision === 'DOUBLE') {
-      soundManager.playTrump();
-    }
     lanClient.submitDoubleDecision(decision);
   };
 
   const handleRedoubleDecision = (decision: 'REDOUBLE' | 'PASS') => {
-    if (decision === 'REDOUBLE') {
-      soundManager.playWin();
-    }
     lanClient.submitRedoubleDecision(decision);
   };
 
   const handleNextRound = () => {
-    soundManager.playDeal();
     lanClient.nextRound();
   };
 

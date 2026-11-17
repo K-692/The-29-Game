@@ -132,10 +132,10 @@ export const GameTable: React.FC<GameTableProps> = ({
   useEffect(() => {
     if (!prevIsTrumpRevealedRef.current && publicState.isTrumpRevealed) {
       setShowEpicReveal(true);
-      soundManager.playTrump();
+      soundManager.playEventOnce(`trump_reveal_r${publicState.roundNumber}`, () => soundManager.playTrump());
     }
     prevIsTrumpRevealedRef.current = publicState.isTrumpRevealed;
-  }, [publicState.isTrumpRevealed]);
+  }, [publicState.isTrumpRevealed, publicState.roundNumber]);
 
   useEffect(() => {
     if (publicState.phase === 'BIDDING' || publicState.phase === 'TRUMP_SELECTION') {
@@ -168,28 +168,38 @@ export const GameTable: React.FC<GameTableProps> = ({
 
   useEffect(() => {
     // 1. Shuffling when round starts or bidding opens
-    if (prevPhaseRef.current !== 'BIDDING' && publicState.phase === 'BIDDING') {
-      soundManager.playShuffle();
+    if (publicState.phase === 'BIDDING') {
+      soundManager.playEventOnce(`shuffle_r${publicState.roundNumber}`, 'shuffle');
     }
-    // 2. Dealing when cards are dealt
-    if (publicState.myHand.length > prevCardsCountRef.current && publicState.phase === 'TRICK_PLAY') {
-      soundManager.playDeal();
+    // 2. Second deal of remaining 4 cards when entering TRICK_PLAY
+    if (publicState.myHand.length > 4 && publicState.phase === 'TRICK_PLAY') {
+      soundManager.playEventOnce(`deal2_r${publicState.roundNumber}`, 'deal');
     }
-    // 3. Trick shove when a trick is completed
-    if (publicState.completedTricks.length > prevTricksCountRef.current) {
-      soundManager.playTrickShove();
+    // 3. Double / Re-Double announcements
+    if (publicState.doubleStatus === 'DOUBLED') {
+      soundManager.playEventOnce(`double_status_r${publicState.roundNumber}`, () => soundManager.playDouble());
+    } else if (publicState.doubleStatus === 'REDOUBLED') {
+      soundManager.playEventOnce(`redouble_status_r${publicState.roundNumber}`, () => soundManager.playRedouble());
     }
-
-    // 4. Card placement sound for played cards
-    publicState.currentTrickCards.forEach((pc) => {
-      soundManager.playEventOnce(`trick_${publicState.currentTrickNumber}_card_${pc.cardId}_${pc.playerIndex}`, 'place');
-    });
+    // 4. Bidding audio for both human and CPU bids
+    if (publicState.bids && publicState.bids.length > 0) {
+      const lastBid = publicState.bids[publicState.bids.length - 1];
+      const bidKey = `bid_r${publicState.roundNumber}_turn${publicState.bids.length}_${lastBid.playerIndex}_${lastBid.bid}`;
+      if (lastBid.bid === 'PASS') {
+        soundManager.playEventOnce(bidKey, () => soundManager.playPass());
+      } else {
+        soundManager.playEventOnce(bidKey, () => soundManager.playBid());
+      }
+    }
 
     prevPhaseRef.current = publicState.phase;
     prevTricksCountRef.current = publicState.completedTricks.length;
     prevCardsCountRef.current = publicState.myHand.length;
   }, [
     publicState.phase,
+    publicState.roundNumber,
+    publicState.doubleStatus,
+    publicState.bids,
     publicState.completedTricks.length,
     publicState.currentTrickCards,
     publicState.myHand.length,
@@ -579,6 +589,8 @@ export const GameTable: React.FC<GameTableProps> = ({
               highestBid={publicState.highestBid}
               myPosition={myPosition}
               remainingSeconds={remainingSeconds}
+              doubleVotes={publicState.doubleVotes}
+              redoubleVotes={publicState.redoubleVotes}
               onDouble={() => {
                 if (publicState.phase === 'DOUBLE_DECISION') {
                   onDoubleDecision?.('DOUBLE');

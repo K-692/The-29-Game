@@ -159,6 +159,8 @@ export const startNewRound = (state: GameState, nextDealer?: PlayerPosition): Ga
     doubleStatus: 'NONE',
     doubledBy: null,
     redoubledBy: null,
+    doubleVotes: {},
+    redoubleVotes: {},
     specialAnnouncement: null,
     adjustedTarget: null,
     playerPoints: { 0: 0, 1: 0, 2: 0, 3: 0 },
@@ -166,7 +168,7 @@ export const startNewRound = (state: GameState, nextDealer?: PlayerPosition): Ga
     lastActionTimestamp: Date.now(),
     // Keep secondary 4 cards accessible for deal phase 2
     _pendingSecondDeal: round2,
-  } as GameState & { _pendingSecondDeal: Record<PlayerPosition, string[]> };
+  } as GameState;
 };
 
 /**
@@ -266,10 +268,10 @@ export const applyBid = (
  * - 4 Suits (Hearts, Spades, Clubs, Diamonds)
  * - Joker (No Trump)
  * - 7th Card (Special Trump reservation)
- * Deals second 4 cards to each player and initiates trick play.
+ * Keeps hands at 4 cards, preserves secondary deal cards, and initiates Double decision phase.
  */
 export const applyTrumpSelection = (
-  state: GameState & { _pendingSecondDeal?: Record<PlayerPosition, string[]> },
+  state: GameState,
   playerIndex: PlayerPosition,
   choice: TrumpSelectionChoice
 ): { success: boolean; state: GameState; error?: string } => {
@@ -282,14 +284,12 @@ export const applyTrumpSelection = (
   }
 
   const pending = state._pendingSecondDeal || { 0: [], 1: [], 2: [], 3: [] };
-  const firstTrickLead = getLeftOfDealer(state.dealerIndex);
 
   let trumpMode: TrumpMode = 'suit';
   let trumpSuit: Suit | null = null;
   let seventhCard: SeventhCardInfo | null = null;
   let phase: GamePhase = 'DOUBLE_DECISION';
   let specialAnnouncement: GameState['specialAnnouncement'] = null;
-  const fullHands: Record<PlayerPosition, string[]> = { 0: [], 1: [], 2: [], 3: [] };
 
   if (choice === 'NO_TRUMP') {
     trumpMode = 'no-trump';
@@ -300,10 +300,6 @@ export const applyTrumpSelection = (
       type: 'NO_TRUMP',
       expiresAt: Date.now() + 1000,
     };
-    for (let p = 0; p < 4; p++) {
-      const pos = p as PlayerPosition;
-      fullHands[pos] = sortHand([...state.hands[pos], ...(pending[pos] || [])]);
-    }
   } else if (choice === 'SEVENTH_CARD') {
     trumpMode = 'seventh-card';
     const bidderPending = pending[playerIndex] || [];
@@ -320,18 +316,6 @@ export const applyTrumpSelection = (
       type: 'SEVENTH_CARD',
       expiresAt: Date.now() + 1000,
     };
-
-    // Winning bidder gets the other 3 cards added to their 4 cards (total 7 cards in hand)
-    const otherThree = bidderPending.filter((id) => id !== seventhCardId);
-    fullHands[playerIndex] = sortHand([...state.hands[playerIndex], ...otherThree]);
-
-    // Other 3 players receive all 4 cards
-    for (let p = 0; p < 4; p++) {
-      const pos = p as PlayerPosition;
-      if (pos !== playerIndex) {
-        fullHands[pos] = sortHand([...state.hands[pos], ...(pending[pos] || [])]);
-      }
-    }
   } else {
     // Four suits: 'HEARTS' | 'SPADES' | 'CLUBS' | 'DIAMONDS'
     trumpMode = 'suit';
@@ -339,13 +323,9 @@ export const applyTrumpSelection = (
     seventhCard = null;
     phase = 'DOUBLE_DECISION';
     specialAnnouncement = null;
-    for (let p = 0; p < 4; p++) {
-      const pos = p as PlayerPosition;
-      fullHands[pos] = sortHand([...state.hands[pos], ...(pending[pos] || [])]);
-    }
   }
 
-  const newState = {
+  const newState: GameState = {
     ...state,
     phase,
     trumpMode,
@@ -353,22 +333,19 @@ export const applyTrumpSelection = (
     isTrumpRevealed: false,
     seventhCard,
     specialAnnouncement,
-    hands: fullHands,
-    currentTrickNumber: 1,
-    currentTrickLead: firstTrickLead,
-    currentTurn: firstTrickLead,
-    currentTrickCards: [],
-    completedTricks: [],
-    dealMultiplier: 1 as const,
-    doubleStatus: 'NONE' as const,
+    // Keep hands at 4 cards each during Double / Re-Double
+    hands: state.hands,
+    dealMultiplier: 1,
+    doubleStatus: 'NONE',
     doubledBy: null,
     redoubledBy: null,
+    doubleVotes: {},
+    redoubleVotes: {},
     adjustedTarget: null,
     version: state.version + 1,
     lastActionTimestamp: Date.now(),
+    _pendingSecondDeal: pending,
   };
-
-  delete (newState as any)._pendingSecondDeal;
 
   return {
     success: true,
@@ -393,7 +370,62 @@ export const applyTrumpAnnouncementComplete = (state: GameState): GameState => {
 };
 
 /**
- * Handles defending team's Double decision (DOUBLE or PASS) with 10s timer.
+ * Deals the remaining 4 cards to each player after the Double/Redouble phase concludes.
+ * In 7th Card mode:
+ * - The reserved 7th card remains set aside for the bidder (bidder gets other 3 cards -> 7 total).
+ * - Other 3 players receive all 4 cards (8 total).
+ * In Suit or No-Trump mode:
+ * - All 4 players receive all 4 cards (8 total).
+ * Transitions phase to TRICK_PLAY.
+ */
+export const applySecondDeal = (state: GameState): GameState => {
+  const pending = state._pendingSecondDeal || { 0: [], 1: [], 2: [], 3: [] };
+  const fullHands: Record<PlayerPosition, string[]> = { 0: [], 1: [], 2: [], 3: [] };
+
+  if (state.trumpMode === 'seventh-card' && state.seventhCard && state.highestBidder !== null) {
+    const bidderIndex = state.highestBidder;
+    const seventhCardId = state.seventhCard.cardId;
+    const bidderPending = pending[bidderIndex] || [];
+    const otherThree = bidderPending.filter((id) => id !== seventhCardId);
+    fullHands[bidderIndex] = sortHand([...(state.hands[bidderIndex] || []), ...otherThree]);
+
+    for (let p = 0; p < 4; p++) {
+      const pos = p as PlayerPosition;
+      if (pos !== bidderIndex) {
+        fullHands[pos] = sortHand([...(state.hands[pos] || []), ...(pending[pos] || [])]);
+      }
+    }
+  } else {
+    for (let p = 0; p < 4; p++) {
+      const pos = p as PlayerPosition;
+      fullHands[pos] = sortHand([...(state.hands[pos] || []), ...(pending[pos] || [])]);
+    }
+  }
+
+  const firstTrickLead = getLeftOfDealer(state.dealerIndex);
+
+  const nextState: GameState = {
+    ...state,
+    phase: 'TRICK_PLAY',
+    hands: fullHands,
+    currentTrickNumber: 1,
+    currentTrickLead: firstTrickLead,
+    currentTurn: firstTrickLead,
+    currentTrickCards: [],
+    completedTricks: [],
+    version: state.version + 1,
+    lastActionTimestamp: Date.now(),
+  };
+
+  delete nextState._pendingSecondDeal;
+  return nextState;
+};
+
+/**
+ * Handles defending team's Double decision with team-based semantics:
+ * - If EITHER defender chooses DOUBLE, team decision is accepted immediately -> REDOUBLE_DECISION (2x).
+ * - If a defender chooses PASS, wait for partner. Team decision is PASS only when BOTH teammates pass.
+ * - Once Double phase concludes with PASS, deals remaining 4 cards and transitions to TRICK_PLAY.
  */
 export const applyDoubleDecision = (
   state: GameState,
@@ -410,36 +442,66 @@ export const applyDoubleDecision = (
     return { success: false, state, error: 'Only the defending team can make the Double decision' };
   }
 
-  if (decision === 'PASS') {
+  const defendingTeam: Team = biddingTeam === 0 ? 1 : 0;
+  const defenderPositions: [PlayerPosition, PlayerPosition] = defendingTeam === 0 ? [0, 2] : [1, 3];
+
+  if (decision === 'DOUBLE') {
+    // Immediate team acceptance
+    const updatedVotes = { ...(state.doubleVotes || {}), [playerIndex]: 'DOUBLE' as const };
     return {
       success: true,
       state: {
         ...state,
-        phase: 'TRICK_PLAY',
-        doubleStatus: 'NONE',
-        dealMultiplier: 1,
+        phase: 'REDOUBLE_DECISION',
+        doubleStatus: 'DOUBLED',
+        dealMultiplier: 2,
+        doubledBy: playerIndex,
+        doubleVotes: updatedVotes,
+        redoubleVotes: {},
         version: state.version + 1,
         lastActionTimestamp: Date.now(),
       },
     };
   }
 
+  // Defending player voted PASS
+  const updatedVotes = { ...(state.doubleVotes || {}), [playerIndex]: 'PASS' as const };
+  const partnerIndex = defenderPositions.find((p) => p !== playerIndex)!;
+  const partnerVote = updatedVotes[partnerIndex];
+
+  // If partner hasn't passed yet, record vote and wait
+  if (partnerVote !== 'PASS') {
+    return {
+      success: true,
+      state: {
+        ...state,
+        doubleVotes: updatedVotes,
+        version: state.version + 1,
+        lastActionTimestamp: Date.now(),
+      },
+    };
+  }
+
+  // BOTH defenders have passed -> Team decision is PASS (1x)
+  // Deal the remaining 4 cards and begin trick play
+  const stateWithVotes: GameState = {
+    ...state,
+    doubleStatus: 'NONE',
+    dealMultiplier: 1,
+    doubleVotes: updatedVotes,
+  };
+
   return {
     success: true,
-    state: {
-      ...state,
-      phase: 'REDOUBLE_DECISION',
-      doubleStatus: 'DOUBLED',
-      dealMultiplier: 2,
-      doubledBy: playerIndex,
-      version: state.version + 1,
-      lastActionTimestamp: Date.now(),
-    },
+    state: applySecondDeal(stateWithVotes),
   };
 };
 
 /**
- * Handles bidding team's Re-Double decision (REDOUBLE or PASS) with 10s timer.
+ * Handles bidding team's Re-Double decision with team-based semantics:
+ * - If EITHER bidder chooses REDOUBLE, team decision is accepted immediately -> 4x multiplier.
+ * - If a bidder chooses PASS, wait for partner. Team decision is PASS only when BOTH teammates pass (2x multiplier).
+ * - After Re-Double decision concludes (REDOUBLE or both PASS), deals remaining 4 cards and transitions to TRICK_PLAY.
  */
 export const applyRedoubleDecision = (
   state: GameState,
@@ -456,31 +518,53 @@ export const applyRedoubleDecision = (
     return { success: false, state, error: 'Only the bidding team can make the Re-Double decision' };
   }
 
-  if (decision === 'PASS') {
+  const bidderPositions: [PlayerPosition, PlayerPosition] = biddingTeam === 0 ? [0, 2] : [1, 3];
+
+  if (decision === 'REDOUBLE') {
+    // Immediate team acceptance
+    const updatedVotes = { ...(state.redoubleVotes || {}), [playerIndex]: 'REDOUBLE' as const };
+    const stateWithRedouble: GameState = {
+      ...state,
+      doubleStatus: 'REDOUBLED',
+      dealMultiplier: 4,
+      redoubledBy: playerIndex,
+      redoubleVotes: updatedVotes,
+    };
+    return {
+      success: true,
+      state: applySecondDeal(stateWithRedouble),
+    };
+  }
+
+  // Bidding team player voted PASS
+  const updatedVotes = { ...(state.redoubleVotes || {}), [playerIndex]: 'PASS' as const };
+  const partnerIndex = bidderPositions.find((p) => p !== playerIndex)!;
+  const partnerVote = updatedVotes[partnerIndex];
+
+  // If partner hasn't passed yet, wait for partner
+  if (partnerVote !== 'PASS') {
     return {
       success: true,
       state: {
         ...state,
-        phase: 'TRICK_PLAY',
-        doubleStatus: 'DOUBLED',
-        dealMultiplier: 2,
+        redoubleVotes: updatedVotes,
         version: state.version + 1,
         lastActionTimestamp: Date.now(),
       },
     };
   }
 
+  // BOTH bidders have passed -> Team decision is PASS (contract remains DOUBLED at 2x)
+  const stateWithVotes: GameState = {
+    ...state,
+    doubleStatus: 'DOUBLED',
+    dealMultiplier: 2,
+    redoubleVotes: updatedVotes,
+  };
+
   return {
     success: true,
-    state: {
-      ...state,
-      phase: 'TRICK_PLAY',
-      doubleStatus: 'REDOUBLED',
-      dealMultiplier: 4,
-      redoubledBy: playerIndex,
-      version: state.version + 1,
-      lastActionTimestamp: Date.now(),
-    },
+    state: applySecondDeal(stateWithVotes),
   };
 };
 
@@ -818,7 +902,7 @@ export const getPublicGameState = (
     }
   }
 
-  const { hands, trumpSuit, seventhCard, ...publicBase } = state;
+  const { hands, trumpSuit, seventhCard, _pendingSecondDeal, ...publicBase } = state;
 
   return {
     ...publicBase,

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { GameRulesConfig, PlayerInfo, PlayerPosition } from '../../engine/types';
 import { getLegalBidOptions } from '../../engine/bidding';
-import { soundManager } from '../../common/SoundManager';
 import { Clock, XCircle, Loader2 } from 'lucide-react';
 
 interface InTableBiddingProps {
@@ -52,11 +51,6 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
   const handleBidClick = (val: number | 'PASS') => {
     if (isSubmitting || !isMyTurn) return;
     setIsSubmitting(true);
-    if (val === 'PASS') {
-      soundManager.playPass();
-    } else {
-      soundManager.playBid();
-    }
     onPlaceBid(val);
     setTimeout(() => setIsSubmitting(false), 1500);
   };

@@ -11,6 +11,8 @@ import {
   startNewRound,
   applyBid,
   applyTrumpSelection,
+  applyTrumpAnnouncementComplete,
+  applyDoubleDecision,
   applyTrumpReveal,
 } from './gameManager';
 import { DEFAULT_RULES_CONFIG } from './types';
@@ -75,6 +77,17 @@ describe('Trump Indicator and 7th Card Reveal Lifecycle', () => {
     expect(state.seventhCard?.owner).toBe(1);
     expect(state.seventhCard?.isRevealed).toBe(false);
 
+    // During Double phase, hands are still 4 cards each
+    expect(state.hands[1].length).toBe(4);
+    expect(state.hands[0].length).toBe(4);
+
+    // Transition through 1s announcement and Double decision (both defenders pass)
+    state = applyTrumpAnnouncementComplete(state);
+    state = applyDoubleDecision(state, 0, 'PASS').state;
+    state = applyDoubleDecision(state, 2, 'PASS').state;
+    expect(state.phase).toBe('TRICK_PLAY');
+
+    // After Double decision resolves, second deal happens:
     // 7th card is held back: owner has 7 cards, others have 8
     expect(state.hands[1].length).toBe(7);
     expect(state.hands[0].length).toBe(8);
@@ -83,8 +96,6 @@ describe('Trump Indicator and 7th Card Reveal Lifecycle', () => {
 
     const reservedSeventhCardId = state.seventhCard!.cardId;
     const expectedTrumpSuit = CARD_MANIFEST[reservedSeventhCardId].suit;
-
-    state.phase = 'TRICK_PLAY';
 
     // Trigger trump reveal by active player
     const revealRes = applyTrumpReveal(state, state.currentTurn);

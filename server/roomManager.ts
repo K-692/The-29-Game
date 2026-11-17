@@ -20,6 +20,7 @@ import {
   applyDoubleDecision,
   applyPairDeclaration, 
   applyRedoubleDecision,
+  applySecondDeal,
   applyTrumpAnnouncementComplete,
   applyTrumpReveal, 
   applyTrumpSelection, 
@@ -582,6 +583,9 @@ export class RoomManager {
 
   /**
    * Starts Stage 1 of Double phase: Defending team has 10 seconds to decide DOUBLE or PASS.
+   * Team-based logic:
+   * - Either defender can DOUBLE to double the contract immediately.
+   * - Both defenders must PASS for the team to PASS.
    */
   private startDoublePhase(room: LanRoom) {
     if (room.turnTimer) {
@@ -598,7 +602,6 @@ export class RoomManager {
     const biddingTeam: Team = (room.gameState.highestBidder === 0 || room.gameState.highestBidder === 2) ? 0 : 1;
     const defendingTeam: Team = biddingTeam === 0 ? 1 : 0;
     const defendingSeats = room.seats.filter((s) => s.team === defendingTeam);
-    const allDefendersCpu = defendingSeats.every((s) => s.isCpu);
 
     const totalDuration = 10;
     const now = Date.now();
@@ -642,24 +645,54 @@ export class RoomManager {
           clearInterval(room.turnTimer);
           room.turnTimer = null;
         }
+        if (room.botTurnTimeout) {
+          clearTimeout(room.botTurnTimeout);
+          room.botTurnTimeout = null;
+        }
 
-        if (room.activeTurn && room.activeTurn.turnId === turnId && !room.activeTurn.resolved) {
-          room.activeTurn.resolved = true;
-          // Defending team timed out -> automatically PASS!
-          this.handleDoubleDecision(room.code, defendingSeats[0].sessionToken, 'PASS', true);
+        if (room.gameState && room.gameState.phase === 'DOUBLE_DECISION') {
+          // Timer expired -> Defending team auto-passes! Deal remaining 4 cards and begin trick play
+          const stateWithPass: GameState = {
+            ...room.gameState,
+            doubleVotes: {
+              ...(room.gameState.doubleVotes || {}),
+              [defendingSeats[0].position]: 'PASS' as const,
+              [defendingSeats[1].position]: 'PASS' as const,
+            },
+            doubleStatus: 'NONE' as const,
+            dealMultiplier: 1 as const,
+          };
+          room.gameState = applySecondDeal(stateWithPass);
+          this.broadcastNotification(room, 'INFO', 'Defending team passed Double (time expired). Match is 1x.');
+          this.broadcastGameState(room);
+          this.startTurnTimer(room);
+          this.checkAndExecuteBotTurn(room);
         }
       }
     }, 1000);
 
-    if (allDefendersCpu) {
-      const botDelay = 700 + Math.floor(Math.random() * 400);
-      room.botTurnTimeout = setTimeout(() => {
-        if (!room.gameState || room.gameState.phase !== 'DOUBLE_DECISION') return;
-        const defendingBot = defendingSeats.find((s) => s.isCpu) || defendingSeats[0];
-        const botHand = room.gameState.hands[defendingBot.position];
-        const shouldDouble = getBotDoubleDecision(botHand, room.gameState.highestBid);
-        this.handleDoubleDecision(room.code, defendingBot.sessionToken, shouldDouble ? 'DOUBLE' : 'PASS');
-      }, botDelay);
+    // Schedule CPU decisions if any defending seats are bots
+    const cpuDefenders = defendingSeats.filter((s) => s.isCpu);
+    if (cpuDefenders.length > 0) {
+      const scheduleBotDecision = (botIndex: number, delayMs: number) => {
+        if (botIndex >= cpuDefenders.length) return;
+        const botSeat = cpuDefenders[botIndex];
+        room.botTurnTimeout = setTimeout(() => {
+          if (!room.gameState || room.gameState.phase !== 'DOUBLE_DECISION') return;
+          const botHand = room.gameState.hands[botSeat.position];
+          const shouldDouble = getBotDoubleDecision(botHand, room.gameState.highestBid);
+          if (shouldDouble) {
+            this.handleDoubleDecision(room.code, botSeat.sessionToken, 'DOUBLE');
+          } else {
+            this.handleDoubleDecision(room.code, botSeat.sessionToken, 'PASS');
+            if (botIndex + 1 < cpuDefenders.length && room.gameState.phase === 'DOUBLE_DECISION') {
+              scheduleBotDecision(botIndex + 1, 600 + Math.floor(Math.random() * 300));
+            }
+          }
+        }, delayMs);
+      };
+
+      scheduleBotDecision(0, 700 + Math.floor(Math.random() * 400));
     }
   }
 
@@ -686,29 +719,23 @@ export class RoomManager {
       return { success: false, error: 'Only the defending team can make the Double decision.' };
     }
 
-    if (room.activeTurn && !isAutoPass && !seat.isCpu) {
-      if (room.activeTurn.resolved) {
-        return { success: false, error: 'Double decision already submitted.' };
-      }
-      room.activeTurn.resolved = true;
-    }
-
-    if (room.turnTimer) {
-      clearInterval(room.turnTimer);
-      room.turnTimer = null;
-    }
-    if (room.botTurnTimeout) {
-      clearTimeout(room.botTurnTimeout);
-      room.botTurnTimeout = null;
-    }
-
-    const res = applyDoubleDecision(room.gameState, seat.position, decision);
-    if (!res.success) {
-      return { success: false, error: res.error };
-    }
-    room.gameState = res.state;
-
     if (decision === 'DOUBLE') {
+      // Either defender chooses DOUBLE -> Accepted immediately!
+      if (room.turnTimer) {
+        clearInterval(room.turnTimer);
+        room.turnTimer = null;
+      }
+      if (room.botTurnTimeout) {
+        clearTimeout(room.botTurnTimeout);
+        room.botTurnTimeout = null;
+      }
+
+      const res = applyDoubleDecision(room.gameState, seat.position, 'DOUBLE');
+      if (!res.success) {
+        return { success: false, error: res.error };
+      }
+      room.gameState = res.state;
+
       this.broadcastNotification(
         room,
         'INFO',
@@ -716,14 +743,37 @@ export class RoomManager {
       );
       this.broadcastGameState(room);
       this.startRedoublePhase(room);
-    } else {
+      return { success: true };
+    }
+
+    // decision === 'PASS'
+    const res = applyDoubleDecision(room.gameState, seat.position, 'PASS');
+    if (!res.success) {
+      return { success: false, error: res.error };
+    }
+    room.gameState = res.state;
+
+    if (room.gameState.phase === 'TRICK_PLAY') {
+      // Both defenders have passed -> Team decision is PASS!
+      if (room.turnTimer) {
+        clearInterval(room.turnTimer);
+        room.turnTimer = null;
+      }
+      if (room.botTurnTimeout) {
+        clearTimeout(room.botTurnTimeout);
+        room.botTurnTimeout = null;
+      }
+
       const passMsg = isAutoPass
         ? `Defending team passed Double (time expired). Match is 1x.`
-        : `${seat.playerName} chose to PASS Double. Match is 1x.`;
+        : `Defending team passed Double. Match is 1x.`;
       this.broadcastNotification(room, 'INFO', passMsg);
       this.broadcastGameState(room);
       this.startTurnTimer(room);
       this.checkAndExecuteBotTurn(room);
+    } else {
+      // Partner hasn't passed yet -> Keep timer running and let partner decide!
+      this.broadcastGameState(room);
     }
 
     return { success: true };
@@ -731,6 +781,9 @@ export class RoomManager {
 
   /**
    * Starts Stage 2 of Double phase: Bidding team has 10 seconds to decide REDOUBLE or PASS.
+   * Team-based logic:
+   * - Either teammate can REDOUBLE to raise stakes to 4x immediately.
+   * - Both teammates must PASS for the team to PASS (remains 2x).
    */
   private startRedoublePhase(room: LanRoom) {
     if (room.turnTimer) {
@@ -746,7 +799,6 @@ export class RoomManager {
 
     const biddingTeam: Team = (room.gameState.highestBidder === 0 || room.gameState.highestBidder === 2) ? 0 : 1;
     const biddingSeats = room.seats.filter((s) => s.team === biddingTeam);
-    const allBiddersCpu = biddingSeats.every((s) => s.isCpu);
 
     const totalDuration = 10;
     const now = Date.now();
@@ -790,24 +842,54 @@ export class RoomManager {
           clearInterval(room.turnTimer);
           room.turnTimer = null;
         }
+        if (room.botTurnTimeout) {
+          clearTimeout(room.botTurnTimeout);
+          room.botTurnTimeout = null;
+        }
 
-        if (room.activeTurn && room.activeTurn.turnId === turnId && !room.activeTurn.resolved) {
-          room.activeTurn.resolved = true;
-          // Bidding team timed out -> automatically PASS! (multiplier stays 2x)
-          this.handleRedoubleDecision(room.code, biddingSeats[0].sessionToken, 'PASS', true);
+        if (room.gameState && room.gameState.phase === 'REDOUBLE_DECISION') {
+          // Bidding team timed out -> Both unvoted bidders pass! (multiplier stays 2x)
+          const stateWithPass: GameState = {
+            ...room.gameState,
+            redoubleVotes: {
+              ...(room.gameState.redoubleVotes || {}),
+              [biddingSeats[0].position]: 'PASS' as const,
+              [biddingSeats[1].position]: 'PASS' as const,
+            },
+            doubleStatus: 'DOUBLED' as const,
+            dealMultiplier: 2 as const,
+          };
+          room.gameState = applySecondDeal(stateWithPass);
+          this.broadcastNotification(room, 'INFO', 'Bidding team passed Re-Double (time expired). Match multiplier remains 2x.');
+          this.broadcastGameState(room);
+          this.startTurnTimer(room);
+          this.checkAndExecuteBotTurn(room);
         }
       }
     }, 1000);
 
-    if (allBiddersCpu) {
-      const botDelay = 700 + Math.floor(Math.random() * 400);
-      room.botTurnTimeout = setTimeout(() => {
-        if (!room.gameState || room.gameState.phase !== 'REDOUBLE_DECISION') return;
-        const bidderSeat = room.seats.find((s) => s.position === room.gameState!.highestBidder) || biddingSeats[0];
-        const botHand = room.gameState.hands[bidderSeat.position];
-        const shouldRedouble = getBotRedoubleDecision(botHand, room.gameState.highestBid, room.gameState.trumpSuit);
-        this.handleRedoubleDecision(room.code, bidderSeat.sessionToken, shouldRedouble ? 'REDOUBLE' : 'PASS');
-      }, botDelay);
+    // Schedule CPU decisions if any bidding seats are bots
+    const cpuBidders = biddingSeats.filter((s) => s.isCpu);
+    if (cpuBidders.length > 0) {
+      const scheduleBotRedouble = (botIndex: number, delayMs: number) => {
+        if (botIndex >= cpuBidders.length) return;
+        const botSeat = cpuBidders[botIndex];
+        room.botTurnTimeout = setTimeout(() => {
+          if (!room.gameState || room.gameState.phase !== 'REDOUBLE_DECISION') return;
+          const botHand = room.gameState.hands[botSeat.position];
+          const shouldRedouble = getBotRedoubleDecision(botHand, room.gameState.highestBid, room.gameState.trumpSuit);
+          if (shouldRedouble) {
+            this.handleRedoubleDecision(room.code, botSeat.sessionToken, 'REDOUBLE');
+          } else {
+            this.handleRedoubleDecision(room.code, botSeat.sessionToken, 'PASS');
+            if (botIndex + 1 < cpuBidders.length && room.gameState.phase === 'REDOUBLE_DECISION') {
+              scheduleBotRedouble(botIndex + 1, 600 + Math.floor(Math.random() * 300));
+            }
+          }
+        }, delayMs);
+      };
+
+      scheduleBotRedouble(0, 700 + Math.floor(Math.random() * 400));
     }
   }
 
@@ -834,44 +916,63 @@ export class RoomManager {
       return { success: false, error: 'Only the bidding team can make the Re-Double decision.' };
     }
 
-    if (room.activeTurn && !isAutoPass && !seat.isCpu) {
-      if (room.activeTurn.resolved) {
-        return { success: false, error: 'Re-Double decision already submitted.' };
-      }
-      room.activeTurn.resolved = true;
-    }
-
-    if (room.turnTimer) {
-      clearInterval(room.turnTimer);
-      room.turnTimer = null;
-    }
-    if (room.botTurnTimeout) {
-      clearTimeout(room.botTurnTimeout);
-      room.botTurnTimeout = null;
-    }
-
-    const res = applyRedoubleDecision(room.gameState, seat.position, decision);
-    if (!res.success) {
-      return { success: false, error: res.error };
-    }
-    room.gameState = res.state;
-
     if (decision === 'REDOUBLE') {
+      // Either bidder chooses REDOUBLE -> Accepted immediately!
+      if (room.turnTimer) {
+        clearInterval(room.turnTimer);
+        room.turnTimer = null;
+      }
+      if (room.botTurnTimeout) {
+        clearTimeout(room.botTurnTimeout);
+        room.botTurnTimeout = null;
+      }
+
+      const res = applyRedoubleDecision(room.gameState, seat.position, 'REDOUBLE');
+      if (!res.success) {
+        return { success: false, error: res.error };
+      }
+      room.gameState = res.state;
+
       this.broadcastNotification(
         room,
         'INFO',
         `💥 ${seat.playerName} RE-DOUBLED the contract! (4x match points)`
       );
-    } else {
-      const passMsg = isAutoPass
-        ? `Bidding team passed Re-Double (time expired). Match multiplier remains 2x.`
-        : `${seat.playerName} passed Re-Double. Match multiplier remains 2x.`;
-      this.broadcastNotification(room, 'INFO', passMsg);
+      this.broadcastGameState(room);
+      this.startTurnTimer(room);
+      this.checkAndExecuteBotTurn(room);
+      return { success: true };
     }
 
-    this.broadcastGameState(room);
-    this.startTurnTimer(room);
-    this.checkAndExecuteBotTurn(room);
+    // decision === 'PASS'
+    const res = applyRedoubleDecision(room.gameState, seat.position, 'PASS');
+    if (!res.success) {
+      return { success: false, error: res.error };
+    }
+    room.gameState = res.state;
+
+    if (room.gameState.phase === 'TRICK_PLAY') {
+      // Both bidders have passed -> Team decision is PASS (remains 2x)
+      if (room.turnTimer) {
+        clearInterval(room.turnTimer);
+        room.turnTimer = null;
+      }
+      if (room.botTurnTimeout) {
+        clearTimeout(room.botTurnTimeout);
+        room.botTurnTimeout = null;
+      }
+
+      const passMsg = isAutoPass
+        ? `Bidding team passed Re-Double (time expired). Match multiplier remains 2x.`
+        : `Bidding team passed Re-Double. Match multiplier remains 2x.`;
+      this.broadcastNotification(room, 'INFO', passMsg);
+      this.broadcastGameState(room);
+      this.startTurnTimer(room);
+      this.checkAndExecuteBotTurn(room);
+    } else {
+      // Partner hasn't passed yet -> Keep timer running!
+      this.broadcastGameState(room);
+    }
 
     return { success: true };
   }

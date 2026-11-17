@@ -168,8 +168,9 @@ describe('Security & Public Game State', () => {
     state = applyTrumpSelection(state, 1, 'HEARTS').state;
     expect(state.phase).toBe('DOUBLE_DECISION');
 
-    // Defending team (P0) passes Double
+    // Defending team (P0 and P2) passes Double
     state = applyDoubleDecision(state, 0, 'PASS').state;
+    state = applyDoubleDecision(state, 2, 'PASS').state;
     expect(state.phase).toBe('TRICK_PLAY');
 
     // Opponent P0 viewing public state
@@ -417,8 +418,13 @@ describe('Six Trump Options & 7th Card Mechanics', () => {
     expect(s.trumpMode).toBe('suit');
     expect(s.isTrumpRevealed).toBe(false);
 
-    // After defending team passes, enters TRICK_PLAY
-    const trickPlayState = applyDoubleDecision(s, 0, 'PASS').state;
+    // During Double decision phase, hands remain 4 cards
+    expect(s.hands[0].length).toBe(4);
+    expect(s.hands[1].length).toBe(4);
+
+    // After defending team passes, enters TRICK_PLAY and deals remaining 4 cards
+    let trickPlayState = applyDoubleDecision(s, 0, 'PASS').state;
+    trickPlayState = applyDoubleDecision(trickPlayState, 2, 'PASS').state;
     expect(trickPlayState.phase).toBe('TRICK_PLAY');
 
     // In public state: trump is concealed for opponents
@@ -453,7 +459,8 @@ describe('Six Trump Options & 7th Card Mechanics', () => {
 
     const afterAnnounce = applyTrumpAnnouncementComplete(s);
     expect(afterAnnounce.phase).toBe('DOUBLE_DECISION');
-    const trickPlayState = applyDoubleDecision(afterAnnounce, 0, 'PASS').state;
+    let trickPlayState = applyDoubleDecision(afterAnnounce, 0, 'PASS').state;
+    trickPlayState = applyDoubleDecision(trickPlayState, 2, 'PASS').state;
     expect(trickPlayState.phase).toBe('TRICK_PLAY');
 
     const pubP0 = getPublicGameState(trickPlayState, 0);
@@ -494,7 +501,8 @@ describe('Six Trump Options & 7th Card Mechanics', () => {
 
     const afterAnnounce = applyTrumpAnnouncementComplete(s);
     expect(afterAnnounce.phase).toBe('DOUBLE_DECISION');
-    const trickPlayState = applyDoubleDecision(afterAnnounce, 0, 'PASS').state;
+    let trickPlayState = applyDoubleDecision(afterAnnounce, 0, 'PASS').state;
+    trickPlayState = applyDoubleDecision(trickPlayState, 2, 'PASS').state;
     expect(trickPlayState.phase).toBe('TRICK_PLAY');
 
     // Bidder (P1) has 7 cards dealt to hand during trick play; other 3 players have 8

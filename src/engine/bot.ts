@@ -373,12 +373,12 @@ export const getBotRedoubleDecision = (
     }
   }
 
-  // Re-double if bidder holds multiple trump honors or very high overall card points (>=8)
-  if (trumpHonorCount >= 2 || totalPoints >= 8) {
+  // Re-double if bidder holds multiple trump honors or strong overall 4-card points (>=6)
+  if (trumpHonorCount >= 2 || totalPoints >= 6) {
     return true;
   }
-  // If bid was a modest 16-17 and hand has >= 6 points, confident to re-double
-  if (contractBid <= 17 && totalPoints >= 6) {
+  // If bid was a modest 16-17 and hand has >= 5 points, confident to re-double
+  if (contractBid <= 17 && totalPoints >= 5) {
     return true;
   }
 

@@ -8,6 +8,8 @@ interface InTableDoubleDecisionProps {
   highestBid: number;
   myPosition: PlayerPosition;
   remainingSeconds: number;
+  doubleVotes?: Partial<Record<PlayerPosition, 'DOUBLE' | 'PASS'>>;
+  redoubleVotes?: Partial<Record<PlayerPosition, 'REDOUBLE' | 'PASS'>>;
   onDouble: () => void;
   onPass: () => void;
 }
@@ -18,6 +20,8 @@ export const InTableDoubleDecision: React.FC<InTableDoubleDecisionProps> = ({
   highestBid,
   myPosition,
   remainingSeconds,
+  doubleVotes,
+  redoubleVotes,
   onDouble,
   onPass,
 }) => {
@@ -33,8 +37,11 @@ export const InTableDoubleDecision: React.FC<InTableDoubleDecisionProps> = ({
   // In Stage 2: Bidding team decides
   const canIDecide = isStage1 ? (myTeam !== biddingTeam) : (myTeam === biddingTeam);
 
+  const myVote = isStage1 ? doubleVotes?.[myPosition] : redoubleVotes?.[myPosition];
+  const hasVoted = Boolean(myVote) || submitting;
+
   const handleAction = (action: 'DOUBLE_OR_REDOUBLE' | 'PASS') => {
-    if (submitting) return;
+    if (submitting || myVote) return;
     setSubmitting(true);
     if (action === 'DOUBLE_OR_REDOUBLE') {
       onDouble();
@@ -90,38 +97,45 @@ export const InTableDoubleDecision: React.FC<InTableDoubleDecisionProps> = ({
 
       {/* Decision Buttons or Waiting Notice */}
       {canIDecide ? (
-        <div className="grid grid-cols-2 gap-3 mt-2">
-          {/* Action Button: DOUBLE or REDOUBLE */}
-          <button
-            type="button"
-            disabled={submitting}
-            onClick={() => handleAction('DOUBLE_OR_REDOUBLE')}
-            className={`cursor-pointer py-2.5 px-3 rounded-2xl font-black text-sm uppercase tracking-wider text-slate-950 shadow-lg transition-all active:scale-95 disabled:opacity-50 ${
-              isStage1
-                ? 'bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-amber-500/30 ring-2 ring-amber-300/60'
-                : 'bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 text-white shadow-rose-500/30 ring-2 ring-rose-300/60'
-            }`}
-          >
-            {isStage1 ? '⚡ DOUBLE (2x)' : '💥 RE-DOUBLE (4x)'}
-          </button>
+        hasVoted ? (
+          <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-slate-900/90 border border-amber-500/40 text-amber-300 text-xs sm:text-sm font-semibold">
+            <Clock className="w-4 h-4 text-amber-400 animate-pulse" />
+            <span>You passed. Waiting for your teammate to decide...</span>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 mt-2">
+            {/* Action Button: DOUBLE or REDOUBLE */}
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => handleAction('DOUBLE_OR_REDOUBLE')}
+              className={`cursor-pointer py-2.5 px-3 rounded-2xl font-black text-sm uppercase tracking-wider text-slate-950 shadow-lg transition-all active:scale-95 disabled:opacity-50 ${
+                isStage1
+                  ? 'bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-amber-500/30 ring-2 ring-amber-300/60'
+                  : 'bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 text-white shadow-rose-500/30 ring-2 ring-rose-300/60'
+              }`}
+            >
+              {isStage1 ? '⚡ DOUBLE (2x)' : '💥 RE-DOUBLE (4x)'}
+            </button>
 
-          {/* PASS Button */}
-          <button
-            type="button"
-            disabled={submitting}
-            onClick={() => handleAction('PASS')}
-            className="cursor-pointer py-2.5 px-3 rounded-2xl font-bold text-sm uppercase tracking-wider bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-600/80 shadow-md transition-all disabled:opacity-50"
-          >
-            {isStage1 ? 'PASS (1x)' : 'PASS (Keep 2x)'}
-          </button>
-        </div>
+            {/* PASS Button */}
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => handleAction('PASS')}
+              className="cursor-pointer py-2.5 px-3 rounded-2xl font-bold text-sm uppercase tracking-wider bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-600/80 shadow-md transition-all disabled:opacity-50"
+            >
+              {isStage1 ? 'PASS (1x)' : 'PASS (Keep 2x)'}
+            </button>
+          </div>
+        )
       ) : (
-        <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-2xl bg-slate-900/80 border border-slate-800 text-slate-300 text-xs">
+        <div className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl bg-slate-900/80 border border-slate-800 text-slate-300 text-xs">
           <ShieldAlert className="w-4 h-4 text-amber-400 animate-spin" />
           <span>
             {isStage1
-              ? 'Waiting for Defending Team partner(s) to decide...'
-              : 'Waiting for Bidding Team partner(s) to decide...'}
+              ? 'Waiting for Defending Team to decide on Double...'
+              : 'Waiting for Bidding Team to decide on Re-Double...'}
           </span>
         </div>
       )}

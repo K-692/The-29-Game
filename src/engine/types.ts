@@ -175,7 +175,10 @@ export interface GameState {
   doubleStatus: DoubleStatus;
   doubledBy: PlayerPosition | null;
   redoubledBy: PlayerPosition | null;
+  doubleVotes?: Partial<Record<PlayerPosition, 'DOUBLE' | 'PASS'>>;
+  redoubleVotes?: Partial<Record<PlayerPosition, 'REDOUBLE' | 'PASS'>>;
   specialAnnouncement: SpecialTrumpAnnouncement | null;
+  _pendingSecondDeal?: Record<PlayerPosition, string[]>;
   
   // Individual card points collected in current deal
   playerPoints: Record<PlayerPosition, number>;

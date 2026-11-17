@@ -66,7 +66,7 @@ describe('Double & Re-Double Engine Mechanics', () => {
     expect(doubleRes.state.doubledBy).toBe(0);
   });
 
-  it('should transition to TRICK_PLAY (1x) when defending team PASSES', () => {
+  it('should transition to TRICK_PLAY (1x) when defending team PASSES (both defenders pass)', () => {
     let state = createInitialGame('PASS_TEST', dummyPlayers);
     state = startNewRound(state, 0);
 
@@ -76,12 +76,20 @@ describe('Double & Re-Double Engine Mechanics', () => {
     state = applyBid(state, 0, 'PASS').state;
 
     state = applyTrumpSelection(state, 1, 'HEARTS').state;
+    expect(state.phase).toBe('DOUBLE_DECISION');
 
-    const passRes = applyDoubleDecision(state, 2, 'PASS'); // P2 is defending team
-    expect(passRes.success).toBe(true);
-    expect(passRes.state.phase).toBe('TRICK_PLAY');
-    expect(passRes.state.dealMultiplier).toBe(1);
-    expect(passRes.state.doubleStatus).toBe('NONE');
+    // Defender 1 (P2) passes: phase remains DOUBLE_DECISION waiting for teammate
+    const pass1 = applyDoubleDecision(state, 2, 'PASS');
+    expect(pass1.success).toBe(true);
+    expect(pass1.state.phase).toBe('DOUBLE_DECISION');
+
+    // Defender 2 (P0) passes: BOTH have passed -> transitions to TRICK_PLAY and deals cards
+    const pass2 = applyDoubleDecision(pass1.state, 0, 'PASS');
+    expect(pass2.success).toBe(true);
+    expect(pass2.state.phase).toBe('TRICK_PLAY');
+    expect(pass2.state.dealMultiplier).toBe(1);
+    expect(pass2.state.doubleStatus).toBe('NONE');
+    expect(pass2.state.hands[0].length).toBe(8);
   });
 
   it('should allow bidding team to RE-DOUBLE and advance to TRICK_PLAY (4x)', () => {
@@ -122,12 +130,20 @@ describe('Double & Re-Double Engine Mechanics', () => {
 
     state = applyTrumpSelection(state, 1, 'DIAMONDS').state;
     state = applyDoubleDecision(state, 2, 'DOUBLE').state;
+    expect(state.phase).toBe('REDOUBLE_DECISION');
 
-    const passRes = applyRedoubleDecision(state, 1, 'PASS');
-    expect(passRes.success).toBe(true);
-    expect(passRes.state.phase).toBe('TRICK_PLAY');
-    expect(passRes.state.dealMultiplier).toBe(2);
-    expect(passRes.state.doubleStatus).toBe('DOUBLED');
+    // Bidder 1 (P1) passes: phase remains REDOUBLE_DECISION waiting for teammate P3
+    const pass1 = applyRedoubleDecision(state, 1, 'PASS');
+    expect(pass1.success).toBe(true);
+    expect(pass1.state.phase).toBe('REDOUBLE_DECISION');
+
+    // Bidder 2 (P3) passes: BOTH have passed -> transitions to TRICK_PLAY at 2x
+    const pass2 = applyRedoubleDecision(pass1.state, 3, 'PASS');
+    expect(pass2.success).toBe(true);
+    expect(pass2.state.phase).toBe('TRICK_PLAY');
+    expect(pass2.state.dealMultiplier).toBe(2);
+    expect(pass2.state.doubleStatus).toBe('DOUBLED');
+    expect(pass2.state.hands[0].length).toBe(8);
   });
 });
 
@@ -330,6 +346,7 @@ describe('King-Queen Pair / Royals Logic', () => {
 
     state = applyTrumpSelection(state, 1, 'HEARTS').state;
     state = applyDoubleDecision(state, 0, 'PASS').state;
+    state = applyDoubleDecision(state, 2, 'PASS').state;
     expect(state.phase).toBe('TRICK_PLAY');
 
     // Manually place K & Q of Hearts in P1's hand for testing

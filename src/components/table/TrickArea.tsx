@@ -96,10 +96,10 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
       const key = `${pc.cardId}_${pc.playerIndex}`;
       if (!playedCardKeysRef.current.has(key)) {
         playedCardKeysRef.current.add(key);
-        soundManager.playCardPlace();
+        soundManager.playEventOnce(`card_placed_${currentTrickKey}_${key}`, 'place');
       }
     });
-  }, [playedCards]);
+  }, [playedCards, currentTrickKey]);
 
   // Check if a 4-card trick is present
   const isFourCards = playedCards.length === 4;
@@ -180,7 +180,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
     timer1Ref.current = setTimeout(() => {
       // Step 2: Trigger collection animation where all 4 cards move together towards winning player
       setIsCollecting(true);
-      soundManager.playTrickShove();
+      soundManager.playEventOnce(`trick_collect_${currentTrickKey}`, 'shove');
       onTrickWinnerDetermined?.(winnerPos);
     }, 750);
 

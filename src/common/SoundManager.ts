@@ -187,15 +187,34 @@ class SoundManager {
    * Idempotent playback: ensures duplicate network packets or re-renders
    * do not play the same event sound repeatedly.
    */
-  public playEventOnce(eventId: string, type: SoundEffectType) {
+  public playEventOnce(eventId: string, action: SoundEffectType | (() => void)) {
     if (this.playedEvents.has(eventId)) return;
     this.playedEvents.add(eventId);
     // Keep set bounded
-    if (this.playedEvents.size > 100) {
+    if (this.playedEvents.size > 200) {
       const first = this.playedEvents.values().next().value;
       if (first) this.playedEvents.delete(first);
     }
-    this.play(type);
+    if (typeof action === 'function') {
+      action();
+    } else {
+      this.play(action);
+    }
+  }
+
+  /** Stop all active sounds */
+  public stopAll() {
+    this.audioElements.forEach((audio) => {
+      try {
+        audio.pause();
+        audio.currentTime = 0;
+      } catch {}
+    });
+  }
+
+  /** Reset event deduplication tracker */
+  public clearEventHistory() {
+    this.playedEvents.clear();
   }
 
   // --- Specific Gameplay Audio Methods ---
@@ -319,6 +338,70 @@ class SoundManager {
 
   public playTrumpReveal() {
     this.playTrump();
+  }
+
+  /** Unique dramatic riser chime when contract is DOUBLED */
+  public playDouble() {
+    this.initContext();
+    if (this.isMuted || this.volume <= 0 || !this.ctx) return;
+    try {
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      const now = this.ctx.currentTime;
+      const freqs = [293.66, 440.0, 587.33]; // D4, A4, D5 rising chord
+      freqs.forEach((freq, idx) => {
+        const osc = this.ctx!.createOscillator();
+        const gain = this.ctx!.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+
+        const filter = this.ctx!.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1200, now);
+        filter.frequency.exponentialRampToValueAtTime(600, now + 0.45);
+
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(this.volume * 0.28, now + 0.04 + idx * 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx!.destination);
+        osc.start(now + idx * 0.05);
+        osc.stop(now + 0.5);
+      });
+    } catch {}
+  }
+
+  /** Unique explosive power fanfare when contract is RE-DOUBLED (4x) */
+  public playRedouble() {
+    this.initContext();
+    if (this.isMuted || this.volume <= 0 || !this.ctx) return;
+    try {
+      if (this.ctx.state === 'suspended') this.ctx.resume();
+      const now = this.ctx.currentTime;
+      const freqs = [349.23, 523.25, 698.46, 880.0]; // F4, C5, F5, A5 fanfare
+      freqs.forEach((freq, idx) => {
+        const osc = this.ctx!.createOscillator();
+        const gain = this.ctx!.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+
+        const filter = this.ctx!.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1600, now);
+        filter.frequency.exponentialRampToValueAtTime(700, now + 0.6);
+
+        gain.gain.setValueAtTime(0, now);
+        gain.gain.linearRampToValueAtTime(this.volume * 0.32, now + 0.05 + idx * 0.06);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.65);
+
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx!.destination);
+        osc.start(now + idx * 0.06);
+        osc.stop(now + 0.65);
+      });
+    } catch {}
   }
 
   /** Unique trick win sound effect */
