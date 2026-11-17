@@ -346,12 +346,8 @@ export const GameTable: React.FC<GameTableProps> = ({
 
   // Determine if turn countdown timer should be shown
   // Computer players answer within ~1s, so a 15s countdown during their turn would only mislead.
-  const showTurnTimer = Boolean(
-    (publicState.phase === 'BIDDING' ||
-      publicState.phase === 'TRUMP_SELECTION' ||
-      publicState.phase === 'TRICK_PLAY') &&
-    !activePlayer?.isCpu
-  );
+  // Hidden while the full trick is being collected (nobody has a turn then).
+  const showTurnTimer = Boolean(isTurnPhase && !activePlayer?.isCpu);
 
   return (
     <div className="fixed inset-0 w-screen h-screen overflow-hidden flex flex-col select-none bg-felt-800">
