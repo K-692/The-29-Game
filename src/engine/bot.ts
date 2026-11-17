@@ -320,3 +320,68 @@ export const checkBotPairDeclaration = (
   return canDeclare;
 };
 
+/**
+ * Determines whether a Defending bot should DOUBLE the contract.
+ * Heuristic: Evaluates defensive high-point cards and high contract bids.
+ */
+export const getBotDoubleDecision = (
+  handCardIds: string[],
+  contractBid: number
+): boolean => {
+  let totalPoints = 0;
+  let jackCount = 0;
+  let nineCount = 0;
+
+  for (const id of handCardIds) {
+    const card = CARD_MANIFEST[id];
+    if (!card) continue;
+    totalPoints += card.points;
+    if (card.rank === 'J') jackCount++;
+    if (card.rank === '9') nineCount++;
+  }
+
+  // Double if opponents bid very aggressively (>=24) and bot has at least 3 points,
+  // or if bid >= 21 and bot holds 2+ high honor cards (Jacks/9s) or >= 6 points.
+  if (contractBid >= 24 && totalPoints >= 3) {
+    return true;
+  }
+  if (contractBid >= 21 && (jackCount + nineCount >= 2 || totalPoints >= 6)) {
+    return true;
+  }
+
+  return false;
+};
+
+/**
+ * Determines whether a Bidding bot should RE-DOUBLE the contract.
+ * Heuristic: Evaluates offensive power and low/confident bids.
+ */
+export const getBotRedoubleDecision = (
+  handCardIds: string[],
+  contractBid: number,
+  trumpSuit: Suit | null
+): boolean => {
+  let totalPoints = 0;
+  let trumpHonorCount = 0;
+
+  for (const id of handCardIds) {
+    const card = CARD_MANIFEST[id];
+    if (!card) continue;
+    totalPoints += card.points;
+    if (trumpSuit && card.suit === trumpSuit && (card.rank === 'J' || card.rank === '9' || card.rank === 'A')) {
+      trumpHonorCount++;
+    }
+  }
+
+  // Re-double if bidder holds multiple trump honors or very high overall card points (>=8)
+  if (trumpHonorCount >= 2 || totalPoints >= 8) {
+    return true;
+  }
+  // If bid was a modest 16-17 and hand has >= 6 points, confident to re-double
+  if (contractBid <= 17 && totalPoints >= 6) {
+    return true;
+  }
+
+  return false;
+};
+

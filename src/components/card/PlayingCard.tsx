@@ -10,7 +10,7 @@ export interface PlayingCardProps {
   disabled?: boolean;
   onClick?: () => void;
   onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void;
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'xs' | 'sm' | 'table' | 'md' | 'lg' | 'xl';
   className?: string;
   style?: React.CSSProperties;
   animateThrow?: boolean;
@@ -22,6 +22,7 @@ export interface PlayingCardProps {
 const SIZE_CLASSES = {
   xs: 'w-[3rem] h-[4.2rem] aspect-[5/7]',
   sm: 'w-[4rem] h-[5.6rem] sm:w-[4.5rem] sm:h-[6.3rem] md:w-[5rem] md:h-[7rem] aspect-[5/7]',
+  table: 'w-[4.5rem] h-[6.3rem] sm:w-[5.25rem] sm:h-[7.35rem] md:w-[6rem] md:h-[8.4rem] aspect-[5/7]',
   md: 'w-[5.5rem] h-[7.7rem] sm:w-[6.5rem] sm:h-[9.1rem] md:w-[7.5rem] md:h-[10.5rem] lg:w-32 lg:h-[11.2rem] aspect-[5/7]',
   lg: 'w-[6.5rem] h-[9.1rem] sm:w-[7.5rem] sm:h-[10.5rem] md:w-[8.5rem] md:h-[11.9rem] aspect-[5/7]',
   xl: 'w-32 h-[11.2rem] sm:w-[9.5rem] sm:h-[13.3rem] aspect-[5/7]',
@@ -31,6 +32,7 @@ const SIZE_CLASSES = {
 const CORNER_RADIUS: Record<NonNullable<PlayingCardProps['size']>, string> = {
   xs: 'rounded-xs sm:rounded-sm',
   sm: 'rounded-sm sm:rounded-md',
+  table: 'rounded-sm sm:rounded-md',
   md: 'rounded-md sm:rounded-lg',
   lg: 'rounded-lg',
   xl: 'rounded-xl',

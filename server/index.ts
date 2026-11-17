@@ -253,7 +253,31 @@ io.on('connection', (socket: Socket) => {
     }
   );
 
-  // 12. Socket disconnect
+  // 12. Double decision (Defending team)
+  socket.on(
+    'double_decision',
+    (
+      data: { roomCode: string; sessionToken: string; decision: 'DOUBLE' | 'PASS' },
+      callback?: (res: { success: boolean; error?: string }) => void
+    ) => {
+      const res = roomManager.handleDoubleDecision(data.roomCode, data.sessionToken, data.decision);
+      if (callback) callback(res);
+    }
+  );
+
+  // 13. Re-Double decision (Bidding team)
+  socket.on(
+    'redouble_decision',
+    (
+      data: { roomCode: string; sessionToken: string; decision: 'REDOUBLE' | 'PASS' },
+      callback?: (res: { success: boolean; error?: string }) => void
+    ) => {
+      const res = roomManager.handleRedoubleDecision(data.roomCode, data.sessionToken, data.decision);
+      if (callback) callback(res);
+    }
+  );
+
+  // 14. Socket disconnect
   socket.on('disconnect', () => {
     roomManager.handleDisconnect(socket.id);
   });

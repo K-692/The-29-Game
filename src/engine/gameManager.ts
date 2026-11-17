@@ -2,7 +2,7 @@ import { CARD_MANIFEST, Suit } from '../assets/cardManifest';
 import { evaluateBiddingState, isLegalBid } from './bidding';
 import { getBiddingOrder, getLeftOfDealer, hasPointCard } from './biddingOrder';
 import { create29Deck, deal29Deck, shuffleDeck, sortHand } from './deck';
-import { canDeclarePair, evaluateRoundScore, calculatePlayerPoints } from './scoring';
+import { canDeclarePair, detectKingQueenPair, evaluateRoundScore, calculatePlayerPoints } from './scoring';
 import { evaluateTrickWinner, isLegalCardPlay } from './tricks';
 import { 
   BidEntry,
@@ -63,6 +63,12 @@ export const createInitialGame = (
     completedTricks: [],
     lastCompletedTrick: null,
     pairDeclaration: null,
+    dealMultiplier: 1,
+    doubleStatus: 'NONE',
+    doubledBy: null,
+    redoubledBy: null,
+    specialAnnouncement: null,
+    adjustedTarget: null,
     playerPoints: { 0: 0, 1: 0, 2: 0, 3: 0 },
     roundNumber: 1,
     matchScore: { team0: 0, team1: 0 },
@@ -149,6 +155,12 @@ export const startNewRound = (state: GameState, nextDealer?: PlayerPosition): Ga
     completedTricks: [],
     lastCompletedTrick: null,
     pairDeclaration: null,
+    dealMultiplier: 1,
+    doubleStatus: 'NONE',
+    doubledBy: null,
+    redoubledBy: null,
+    specialAnnouncement: null,
+    adjustedTarget: null,
     playerPoints: { 0: 0, 1: 0, 2: 0, 3: 0 },
     version: state.version + 1,
     lastActionTimestamp: Date.now(),
@@ -275,12 +287,19 @@ export const applyTrumpSelection = (
   let trumpMode: TrumpMode = 'suit';
   let trumpSuit: Suit | null = null;
   let seventhCard: SeventhCardInfo | null = null;
+  let phase: GamePhase = 'DOUBLE_DECISION';
+  let specialAnnouncement: GameState['specialAnnouncement'] = null;
   const fullHands: Record<PlayerPosition, string[]> = { 0: [], 1: [], 2: [], 3: [] };
 
   if (choice === 'NO_TRUMP') {
     trumpMode = 'no-trump';
     trumpSuit = null;
     seventhCard = null;
+    phase = 'TRUMP_ANNOUNCEMENT';
+    specialAnnouncement = {
+      type: 'NO_TRUMP',
+      expiresAt: Date.now() + 1000,
+    };
     for (let p = 0; p < 4; p++) {
       const pos = p as PlayerPosition;
       fullHands[pos] = sortHand([...state.hands[pos], ...(pending[pos] || [])]);
@@ -296,6 +315,11 @@ export const applyTrumpSelection = (
       isRevealed: false,
     };
     trumpSuit = CARD_MANIFEST[seventhCardId]?.suit || 'SPADES';
+    phase = 'TRUMP_ANNOUNCEMENT';
+    specialAnnouncement = {
+      type: 'SEVENTH_CARD',
+      expiresAt: Date.now() + 1000,
+    };
 
     // Winning bidder gets the other 3 cards added to their 4 cards (total 7 cards in hand)
     const otherThree = bidderPending.filter((id) => id !== seventhCardId);
@@ -313,6 +337,8 @@ export const applyTrumpSelection = (
     trumpMode = 'suit';
     trumpSuit = choice as Suit;
     seventhCard = null;
+    phase = 'DOUBLE_DECISION';
+    specialAnnouncement = null;
     for (let p = 0; p < 4; p++) {
       const pos = p as PlayerPosition;
       fullHands[pos] = sortHand([...state.hands[pos], ...(pending[pos] || [])]);
@@ -321,17 +347,23 @@ export const applyTrumpSelection = (
 
   const newState = {
     ...state,
-    phase: 'TRICK_PLAY' as GamePhase,
+    phase,
     trumpMode,
     trumpSuit,
     isTrumpRevealed: false,
     seventhCard,
+    specialAnnouncement,
     hands: fullHands,
     currentTrickNumber: 1,
     currentTrickLead: firstTrickLead,
     currentTurn: firstTrickLead,
     currentTrickCards: [],
     completedTricks: [],
+    dealMultiplier: 1 as const,
+    doubleStatus: 'NONE' as const,
+    doubledBy: null,
+    redoubledBy: null,
+    adjustedTarget: null,
     version: state.version + 1,
     lastActionTimestamp: Date.now(),
   };
@@ -345,8 +377,117 @@ export const applyTrumpSelection = (
 };
 
 /**
+ * Completes the 1-second Joker/7th-card trump announcement and transitions to DOUBLE_DECISION.
+ */
+export const applyTrumpAnnouncementComplete = (state: GameState): GameState => {
+  if (state.phase !== 'TRUMP_ANNOUNCEMENT') {
+    return state;
+  }
+  return {
+    ...state,
+    phase: 'DOUBLE_DECISION',
+    specialAnnouncement: null,
+    version: state.version + 1,
+    lastActionTimestamp: Date.now(),
+  };
+};
+
+/**
+ * Handles defending team's Double decision (DOUBLE or PASS) with 10s timer.
+ */
+export const applyDoubleDecision = (
+  state: GameState,
+  playerIndex: PlayerPosition,
+  decision: 'DOUBLE' | 'PASS'
+): { success: boolean; state: GameState; error?: string } => {
+  if (state.phase !== 'DOUBLE_DECISION') {
+    return { success: false, state, error: 'Not currently in Double decision phase' };
+  }
+
+  const biddingTeam: Team = (state.highestBidder === 0 || state.highestBidder === 2) ? 0 : 1;
+  const playerTeam: Team = (playerIndex === 0 || playerIndex === 2) ? 0 : 1;
+  if (playerTeam === biddingTeam) {
+    return { success: false, state, error: 'Only the defending team can make the Double decision' };
+  }
+
+  if (decision === 'PASS') {
+    return {
+      success: true,
+      state: {
+        ...state,
+        phase: 'TRICK_PLAY',
+        doubleStatus: 'NONE',
+        dealMultiplier: 1,
+        version: state.version + 1,
+        lastActionTimestamp: Date.now(),
+      },
+    };
+  }
+
+  return {
+    success: true,
+    state: {
+      ...state,
+      phase: 'REDOUBLE_DECISION',
+      doubleStatus: 'DOUBLED',
+      dealMultiplier: 2,
+      doubledBy: playerIndex,
+      version: state.version + 1,
+      lastActionTimestamp: Date.now(),
+    },
+  };
+};
+
+/**
+ * Handles bidding team's Re-Double decision (REDOUBLE or PASS) with 10s timer.
+ */
+export const applyRedoubleDecision = (
+  state: GameState,
+  playerIndex: PlayerPosition,
+  decision: 'REDOUBLE' | 'PASS'
+): { success: boolean; state: GameState; error?: string } => {
+  if (state.phase !== 'REDOUBLE_DECISION') {
+    return { success: false, state, error: 'Not currently in Re-Double decision phase' };
+  }
+
+  const biddingTeam: Team = (state.highestBidder === 0 || state.highestBidder === 2) ? 0 : 1;
+  const playerTeam: Team = (playerIndex === 0 || playerIndex === 2) ? 0 : 1;
+  if (playerTeam !== biddingTeam) {
+    return { success: false, state, error: 'Only the bidding team can make the Re-Double decision' };
+  }
+
+  if (decision === 'PASS') {
+    return {
+      success: true,
+      state: {
+        ...state,
+        phase: 'TRICK_PLAY',
+        doubleStatus: 'DOUBLED',
+        dealMultiplier: 2,
+        version: state.version + 1,
+        lastActionTimestamp: Date.now(),
+      },
+    };
+  }
+
+  return {
+    success: true,
+    state: {
+      ...state,
+      phase: 'TRICK_PLAY',
+      doubleStatus: 'REDOUBLED',
+      dealMultiplier: 4,
+      redoubledBy: playerIndex,
+      version: state.version + 1,
+      lastActionTimestamp: Date.now(),
+    },
+  };
+};
+
+/**
  * Handles requesting/revealing the trump suit during trick play.
  * For 7th Card mode, reveals the card and returns it to the winning bidder's hand.
+ * Evaluates King-Queen Pair / Royals upon legal reveal.
  */
 export const applyTrumpReveal = (
   state: GameState,
@@ -394,6 +535,16 @@ export const applyTrumpReveal = (
     };
   }
 
+  // Check for King-Queen Pair / Royals upon legal trump reveal
+  const detectedPair = detectKingQueenPair(
+    updatedHands,
+    state.trumpSuit,
+    true,
+    state.highestBid,
+    state.highestBidder,
+    state.currentTrickNumber
+  );
+
   return {
     success: true,
     state: {
@@ -403,6 +554,8 @@ export const applyTrumpReveal = (
       isTrumpRevealed: true,
       trumpRevealedBy: playerIndex,
       trumpRevealedAtTrick: state.currentTrickNumber,
+      pairDeclaration: detectedPair || state.pairDeclaration,
+      adjustedTarget: detectedPair ? detectedPair.adjustedTarget : state.adjustedTarget,
       version: state.version + 1,
       lastActionTimestamp: Date.now(),
     },
@@ -517,7 +670,8 @@ export const completeTrickTransition = (
       state.highestBid,
       state.rules,
       state.matchScore,
-      state.pairDeclaration
+      state.pairDeclaration,
+      state.dealMultiplier || 1
     );
 
     const roundSummary: RoundSummary = {
@@ -526,6 +680,8 @@ export const completeTrickTransition = (
       biddingTeam: (state.highestBidder === 0 || state.highestBidder === 2) ? 0 : 1,
       contractBid: state.highestBid,
       adjustedTarget: roundResult.adjustedTarget,
+      dealMultiplier: state.dealMultiplier || 1,
+      doubleStatus: state.doubleStatus || 'NONE',
       trumpSuit: state.trumpSuit || 'SPADES',
       trumpRevealedBy: state.trumpRevealedBy || undefined,
       trumpRevealedAtTrick: state.trumpRevealedAtTrick || undefined,
@@ -602,6 +758,10 @@ export const applyPairDeclaration = (
   const isBiddingTeam = playerTeam === biddingTeam;
   const adjustment = isBiddingTeam ? -state.rules.pairRoyalAdjustment : state.rules.pairRoyalAdjustment;
 
+  const adjustedTarget = isBiddingTeam 
+    ? Math.max(16, state.highestBid - state.rules.pairRoyalAdjustment) 
+    : Math.min(29, state.highestBid + state.rules.pairRoyalAdjustment);
+
   return {
     success: true,
     state: {
@@ -610,9 +770,15 @@ export const applyPairDeclaration = (
         playerIndex,
         team: playerTeam,
         suit: state.trumpSuit!,
+        originalBid: state.highestBid,
+        adjustedTarget,
         adjustment,
         declaredAtTrick: state.currentTrickNumber,
+        kingCardId: `K_${state.trumpSuit}`,
+        queenCardId: `Q_${state.trumpSuit}`,
+        announced: true,
       },
+      adjustedTarget,
       version: state.version + 1,
       lastActionTimestamp: Date.now(),
     },

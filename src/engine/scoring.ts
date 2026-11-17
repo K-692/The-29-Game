@@ -24,6 +24,61 @@ export const hasRoyalsPair = (handCardIds: string[], trumpSuit: Suit): boolean =
 };
 
 /**
+ * Detects King-Queen Pair in any player's hand after trump has been revealed.
+ * Applies strictly when original contract bid >= 19 and trump is a normal suit (not Joker).
+ * Bidding team pair: reduces target by 4 (min 16).
+ * Defending team pair: increases target by 4 (max 29).
+ */
+export const detectKingQueenPair = (
+  hands: Record<PlayerPosition, string[]>,
+  trumpSuit: Suit | null,
+  isTrumpRevealed: boolean,
+  contractBid: number,
+  highestBidder: PlayerPosition | null,
+  currentTrickNumber: number = 1
+): PairDeclaration | null => {
+  if (!isTrumpRevealed || !trumpSuit || contractBid < 19 || highestBidder === null) {
+    return null;
+  }
+
+  const kingId = `K_${trumpSuit}`;
+  const queenId = `Q_${trumpSuit}`;
+  const biddingTeam: Team = (highestBidder === 0 || highestBidder === 2) ? 0 : 1;
+
+  for (let p = 0; p < 4; p++) {
+    const pos = p as PlayerPosition;
+    const hand = hands[pos] || [];
+    if (hand.includes(kingId) && hand.includes(queenId)) {
+      const playerTeam: Team = (pos === 0 || pos === 2) ? 0 : 1;
+      let adjustedTarget: number;
+      let adjustment: number;
+      if (playerTeam === biddingTeam) {
+        // Bidding team pair: reduce target by 4, min 16
+        adjustedTarget = Math.max(16, contractBid - 4);
+        adjustment = -4;
+      } else {
+        // Defending team pair: increase target by 4, max 29
+        adjustedTarget = Math.min(29, contractBid + 4);
+        adjustment = 4;
+      }
+      return {
+        playerIndex: pos,
+        team: playerTeam,
+        suit: trumpSuit,
+        originalBid: contractBid,
+        adjustedTarget,
+        adjustment,
+        declaredAtTrick: currentTrickNumber,
+        kingCardId: kingId,
+        queenCardId: queenId,
+        announced: false,
+      };
+    }
+  }
+  return null;
+};
+
+/**
  * Validates whether a player can legally declare a Pair/Royals
  */
 export const canDeclarePair = (
@@ -79,7 +134,8 @@ export const evaluateRoundScore = (
   contractBid: number,
   rules: GameRulesConfig,
   currentMatchScore: { team0: number; team1: number },
-  pairDeclaration: PairDeclaration | null
+  pairDeclaration: PairDeclaration | null,
+  dealMultiplier: 1 | 2 | 4 = 1
 ): RoundScoringResult => {
   const biddingTeam: Team = (bidder === 0 || bidder === 2) ? 0 : 1;
   const defendingTeam: Team = biddingTeam === 0 ? 1 : 0;
@@ -102,22 +158,15 @@ export const evaluateRoundScore = (
   // Apply Pair / Royals adjustment to contract target
   let adjustedTarget = contractBid;
   if (pairDeclaration) {
-    if (pairDeclaration.team === biddingTeam) {
-      // Bidding team declaration reduces target
-      adjustedTarget = Math.max(12, contractBid - rules.pairRoyalAdjustment);
-    } else {
-      // Defending team declaration increases target
-      adjustedTarget = Math.min(29, contractBid + rules.pairRoyalAdjustment);
-    }
+    adjustedTarget = pairDeclaration.adjustedTarget;
   }
 
   const biddingTeamPoints = biddingTeam === 0 ? team0CardPoints : team1CardPoints;
   const biddingTeamWon = biddingTeamPoints >= adjustedTarget;
 
-  // Calculate game points magnitude
-  // Standard Indian 29: Bid >= 21 awards/penalizes 2 game points if doubleScoreForHighBid is on
-  const isHighBid = rules.doubleScoreForHighBid && contractBid >= 21;
-  const pointMagnitude = isHighBid ? 2 : 1;
+  // Calculate game points magnitude based on Double / Re-Double multiplier:
+  // Normal = 1, Double = 2, Re-Double = 4 (Section 2.E)
+  const pointMagnitude = dealMultiplier;
 
   const gamePointsDelta = { team0: 0, team1: 0 };
 

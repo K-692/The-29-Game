@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, BookOpen, Crown, Flame, Lock, Trophy, Award, Layers } from 'lucide-react';
+import { X, BookOpen, Crown, Flame, Lock, Trophy, Award, Layers, Zap } from 'lucide-react';
 
 interface RulesDrawerProps {
   isOpen: boolean;
@@ -19,7 +19,7 @@ export const RulesDrawer: React.FC<RulesDrawerProps> = ({ isOpen, onClose }) => 
         </div>
         <button
           onClick={onClose}
-          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors"
+          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 rounded-xl transition-colors cursor-pointer"
           title="Close Rules"
         >
           <X className="w-5 h-5" />
@@ -75,95 +75,94 @@ export const RulesDrawer: React.FC<RulesDrawerProps> = ({ isOpen, onClose }) => 
           </p>
         </section>
 
-        {/* 2. Dealing Sequence & First Bidder Eligibility */}
+        {/* 2. Dealer & 4-Card Initial Deal */}
         <section className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
           <h3 className="font-bold text-amber-600 text-sm flex items-center gap-1.5">
             <Layers className="w-4 h-4 text-amber-500" /> 2. Dealer & 4-Card Initial Deal
           </h3>
           <ul className="list-disc pl-4 space-y-1 text-slate-600 leading-relaxed">
-            <li><strong>Random Initial Dealer:</strong> The dealer for the first round is selected at random (Seats 1–4). The dealer rotates clockwise each subsequent deal.</li>
+            <li><strong>Dealer Rotation:</strong> Initial dealer is randomly chosen; dealer advances clockwise each subsequent deal.</li>
             <li><strong>Initial Deal:</strong> Exactly 4 cards are dealt to each player before bidding starts.</li>
-            <li><strong>First Bidder:</strong> The player sitting immediately to the left of the dealer opens bidding.</li>
-            <li><strong>Point-Card Eligibility:</strong> The first bidder must hold at least one point-valued card (J, 9, A, or 10). If they hold 0 point cards, all cards are returned, reshuffled, and redealt.</li>
+            <li><strong>First Bidder:</strong> The player sitting to the left of the dealer opens the bidding.</li>
+            <li><strong>Point-Card Eligibility:</strong> First bidder must hold at least one point card (J, 9, A, 10). Reshuffled and redealt if void of points.</li>
           </ul>
         </section>
 
-        {/* 3. Single-Round Bidding */}
+        {/* 3. Bidding */}
         <section className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
           <h3 className="font-bold text-amber-600 text-sm flex items-center gap-1.5">
-            <Flame className="w-4 h-4 text-amber-500" /> 3. One-Round Bidding (16 to 28)
+            <Flame className="w-4 h-4 text-amber-500" /> 3. Single-Round Bidding (16 to 28)
           </h3>
           <ul className="list-disc pl-4 space-y-1 text-slate-600 leading-relaxed">
-            <li><strong>Strictly One Round:</strong> Exactly 4 turns in clockwise order around the table. Each player gets exactly one turn to bid or pass.</li>
-            <li><strong>Direct-Click Bid Grid:</strong> Choose any legal bid value from 16 to 28 with a single tap.</li>
-            <li><strong>Opening Bid:</strong> Minimum opening bid is 16. Any subsequent bid must exceed the current highest bid.</li>
-            <li><strong>Forced Dealer Bid:</strong> If the first 3 players pass, the dealer is forced to place the opening bid of 16.</li>
-            <li><strong>30s Turn Timers:</strong> Every player action (bidding, trump selection, and card play) has a uniform 30-second timer.</li>
+            <li><strong>Strictly One Round:</strong> Exactly 4 turns in clockwise order around the table. Each player bids or passes once.</li>
+            <li><strong>Opening Bid:</strong> Minimum bid is 16. Each bid must exceed the prior highest bid.</li>
+            <li><strong>Forced Dealer Bid:</strong> If first 3 players pass, the dealer is forced to open at 16.</li>
           </ul>
         </section>
 
-        {/* 4. Six Trump Options & 7th Card Mechanics */}
+        {/* 4. Trump Selection & Announcements */}
         <section className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
           <h3 className="font-bold text-amber-600 text-sm flex items-center gap-1.5">
-            <Lock className="w-4 h-4 text-amber-500" /> 4. Six Trump Options & 2nd Deal
+            <Lock className="w-4 h-4 text-amber-500" /> 4. Six Trump Options & Announcements
           </h3>
-          <p className="text-slate-600 leading-relaxed">
-            The winning bidder chooses from 6 trump options:
-          </p>
           <ul className="list-disc pl-4 space-y-1 text-slate-600">
             <li><strong>Suits (Hearts, Spades, Clubs, Diamonds):</strong> Traditional secret trump suit concealed face-down.</li>
-            <li><strong>Joker / No Trump:</strong> No trump suit exists. The highest card of the lead suit always wins the trick; off-suit cards cannot cut.</li>
-            <li><strong>7th Card Trump:</strong> During the second deal, the bidder&apos;s 7th card is placed face-down on the table as a reserved trump card. When trump is revealed during trick play, the card flips over, its suit becomes trump, and it returns to the bidder&apos;s hand.</li>
-          </ul>
-          <p className="text-[11px] text-slate-500 pt-1">
-            After trump selection, the remaining 4 cards are dealt to all players (8 cards total per player) before trick play begins.
-          </p>
-        </section>
-
-        {/* 5. Trick Play & Following Suit */}
-        <section className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
-          <h3 className="font-bold text-amber-600 text-sm flex items-center gap-1.5">
-            <Crown className="w-4 h-4 text-amber-500" /> 5. Trick Play & Trump Revelation
-          </h3>
-          <ul className="list-disc pl-4 space-y-1 text-slate-600">
-            <li><strong>Must Follow Suit:</strong> You MUST play a card of the led suit if you hold one.</li>
-            <li><strong>Trump Revelation:</strong> If unable to follow suit, you may request to reveal the secret Trump!</li>
-            <li>Once revealed, players unable to follow suit may play trump cards to cut the trick.</li>
-            <li><strong>Individual Player Points:</strong> Trick points are tracked next to each player&apos;s animal avatar.</li>
-            <li><strong>1-Second Collection:</strong> When a trick finishes, all 4 cards pause for 1 second, then smoothly glide into the winning player&apos;s seat.</li>
+            <li><strong>Joker / No Trump:</strong> No trump suit exists. Highest card of lead suit always wins trick. Announced on table for 1 second.</li>
+            <li><strong>7th Card Trump:</strong> Bidder&apos;s 7th card is set aside face-down as secret trump (announced with card-back visual for 1s). Returns to bidder&apos;s hand when revealed.</li>
           </ul>
         </section>
 
-        {/* 6. Pair / Royals */}
+        {/* 5. Double & Re-Double */}
         <section className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
           <h3 className="font-bold text-amber-600 text-sm flex items-center gap-1.5">
-            <Crown className="w-4 h-4 text-amber-500" /> 6. Pair / Royals (Royals Bonus)
+            <Zap className="w-4 h-4 text-amber-500" /> 5. Double &amp; Re-Double (10s Deadlines)
           </h3>
           <p className="text-slate-600 leading-relaxed">
-            Holding both King (K) and Queen (Q) of the Trump suit allows declaring Pair after trump is revealed:
+            Before trick play begins, partnerships can challenge the contract stakes:
           </p>
           <ul className="list-disc pl-4 space-y-1 text-slate-600">
-            <li><strong>Bidding Team:</strong> Contract target decreases by 4 points (e.g. 17 target becomes 13).</li>
-            <li><strong>Defending Team:</strong> Contract target increases by 4 points (e.g. 17 target becomes 21).</li>
+            <li><strong>Stage 1 (Defending Team):</strong> 10 seconds to select DOUBLE or PASS. If passed or timer expires, normal match (1x).</li>
+            <li><strong>Stage 2 (Bidding Team):</strong> If doubled, bidding team has 10 seconds to select RE-DOUBLE or PASS. If passed, match remains Doubled (2x). If re-doubled, match becomes Re-Doubled (4x).</li>
+            <li><strong>Match Point Multipliers:</strong>
+              <ul className="list-disc pl-4 pt-1 space-y-0.5">
+                <li>Normal: Fulfilled = +1 pt, Failed = -1 pt</li>
+                <li>Doubled: Fulfilled = +2 pts, Failed = -2 pts</li>
+                <li>Re-Doubled: Fulfilled = +4 pts, Failed = -4 pts</li>
+              </ul>
+            </li>
           </ul>
         </section>
 
-        {/* 7. Match Scoring */}
+        {/* 6. King-Queen Pair / Royals */}
         <section className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
           <h3 className="font-bold text-amber-600 text-sm flex items-center gap-1.5">
-            <Trophy className="w-4 h-4 text-amber-500" /> 7. Match Scoring (+6 to Win)
+            <Crown className="w-4 h-4 text-amber-500" /> 6. King-Queen Pair / Royals
           </h3>
           <p className="text-slate-600 leading-relaxed">
-            Fulfilling the contract awards <strong>+1 Game Point</strong> (+2 if bid was 21+).
-            Failing contract deducts <strong>-1 Game Point</strong> (-2 if bid was 21+).
-            The minimal scoreboard tracks Team A and Team B match points. The first team to reach <strong>+6 points</strong> wins the match!
+            Evaluated automatically upon legal trump reveal:
+          </p>
+          <ul className="list-disc pl-4 space-y-1 text-slate-600">
+            <li><strong>Eligibility:</strong> Requires original bid ≥ 19. Both King and Queen of the revealed trump suit must be held in the same player&apos;s hand.</li>
+            <li><strong>Bidding Team Pair:</strong> Target reduced by 4 points (minimum target: 16).</li>
+            <li><strong>Defending Team Pair:</strong> Target increased by 4 points (maximum target: 29).</li>
+            <li><strong>Announcement:</strong> Displays side-by-side King and Queen cards for 2 seconds and updates target on the scoreboard.</li>
+          </ul>
+        </section>
+
+        {/* 7. Match Winning Condition */}
+        <section className="space-y-2 bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80">
+          <h3 className="font-bold text-amber-600 text-sm flex items-center gap-1.5">
+            <Trophy className="w-4 h-4 text-amber-500" /> 7. Match Winning Condition (+6 to Win)
+          </h3>
+          <p className="text-slate-600 leading-relaxed">
+            The first team to reach <strong>+6 match points</strong> wins the match! Negative match points are fully supported.
           </p>
         </section>
       </div>
 
       {/* Footer */}
       <div className="p-3 border-t border-slate-200 text-center text-[11px] text-slate-400 bg-slate-50/80">
-        Live LAN 29 Multiplayer • Non-blocking reference
+        Live LAN 29 Multiplayer • Pure Host-Authoritative Architecture
       </div>
     </div>
   );

@@ -8,6 +8,9 @@ export type GamePhase =
   | 'DEALING_FIRST'
   | 'BIDDING'
   | 'TRUMP_SELECTION'
+  | 'TRUMP_ANNOUNCEMENT'
+  | 'DOUBLE_DECISION'
+  | 'REDOUBLE_DECISION'
   | 'DEALING_SECOND'
   | 'TRICK_PLAY'
   | 'ROUND_ENDED'
@@ -73,8 +76,22 @@ export interface PairDeclaration {
   playerIndex: PlayerPosition;
   team: Team;
   suit: Suit; // Must be trump suit
+  originalBid: number;
+  adjustedTarget: number;
   adjustment: number; // -4 for bidding team, +4 for defending team
   declaredAtTrick: number;
+  kingCardId: string;
+  queenCardId: string;
+  announced?: boolean;
+}
+
+export type DoubleStatus = 'NONE' | 'DOUBLED' | 'REDOUBLED';
+
+export interface SpecialTrumpAnnouncement {
+  type: 'JOKER' | 'NO_TRUMP' | 'SEVENTH_CARD';
+  cardId?: string;
+  revealedAt?: number;
+  expiresAt?: number;
 }
 
 export interface RoundSummary {
@@ -92,6 +109,8 @@ export interface RoundSummary {
   team1WonLastTrick: boolean;
   biddingTeamWon: boolean;
   pairDeclared?: PairDeclaration;
+  dealMultiplier: 1 | 2 | 4;
+  doubleStatus: DoubleStatus;
   gamePointsDelta: { team0: number; team1: number };
   matchScore: { team0: number; team1: number };
 }
@@ -147,8 +166,16 @@ export interface GameState {
   completedTricks: CompletedTrick[];
   lastCompletedTrick?: CompletedTrick | null;
   
-  // Pair declaration
+  // Pair declaration & target adjustments
   pairDeclaration: PairDeclaration | null;
+  adjustedTarget?: number | null;
+
+  // Double / Re-Double & special announcements
+  dealMultiplier: 1 | 2 | 4;
+  doubleStatus: DoubleStatus;
+  doubledBy: PlayerPosition | null;
+  redoubledBy: PlayerPosition | null;
+  specialAnnouncement: SpecialTrumpAnnouncement | null;
   
   // Individual card points collected in current deal
   playerPoints: Record<PlayerPosition, number>;

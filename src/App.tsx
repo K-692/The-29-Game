@@ -264,6 +264,20 @@ export default function App() {
     lanClient.declarePair();
   };
 
+  const handleDoubleDecision = (decision: 'DOUBLE' | 'PASS') => {
+    if (decision === 'DOUBLE') {
+      soundManager.playTrump();
+    }
+    lanClient.submitDoubleDecision(decision);
+  };
+
+  const handleRedoubleDecision = (decision: 'REDOUBLE' | 'PASS') => {
+    if (decision === 'REDOUBLE') {
+      soundManager.playWin();
+    }
+    lanClient.submitRedoubleDecision(decision);
+  };
+
   const handleNextRound = () => {
     soundManager.playDeal();
     lanClient.nextRound();
@@ -314,6 +328,8 @@ export default function App() {
           notification={notification}
           onBid={handleBid}
           onSelectTrump={handleSelectTrump}
+          onDoubleDecision={handleDoubleDecision}
+          onRedoubleDecision={handleRedoubleDecision}
           onRevealTrump={handleRevealTrump}
           onPlayCard={handlePlayCard}
           onDeclarePair={handleDeclarePair}

@@ -7,14 +7,40 @@
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-black.svg?logo=socketdotio)](https://socket.io/)
 [![Express](https://img.shields.io/badge/Express-5.3-green.svg?logo=express)](https://expressjs.com/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-38bdf8.svg?logo=tailwind-css)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Vitest-51%2F51%20Passing-brightgreen.svg?logo=vitest)](https://vitest.dev/)
+[![Tests](https://img.shields.io/badge/Vitest-68%2F68%20Passing-brightgreen.svg?logo=vitest)](https://vitest.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-> A modern, zero-install, real-time **LAN (Local Area Network)** multiplayer implementation of the traditional Indian **29 (Twenty-Nine)** trick-taking card game. Features authentic traditional Indian rules, edge-to-edge full-screen table felt (`table.jpg`), original vector playing-card artwork extracted directly from an EPS collection (`poker-cards-icons-collection/OIUGSZ1.eps`), single-source-of-truth card movement animations (`HAND → IN_FLIGHT → ON_TABLE → COLLECTING → COLLECTED`) with zero snap-back or coordinate jumping, physical playing-card trump indicator at top-right with 3D flip transitions, six-number display cards (`6_HEARTS`, `6_SPADES`, `6_CLUBS`, `6_DIAMONDS`), 3-stage 7th Card reveal sequence, 1000ms full-window epic trump-reveal luminous bloom effect, strictly drag-only card playing (no accidental clicks), strict server-authoritative 30-second turn timers, larger cards with gentle horizontal overlap, bright minimalistic UI with zero "Bidder:" text prefixes, consistent partnership colour schemes (Soft Blue & Soft Coral), animal emoji avatars, bottom-left Krish (You) player seat, fully visible top partner seat, bottom-right individual trick-point counters beside the turn countdown timer, active bidder top-bar synchronization (`🦊 Aarav is bidding`), clean direct-click bidding with authoritative PASS button, card-playing face-up flight animations with idempotent action deduplication, bottom-left Ask to Reveal Trump button with unique request tracking and support for all 6 trump modes, 3-second deal transition with sequential 16-card dealer distribution animation running at the start of **every new deal**, 1-second trick collection animation, floating utility controls (zero reserved navbar height), non-scrollable landing page (`100dvh`), original sound effects (`sound-effects/`), single-round auction with forced dealer opening, six trump options (including Joker / No Trump and 7th Card), first-bidder point-card eligibility redeals, and authentic Indian AI players.
+> A modern, zero-install, real-time **LAN (Local Area Network)** multiplayer implementation of the traditional Indian **29 (Twenty-Nine)** trick-taking card game. Features authentic traditional Indian rules, edge-to-edge full-screen table felt (`table.jpg`), original vector playing-card artwork extracted directly from an EPS collection (`poker-cards-icons-collection/OIUGSZ1.eps`), single-source-of-truth card movement animations (`HAND → IN_FLIGHT → ON_TABLE → COLLECTING → COLLECTED`) with zero snap-back or coordinate jumping, physical playing-card trump indicator at top-right with 3D flip transitions, six-number display cards (`6_HEARTS`, `6_SPADES`, `6_CLUBS`, `6_DIAMONDS`), 3-stage 7th Card reveal sequence, 1000ms full-window epic trump-reveal luminous bloom effect, strictly drag-only card playing (no accidental clicks), strict server-authoritative 30-second turn timers, larger cards with gentle horizontal overlap, bright minimalistic UI with zero "Bidder:" text prefixes, consistent partnership colour schemes (Soft Blue & Soft Coral), animal emoji avatars, bottom-left Krish (You) player seat, fully visible top partner seat, bottom-right individual trick-point counters beside the turn countdown timer, active bidder top-bar synchronization (`🦊 Aarav is bidding`), clean direct-click bidding with authoritative PASS button, card-playing face-up flight animations with idempotent action deduplication, bottom-left Ask to Reveal Trump button with unique request tracking and support for all 6 trump modes, 3-second deal transition with sequential 16-card dealer distribution animation running at the start of **every new deal**, 1-second trick collection animation, floating utility controls (zero reserved navbar height), non-scrollable landing page (`100dvh`), original sound effects (`sound-effects/`), single-round auction with forced dealer opening, six trump options (including Joker / No Trump and 7th Card), first-bidder point-card eligibility redeals, Double & Re-Double gameplay with 10s decision windows and 1x/2x/4x multipliers, King-Queen Pair / Royals logic evaluated upon legal trump reveal, 1-second central table announcements for Joker & 7th Card, improved played card sizing in the central table area, and authentic Indian AI players. Pure Host-Authoritative LAN architecture running entirely without cloud databases or third-party dependencies.
 
 ---
 
 ## 🌟 Key Highlights
+
+- **Double / Re-Double Gameplay (10s Deadlines & Match Multipliers)**:
+  - Following trump selection, an in-table decision window opens before trick play commences.
+  - **Stage 1 (Defending Team Opportunity)**: The team that did not win the auction has strictly 10 seconds to decide `DOUBLE` or `PASS`. If passed or if time expires, the match begins with normal 1x stakes. If doubled, the multiplier becomes 2x and the deal advances to Stage 2.
+  - **Stage 2 (Bidding Team Opportunity)**: The winning bidder's partnership has strictly 10 seconds to decide `RE-DOUBLE` or `PASS`. If passed or if time expires, the deal remains doubled at 2x. If re-doubled, the multiplier becomes 4x.
+  - **Server-Authoritative Synchronization**: Deadlines are synchronized across all LAN clients with atomic state transitions preventing duplicate or conflicting submissions. Automatic silent pass on timeout without intrusive modal popups.
+  - **Match Scoring**: Normal win/loss = ±1 pt, Doubled = ±2 pts, Re-Doubled = ±4 pts awarded to the bidding team. The first partnership to reach **+6 match points** wins the match (negative scores fully supported).
+- **King-Queen Pair / Royals (Auto-Detection Upon Legal Trump Reveal)**:
+  - Evaluated automatically when the secret trump suit is legally revealed during trick play.
+  - **Eligibility**: Requires original contract bid ≥ 19. Both the King (K) and Queen (Q) of the revealed trump suit must be held in the same player's hand.
+  - **Contract Adjustment**:
+    - *Bidding Team Pair*: Adjusted Target = $\max(16, \text{Original Bid} - 4)$ points.
+    - *Defending Team Pair*: Adjusted Target = $\min(29, \text{Original Bid} + 4)$ points.
+  - **Visual In-Table Announcement**: Displays both the King and Queen cards side-by-side near the holding player for 2.0 seconds (`InTablePairAnnouncement`) and permanently updates the adjusted target on the scoreboard.
+  - Does not apply in Joker / No Trump mode.
+- **Joker / No Trump & 7th Card Table Announcements**:
+  - Central 1-second visual table announcement before the Double phase opens:
+    - *Joker / No Trump*: Gold banner announcing no suit has trump priority.
+    - *7th Card Trump*: Displays a face-down card back (`card_back.svg`) announcing the 7th card is reserved, strictly preserving suit secrecy until legal revelation.
+    - Normal suits proceed directly to the Double decision window.
+- **Improved Played Card Sizing in Central Trick Area**:
+  - Scaled played cards to dedicated `size="table"` (`w-[4.5rem] h-[6.3rem] sm:w-[5.25rem] sm:h-[7.35rem] md:w-[6rem] md:h-[8.4rem] aspect-[5/7]`), providing a ~18% increase in card surface area for optimal table legibility.
+  - Preserves exact 500:700 (5:7) aspect ratio and leaves comfortable clearance around the top scoreboard, opponent seats, and player hand.
+- **Pure Host-Authoritative LAN Architecture (Zero Cloud Dependencies)**:
+  - Completely removed legacy `@supabase/supabase-js` dependencies, Supabase schema SQL files, and unused services.
+  - Authoritative game state, player sessions, room codes, turn timers, bot AI, card distribution, and scoring run 100% locally on the host computer via Node.js/Express and Socket.IO. Runs completely offline without internet connectivity.
 
 - **Seamless Card Animation Lifecycle (`HAND → IN_FLIGHT → ON_TABLE → COLLECTING → COLLECTED`)**:
   - Eliminates card snap-back, clone flickering, and coordinate jumping.
@@ -236,24 +262,29 @@ flowchart TD
 ```
 
 1. **Initial Deal & Eligibility**: Each player is dealt 4 cards. The dealer is randomly chosen in Round 1 and rotates clockwise in subsequent rounds. The first bidder (player to dealer's left) must hold $\ge 1$ point card (J, 9, A, 10).
-2. **Single-Round Auction (30s Turn Timer)**: Exactly 4 turns in clockwise order ($D+1 \to D+2 \to D+3 \to D$). Opening bid is minimum 16. Bidders select directly from the legal bid grid (16–28) with a single tap, or click PASS. If all 3 players pass, the dealer is forced to bid 16.
-3. **Six Trump Options**: Winning bidder chooses among 4 suits, Joker / No Trump, or 7th Card.
+2. **Single-Round Auction (15s Turn Timer)**: Exactly 4 turns in clockwise order ($D+1 \to D+2 \to D+3 \to D$). Opening bid is minimum 16. Bidders select directly from the legal bid grid (16–28) with a single tap, or click PASS. If all 3 players pass, the dealer is forced to bid 16.
+3. **Six Trump Options & 1-Second Table Announcements**: Winning bidder chooses among 4 suits, Joker / No Trump, or 7th Card. Joker and 7th Card trigger a 1-second central table announcement (7th Card preserves secrecy with face-down visual).
 4. **Phase 2 Deal**: Remaining 4 cards dealt. In 7th Card mode, bidder's 7th card is reserved face-down on the table until revealed.
-5. **Trick Play (30s Turn Timer & Drag-to-Play)**:
-   - Players drag cards from hand onto the central green felt trick area (or click to play).
+5. **Double & Re-Double Phase (10s Deadlines)**:
+   - *Stage 1 (Defending Team)*: 10 seconds to select DOUBLE (2x) or PASS (1x).
+   - *Stage 2 (Bidding Team)*: If doubled, 10 seconds to select RE-DOUBLE (4x) or PASS (2x).
+   - Authoritative timeouts automatically PASS without popups.
+6. **Trick Play (15s Turn Timer & Drag-to-Play)**:
+   - Players drag cards from hand onto the central green felt trick area (scaled to `size="table"`).
    - Mandatory follow-suit: if holding lead suit, player must follow.
    - If unable to follow suit, player can click **Ask for Trump** to uncover the concealed suit or 7th card.
    - Once revealed, trump cards can cut and win non-trump tricks. In 7th Card mode, the 7th card returns to the bidder's hand.
    - In No Trump mode, the highest card of the lead suit always wins; off-suits cannot cut.
-   - When 4 cards are played, cards pause for 1 second and smoothly glide to the trick winner's seat.
-6. **Pair / Royals Bonus**:
-   - Holding King + Queen of trump allows declaring Pair:
-   - If declared by **Bidding Team**: Contract target is reduced by 4 (e.g. 17 becomes 13).
-   - If declared by **Defending Team**: Contract target is increased by 4 (e.g. 17 becomes 21).
-7. **Match Scoring**:
-   - Fulfilling bid awards **+1 game point** (+2 for bids $\ge 21$).
-   - Failing bid deducts **-1 game point** (-2 for bids $\ge 21$).
-   - Minimal scoreboard tracks Team A and Team B match points. First team to reach **+6 points** wins; reaching **-6 points** loses.
+   - When 4 cards are played, cards pause for 750ms and smoothly glide as a cluster to the trick winner's seat.
+7. **King-Queen Pair / Royals (Auto-Evaluated Upon Trump Reveal)**:
+   - Evaluated upon legal trump reveal when contract bid $\ge 19$.
+   - Player holding both King and Queen of the trump suit announces Pair (2-second visual card display).
+   - **Bidding Team Pair**: Contract target decreases by 4 points ($\max(16, \text{Original Bid} - 4)$).
+   - **Defending Team Pair**: Contract target increases by 4 points ($\min(29, \text{Original Bid} + 4)$).
+8. **Match Scoring**:
+   - Winning contract: awards $+1$ point (Normal), $+2$ points (Doubled), or $+4$ points (Re-Doubled) to the bidding team.
+   - Failing contract: awards $-1$ point (Normal), $-2$ points (Doubled), or $-4$ points (Re-Doubled) to the bidding team.
+   - Scoreboard tracks partnership match points. The first team to reach **+6 points** wins the match (negative scores fully supported).
 
 ---
 

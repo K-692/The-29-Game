@@ -230,7 +230,8 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     const trumpRes = mgr.handleSelectTrump(room.code, hostSeat.sessionToken, 'NO_TRUMP');
     expect(trumpRes.success).toBe(true);
     expect(room.gameState?.trumpMode).toBe('no-trump');
-    expect(room.gameState?.phase).toBe('TRICK_PLAY');
+    expect(room.gameState?.phase).toBe('TRUMP_ANNOUNCEMENT');
+    expect(room.gameState?.specialAnnouncement?.type).toBe('NO_TRUMP');
   });
 
   it('should retain all 4 cards on trick completion and not emit trick-won popups', () => {
@@ -582,6 +583,11 @@ describe('LAN Room Manager & Multiplayer Logic', () => {
     // Host selects SPADES
     const trumpRes = mgr.handleSelectTrump(room.code, hostSeat.sessionToken, 'SPADES');
     expect(trumpRes.success).toBe(true);
+    expect(room.gameState?.phase).toBe('DOUBLE_DECISION');
+
+    // Defending team (Seat 1) passes Double
+    const doubleRes = mgr.handleDoubleDecision(room.code, s1.sessionToken, 'PASS');
+    expect(doubleRes.success).toBe(true);
     expect(room.gameState?.phase).toBe('TRICK_PLAY');
     expect(room.gameState?.trumpSuit).toBe('SPADES');
 

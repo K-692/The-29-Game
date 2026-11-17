@@ -19,11 +19,15 @@ import { PhysicalTrumpIndicator } from './PhysicalTrumpIndicator';
 import { EpicTrumpRevealEffect } from './EpicTrumpRevealEffect';
 import { InTableBidding } from './InTableBidding';
 import { InTableTrumpSelector } from './InTableTrumpSelector';
+import { InTableDoubleDecision } from './InTableDoubleDecision';
+import { CentralTrumpAnnouncement } from './CentralTrumpAnnouncement';
+import { InTablePairAnnouncement } from './InTablePairAnnouncement';
 import { InTableRoundSummary } from './InTableRoundSummary';
 import { MatchOverModal } from './MatchOverModal';
 import { RulesDrawer } from './RulesDrawer';
 import { DealerDealingAnimation } from './DealerDealingAnimation';
-import { InTableNotification } from '../../services/lanClient';
+import { InTableNotification, lanClient } from '../../services/lanClient';
+import { PairDeclaration } from '../../engine/types';
 import { 
   ArrowLeft, 
   Crown, 
@@ -44,6 +48,8 @@ interface GameTableProps {
   notification?: InTableNotification | null;
   onBid: (bid: number | 'PASS') => void;
   onSelectTrump: (choice: TrumpSelectionChoice) => void;
+  onDoubleDecision?: (decision: 'DOUBLE' | 'PASS') => void;
+  onRedoubleDecision?: (decision: 'REDOUBLE' | 'PASS') => void;
   onRevealTrump: (data?: { requestId?: string; playerPosition?: PlayerPosition; roundNumber?: number; trickNumber?: number }) => Promise<any> | void;
   onPlayCard: (cardId: string) => void;
   onDeclarePair: () => void;
@@ -60,6 +66,8 @@ export const GameTable: React.FC<GameTableProps> = ({
   notification,
   onBid,
   onSelectTrump,
+  onDoubleDecision,
+  onRedoubleDecision,
   onRevealTrump,
   onPlayCard,
   onDeclarePair,
@@ -72,6 +80,29 @@ export const GameTable: React.FC<GameTableProps> = ({
   const [showRulesDrawer, setShowRulesDrawer] = useState(false);
   const [showDealingAnimation, setShowDealingAnimation] = useState(false);
   const [trickWinnerPos, setTrickWinnerPos] = useState<PlayerPosition | null>(null);
+  const [pairAnnouncement, setPairAnnouncement] = useState<{ pair: PairDeclaration; playerName: string } | null>(null);
+
+  // Synchronize pair announcement socket events and auto-detection upon reveal
+  useEffect(() => {
+    const unsub = lanClient.onPairAnnouncement((data) => {
+      setPairAnnouncement(data);
+    });
+    return unsub;
+  }, []);
+
+  const prevPairRef = useRef<any>(null);
+  useEffect(() => {
+    if (publicState.pairDeclaration && !prevPairRef.current) {
+      prevPairRef.current = publicState.pairDeclaration;
+      const owner = publicState.players.find((p) => p.position === publicState.pairDeclaration?.playerIndex);
+      setPairAnnouncement({
+        pair: publicState.pairDeclaration,
+        playerName: owner ? owner.name : `Player ${(publicState.pairDeclaration?.playerIndex ?? 0) + 1}`,
+      });
+    } else if (!publicState.pairDeclaration) {
+      prevPairRef.current = null;
+    }
+  }, [publicState.pairDeclaration, publicState.players]);
 
   // Clear trick winner state if trick advances or cards are cleared
   useEffect(() => {
@@ -528,6 +559,51 @@ export const GameTable: React.FC<GameTableProps> = ({
               isMyTurn={publicState.highestBidder === myPosition}
               remainingSeconds={remainingSeconds}
               onSelectTrump={onSelectTrump}
+            />
+          </div>
+        )}
+
+        {/* B1. Special Trump Announcement (1-second table display for Joker / 7th Card) */}
+        {publicState.phase === 'TRUMP_ANNOUNCEMENT' && publicState.specialAnnouncement && (
+          <div className="absolute top-[44%] sm:top-[46%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-35 w-full max-w-sm px-2">
+            <CentralTrumpAnnouncement announcement={publicState.specialAnnouncement} />
+          </div>
+        )}
+
+        {/* B2. Double / Re-Double In-Table Decision (10s timers) */}
+        {(publicState.phase === 'DOUBLE_DECISION' || publicState.phase === 'REDOUBLE_DECISION') && (
+          <div className="absolute top-[44%] sm:top-[46%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-35 w-full max-w-md px-2">
+            <InTableDoubleDecision
+              phase={publicState.phase}
+              highestBidder={publicState.highestBidder}
+              highestBid={publicState.highestBid}
+              myPosition={myPosition}
+              remainingSeconds={remainingSeconds}
+              onDouble={() => {
+                if (publicState.phase === 'DOUBLE_DECISION') {
+                  onDoubleDecision?.('DOUBLE');
+                } else {
+                  onRedoubleDecision?.('REDOUBLE');
+                }
+              }}
+              onPass={() => {
+                if (publicState.phase === 'DOUBLE_DECISION') {
+                  onDoubleDecision?.('PASS');
+                } else {
+                  onRedoubleDecision?.('PASS');
+                }
+              }}
+            />
+          </div>
+        )}
+
+        {/* B3. King-Queen Pair / Royals Announcement (2s floating visual) */}
+        {pairAnnouncement && (
+          <div className="absolute top-[35%] sm:top-[38%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-45 w-full max-w-sm px-2">
+            <InTablePairAnnouncement
+              pair={pairAnnouncement.pair}
+              playerName={pairAnnouncement.playerName}
+              onDismiss={() => setPairAnnouncement(null)}
             />
           </div>
         )}

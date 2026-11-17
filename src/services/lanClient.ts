@@ -231,6 +231,28 @@ class LanClientService {
     });
   }
 
+  public submitDoubleDecision(decision: 'DOUBLE' | 'PASS'): Promise<{ success: boolean; error?: string }> {
+    return new Promise((resolve) => {
+      if (!this.socket) return resolve({ success: false, error: 'Not connected' });
+      this.socket.emit(
+        'double_decision',
+        { roomCode: this.roomCode, sessionToken: this.sessionToken, decision },
+        resolve
+      );
+    });
+  }
+
+  public submitRedoubleDecision(decision: 'REDOUBLE' | 'PASS'): Promise<{ success: boolean; error?: string }> {
+    return new Promise((resolve) => {
+      if (!this.socket) return resolve({ success: false, error: 'Not connected' });
+      this.socket.emit(
+        'redouble_decision',
+        { roomCode: this.roomCode, sessionToken: this.sessionToken, decision },
+        resolve
+      );
+    });
+  }
+
   public nextRound(): Promise<{ success: boolean; error?: string }> {
     return new Promise((resolve) => {
       if (!this.socket) return resolve({ success: false, error: 'Not connected' });
@@ -270,6 +292,12 @@ class LanClientService {
     if (!this.socket) this.connect();
     this.socket?.on('TRICK_COMPLETED', callback);
     return () => this.socket?.off('TRICK_COMPLETED', callback);
+  }
+
+  public onPairAnnouncement(callback: (data: { pair: any; playerName: string }) => void): () => void {
+    if (!this.socket) this.connect();
+    this.socket?.on('PAIR_ANNOUNCEMENT', callback);
+    return () => this.socket?.off('PAIR_ANNOUNCEMENT', callback);
   }
 }
 

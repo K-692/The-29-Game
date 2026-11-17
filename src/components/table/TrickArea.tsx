@@ -236,7 +236,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
     <div
       ref={dropZoneRef}
       id="trick-area"
-      className="relative w-64 h-52 sm:w-72 sm:h-60 md:w-80 md:h-64 flex items-center justify-center select-none pointer-events-none"
+      className="relative w-72 h-56 sm:w-80 sm:h-64 md:w-92 md:h-72 flex items-center justify-center select-none pointer-events-none"
     >
       {/* Invisible drop target hitbox */}
       <div className="absolute inset-0 pointer-events-auto" />
@@ -256,7 +256,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
         <div
           ref={slotRefs.bottom}
           data-trick-slot="bottom"
-          className="absolute bottom-2 left-1/2 -translate-x-1/2 w-16 h-[5.6rem] sm:w-[4.5rem] sm:h-[6.3rem] md:w-20 md:h-[7rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
+          className="absolute bottom-1 left-1/2 -translate-x-1/2 w-[4.5rem] h-[6.3rem] sm:w-[5.25rem] sm:h-[7.35rem] md:w-[6rem] md:h-[8.4rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
         >
           {cardsBySlot.bottom && (
             <div
@@ -266,7 +266,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
               <PlayingCard
                 cardId={cardsBySlot.bottom.cardId}
                 rotation={SLOT_ROTATIONS.bottom}
-                size="sm"
+                size="table"
                 className="shadow-xl"
               />
             </div>
@@ -277,7 +277,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
         <div
           ref={slotRefs.top}
           data-trick-slot="top"
-          className="absolute top-2 left-1/2 -translate-x-1/2 w-16 h-[5.6rem] sm:w-[4.5rem] sm:h-[6.3rem] md:w-20 md:h-[7rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
+          className="absolute top-1 left-1/2 -translate-x-1/2 w-[4.5rem] h-[6.3rem] sm:w-[5.25rem] sm:h-[7.35rem] md:w-[6rem] md:h-[8.4rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
         >
           {cardsBySlot.top && (
             <div
@@ -287,7 +287,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
               <PlayingCard
                 cardId={cardsBySlot.top.cardId}
                 rotation={SLOT_ROTATIONS.top}
-                size="sm"
+                size="table"
                 className="shadow-xl"
               />
             </div>
@@ -298,7 +298,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
         <div
           ref={slotRefs.left}
           data-trick-slot="left"
-          className="absolute left-3 top-1/2 -translate-y-1/2 w-16 h-[5.6rem] sm:w-[4.5rem] sm:h-[6.3rem] md:w-20 md:h-[7rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
+          className="absolute left-2 top-1/2 -translate-y-1/2 w-[4.5rem] h-[6.3rem] sm:w-[5.25rem] sm:h-[7.35rem] md:w-[6rem] md:h-[8.4rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
         >
           {cardsBySlot.left && (
             <div
@@ -308,7 +308,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
               <PlayingCard
                 cardId={cardsBySlot.left.cardId}
                 rotation={SLOT_ROTATIONS.left}
-                size="sm"
+                size="table"
                 className="shadow-xl"
               />
             </div>
@@ -319,7 +319,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
         <div
           ref={slotRefs.right}
           data-trick-slot="right"
-          className="absolute right-3 top-1/2 -translate-y-1/2 w-16 h-[5.6rem] sm:w-[4.5rem] sm:h-[6.3rem] md:w-20 md:h-[7rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
+          className="absolute right-2 top-1/2 -translate-y-1/2 w-[4.5rem] h-[6.3rem] sm:w-[5.25rem] sm:h-[7.35rem] md:w-[6rem] md:h-[8.4rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
         >
           {cardsBySlot.right && (
             <div
@@ -329,7 +329,7 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
               <PlayingCard
                 cardId={cardsBySlot.right.cardId}
                 rotation={SLOT_ROTATIONS.right}
-                size="sm"
+                size="table"
                 className="shadow-xl"
               />
             </div>

@@ -7,6 +7,9 @@ import { canDeclarePair, evaluateRoundScore, hasRoyalsPair } from './scoring';
 import { 
   applyBid, 
   applyCardPlay, 
+  applyDoubleDecision,
+  applyRedoubleDecision,
+  applyTrumpAnnouncementComplete,
   applyTrumpReveal, 
   applyTrumpSelection, 
   createInitialGame, 
@@ -163,6 +166,11 @@ describe('Security & Public Game State', () => {
 
     // P1 picks trump 'HEARTS'
     state = applyTrumpSelection(state, 1, 'HEARTS').state;
+    expect(state.phase).toBe('DOUBLE_DECISION');
+
+    // Defending team (P0) passes Double
+    state = applyDoubleDecision(state, 0, 'PASS').state;
+    expect(state.phase).toBe('TRICK_PLAY');
 
     // Opponent P0 viewing public state
     const publicP0 = getPublicGameState(state, 0);
@@ -404,19 +412,23 @@ describe('Six Trump Options & 7th Card Mechanics', () => {
     expect(trumpRes.success).toBe(true);
 
     const s = trumpRes.state;
-    expect(s.phase).toBe('TRICK_PLAY');
+    expect(s.phase).toBe('DOUBLE_DECISION');
     expect(s.trumpSuit).toBe('DIAMONDS');
     expect(s.trumpMode).toBe('suit');
     expect(s.isTrumpRevealed).toBe(false);
 
+    // After defending team passes, enters TRICK_PLAY
+    const trickPlayState = applyDoubleDecision(s, 0, 'PASS').state;
+    expect(trickPlayState.phase).toBe('TRICK_PLAY');
+
     // In public state: trump is concealed for opponents
-    const pubP0 = getPublicGameState(s, 0);
+    const pubP0 = getPublicGameState(trickPlayState, 0);
     expect(pubP0.isTrumpConcealed).toBe(true);
     expect(pubP0.revealedTrumpSuit).toBeNull();
 
     // All players now hold exactly 8 cards
     for (let p = 0; p < 4; p++) {
-      expect(s.hands[p as PlayerPosition]).toHaveLength(8);
+      expect(trickPlayState.hands[p as PlayerPosition]).toHaveLength(8);
     }
   });
 
@@ -433,12 +445,18 @@ describe('Six Trump Options & 7th Card Mechanics', () => {
     expect(trumpRes.success).toBe(true);
 
     const s = trumpRes.state;
-    expect(s.phase).toBe('TRICK_PLAY');
+    expect(s.phase).toBe('TRUMP_ANNOUNCEMENT');
+    expect(s.specialAnnouncement?.type).toBe('NO_TRUMP');
     expect(s.trumpMode).toBe('no-trump');
     expect(s.trumpSuit).toBeNull();
     expect(s.isTrumpRevealed).toBe(false);
 
-    const pubP0 = getPublicGameState(s, 0);
+    const afterAnnounce = applyTrumpAnnouncementComplete(s);
+    expect(afterAnnounce.phase).toBe('DOUBLE_DECISION');
+    const trickPlayState = applyDoubleDecision(afterAnnounce, 0, 'PASS').state;
+    expect(trickPlayState.phase).toBe('TRICK_PLAY');
+
+    const pubP0 = getPublicGameState(trickPlayState, 0);
     expect(pubP0.isTrumpConcealed).toBe(false);
     expect(pubP0.trumpMode).toBe('no-trump');
 
@@ -469,44 +487,50 @@ describe('Six Trump Options & 7th Card Mechanics', () => {
     expect(trumpRes.success).toBe(true);
 
     const s = trumpRes.state;
-    expect(s.phase).toBe('TRICK_PLAY');
+    expect(s.phase).toBe('TRUMP_ANNOUNCEMENT');
+    expect(s.specialAnnouncement?.type).toBe('SEVENTH_CARD');
     expect(s.trumpMode).toBe('seventh-card');
     expect(s.seventhCard).not.toBeNull();
 
+    const afterAnnounce = applyTrumpAnnouncementComplete(s);
+    expect(afterAnnounce.phase).toBe('DOUBLE_DECISION');
+    const trickPlayState = applyDoubleDecision(afterAnnounce, 0, 'PASS').state;
+    expect(trickPlayState.phase).toBe('TRICK_PLAY');
+
     // Bidder (P1) has 7 cards dealt to hand during trick play; other 3 players have 8
-    expect(s.hands[1]).toHaveLength(7);
-    expect(s.hands[0]).toHaveLength(8);
-    expect(s.hands[2]).toHaveLength(8);
-    expect(s.hands[3]).toHaveLength(8);
+    expect(trickPlayState.hands[1]).toHaveLength(7);
+    expect(trickPlayState.hands[0]).toHaveLength(8);
+    expect(trickPlayState.hands[2]).toHaveLength(8);
+    expect(trickPlayState.hands[3]).toHaveLength(8);
 
     // Public state for opponent (P0): 7th card details hidden
-    const publicP0 = getPublicGameState(s, 0);
+    const publicP0 = getPublicGameState(trickPlayState, 0);
     expect(publicP0.hasSeventhCardReserved).toBe(true);
     expect(publicP0.revealedSeventhCard).toBeNull();
     expect(publicP0.revealedTrumpSuit).toBeNull();
 
     // Public state for bidder (P1): bidder can see reserved 7th card
-    const publicP1 = getPublicGameState(s, 1);
+    const publicP1 = getPublicGameState(trickPlayState, 1);
     expect(publicP1.revealedSeventhCard).not.toBeNull();
-    expect(publicP1.revealedSeventhCard).toBe(s.seventhCard?.cardId);
+    expect(publicP1.revealedSeventhCard).toBe(trickPlayState.seventhCard?.cardId);
 
     // Reveal Trump!
-    const revealRes = applyTrumpReveal(s, s.currentTurn);
+    const revealRes = applyTrumpReveal(trickPlayState, trickPlayState.currentTurn);
     expect(revealRes.success).toBe(true);
     const revealedState = revealRes.state;
 
     expect(revealedState.isTrumpRevealed).toBe(true);
-    const seventhCardSuit = CARD_MANIFEST[s.seventhCard!.cardId].suit;
+    const seventhCardSuit = CARD_MANIFEST[trickPlayState.seventhCard!.cardId].suit;
     expect(revealedState.trumpSuit).toBe(seventhCardSuit);
 
     // 7th card has now been returned to bidder's hand, bringing total playable cards to 8!
     expect(revealedState.hands[1]).toHaveLength(8);
-    expect(revealedState.hands[1]).toContain(s.seventhCard?.cardId);
+    expect(revealedState.hands[1]).toContain(trickPlayState.seventhCard?.cardId);
 
     // Public state after reveal shows 7th card to all players
     const publicP0After = getPublicGameState(revealedState, 0);
     expect(publicP0After.revealedTrumpSuit).toBe(seventhCardSuit);
-    expect(publicP0After.revealedSeventhCard).toBe(s.seventhCard?.cardId);
+    expect(publicP0After.revealedSeventhCard).toBe(trickPlayState.seventhCard?.cardId);
     expect(publicP0After.hasSeventhCardReserved).toBe(false);
   });
 });
