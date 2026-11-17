@@ -1,3 +1,5 @@
+> **Note:** this document describes the original LAN (Socket.IO) design. The game now runs online on GitHub Pages + Supabase — see [README.md](README.md#how-it-works) for the current architecture.
+
 # Architectural & Mathematical Specification: Indian 29 (Twenty-Nine) LAN Multiplayer Card Game
 
 ## 1. Abstract & System Architecture
