@@ -7,7 +7,7 @@
 [![Socket.IO](https://img.shields.io/badge/Socket.IO-4.8-black.svg?logo=socketdotio)](https://socket.io/)
 [![Express](https://img.shields.io/badge/Express-5.3-green.svg?logo=express)](https://expressjs.com/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-38bdf8.svg?logo=tailwind-css)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/Vitest-97%2F97%20Passing-brightgreen.svg?logo=vitest)](https://vitest.dev/)
+[![Tests](https://img.shields.io/badge/Vitest-105%2F105%20Passing-brightgreen.svg?logo=vitest)](https://vitest.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 > A modern, zero-install, real-time **LAN (Local Area Network)** multiplayer implementation of the traditional Indian **29 (Twenty-Nine)** trick-taking card game. Features authentic traditional Indian rules, edge-to-edge full-screen table felt (`table.jpg`), original vector playing-card artwork extracted directly from an EPS collection (`poker-cards-icons-collection/OIUGSZ1.eps`), single-source-of-truth card movement animations (`HAND → IN_FLIGHT → ON_TABLE → COLLECTING → COLLECTED`) with zero snap-back or coordinate jumping, physical playing-card trump indicator at top-right with 3D flip transitions, six-number display cards (`6_HEARTS`, `6_SPADES`, `6_CLUBS`, `6_DIAMONDS`), 3-stage 7th Card reveal sequence, 1000ms full-window epic trump-reveal luminous bloom effect, strictly drag-only card playing (no accidental clicks), strict server-authoritative 15-second turn timers, larger cards with gentle horizontal overlap, bright minimalistic UI with zero "Bidder:" text prefixes, consistent partnership colour schemes (Soft Blue & Soft Coral), animal emoji avatars, bottom-left Krish (You) player seat, fully visible top partner seat, bottom-right individual trick-point counters beside the turn countdown timer, active bidder top-bar synchronization (`🦊 Aarav is bidding`), clean direct-click bidding with authoritative PASS button, card-playing face-up flight animations with idempotent action deduplication, bottom-left Ask to Reveal Trump button with unique request tracking and support for all 6 trump modes, 3-second deal transition with sequential 16-card dealer distribution animation running at the start of **every new deal**, 1-second trick collection animation, floating utility controls (zero reserved navbar height), non-scrollable landing page (`100dvh`), original sound effects (`sound-effects/`), single-round auction with forced dealer opening, six trump options (including Joker / No Trump and 7th Card), first-bidder point-card eligibility redeals, Double & Re-Double gameplay with 10s decision windows and 1x/2x/4x multipliers, King-Queen Pair / Royals logic evaluated upon legal trump reveal, 1-second central table announcements for Joker & 7th Card, improved played card sizing in the central table area, and computer players that fill any empty seats so 1–4 people on the same network can play. Pure Host-Authoritative LAN architecture running entirely without cloud databases or third-party dependencies.
@@ -102,9 +102,9 @@
   - During the bidding phase, the name and avatar of the player whose bidding turn is currently active is displayed cleanly in the floating top area (e.g. `🦊 Aarav is bidding` or `🦊 Your Turn to Bid`).
   - Seamlessly updates in real time as bidding progresses around the table and synchronizes across all four clients.
   - Distinguishes between active bidder and current highest bidder (`High: 16 by Aarav`), retaining the winning bidder contract upon transition to trump selection and trick play.
-- **Bottom-Right Active Player Points & 30-Second Turn Timer**:
-  - The collected trick-points counter for the active player is positioned at the **bottom-right** of the window, immediately to the right of the turn timer (`Turn Timer: 00:28 | Your Points: 05`).
-  - Displays the personal card points collected by the active player during the current deal, updating after each trick won, and resetting upon each new deal.
+- **Always-Visible Scoreboard & Bottom-Right Turn Timer**:
+  - The match score (Us / Them), the current high bid or contract (and who holds it), and any 2× / 4× stake stay at the top of the table in every phase, including bidding.
+  - A small turn timer sits at the bottom-right only while a human has a turn.
 - **Authoritative Bidding PASS Button**:
   - The PASS button authoritatively validates, submits, and advances turns without failure for every player at the table.
   - Rejects out-of-turn actions, handles forced dealer opening (16 minimum) when the first 3 players pass, and cleanly redeals cards when all 4 players pass with forced dealer disabled.
@@ -192,6 +192,8 @@
 - **Seat Takeover**: If a player leaves or drops mid-match, anyone can rejoin with the room code and take over that seat, hand and all.
 - **Host Hand-off**: If the host leaves, the host role passes to another connected player.
 - **Private Hands**: Each device receives only its own hand; opponents' cards and the concealed trump never leave the server.
+- **Logo-Matched Minimal Design**: Felt green, cream and card red from the app logo with a classic serif for headings. Every dialog and in-table panel shares one minimal style.
+- **Clear Bidding**: Each seat shows a bubble with that player's latest call, and the bidding panel says who holds the high bid and whether they are your partner or an opponent.
 - **Non-Blocking `?` Rules Drawer**: Slide-out drawer accessible at any moment without pausing the match or resetting the timer.
 - **QR Code & Mobile LAN Access**: Host screen displays a generated QR code and LAN Wi-Fi URL (`http://<HOST_IP>:3000`) for mobile phones and tablets to join instantly.
 
@@ -277,7 +279,7 @@ flowchart TD
    - Players drag cards from hand onto the central green felt trick area (scaled to `size="table"`).
    - Mandatory follow-suit: if holding lead suit, player must follow.
    - If unable to follow suit, player can click **Ask for Trump** to uncover the concealed suit or 7th card.
-   - Once revealed, trump cards can cut and win non-trump tricks. In 7th Card mode, the 7th card returns to the bidder's hand.
+   - A trump card always beats non-trump cards; if several trumps are played, the highest trump wins. Playing a trump when you can't follow suit also reveals the trump to the table. In 7th Card mode, the 7th card returns to the bidder's hand when trump is revealed.
    - In No Trump mode, the highest card of the lead suit always wins; off-suits cannot cut.
    - When 4 cards are played, cards pause for 750ms and smoothly glide as a cluster to the trick winner's seat.
 7. **King-Queen Pair / Royals (Auto-Evaluated Upon Trump Reveal)**:
@@ -362,8 +364,9 @@ npm test
 ✓ src/engine/lanCpu.test.ts (7 tests)
 ✓ src/engine/lanDoublePair.test.ts (12 tests)
 ✓ src/engine/lanRoom.test.ts (22 tests)
-Test Files  7 passed (7)
-     Tests  97 passed (97)
+✓ src/engine/trumpRule.test.ts (8 tests)
+Test Files  8 passed (8)
+     Tests  105 passed (105)
 ```
 
 To run a production build verification:

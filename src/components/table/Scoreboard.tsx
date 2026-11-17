@@ -1,89 +1,70 @@
 import React from 'react';
 import { PublicGameState, Team } from '../../engine/types';
-import { Crown, Zap } from 'lucide-react';
 
 interface ScoreboardProps {
   publicState: PublicGameState;
   myTeam: Team;
+  myPosition?: number;
 }
 
-export const Scoreboard: React.FC<ScoreboardProps> = ({ publicState, myTeam }) => {
-  const { matchScore, highestBid, highestBidder, players, dealMultiplier, adjustedTarget } = publicState;
-  const bidder = highestBidder !== null ? players.find((p) => p.position === highestBidder) : null;
-  const bidderName = bidder?.name;
+/**
+ * Match score + current contract, visible during every phase of the game.
+ * Your side is green, opponents red (same as the seats).
+ */
+export const Scoreboard: React.FC<ScoreboardProps> = ({ publicState, myTeam, myPosition }) => {
+  const { matchScore, highestBid, highestBidder, players, dealMultiplier, adjustedTarget, phase, rules } = publicState;
+  const us = myTeam === 0 ? matchScore.team0 : matchScore.team1;
+  const them = myTeam === 0 ? matchScore.team1 : matchScore.team0;
+  const fmt = (n: number) => (n > 0 ? `+${n}` : `${n}`);
 
+  const bidder = highestBidder !== null ? players.find((p) => p.position === highestBidder) : null;
+  const bidderName = bidder ? (bidder.position === myPosition ? 'You' : bidder.name) : null;
+  const bidderOwnSide = bidder ? (bidder.position % 2) === myTeam : false;
   const target = adjustedTarget ?? highestBid;
-  const hasTargetChanged = adjustedTarget !== undefined && adjustedTarget !== null && adjustedTarget !== highestBid;
+  const targetChanged = adjustedTarget != null && adjustedTarget !== highestBid;
 
   return (
-    <div className="bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl px-3 sm:px-4 py-1.5 shadow-md flex items-center gap-2 sm:gap-3 text-xs sm:text-sm select-none text-slate-800 whitespace-nowrap">
-      {/* Your partnership first (blue), opponents second (coral) — same for every seat */}
-      {[
-        { label: 'Your Side', short: 'Us', score: myTeam === 0 ? matchScore.team0 : matchScore.team1, dot: 'bg-sky-500', pos: 'text-sky-700' },
-        { label: 'Opponents', short: 'Them', score: myTeam === 0 ? matchScore.team1 : matchScore.team0, dot: 'bg-rose-500', pos: 'text-rose-700' },
-      ].map((side, idx) => (
-        <React.Fragment key={side.label}>
-          {idx === 1 && <span className="text-slate-300 font-light">|</span>}
-          <div className="flex items-center gap-1.5">
-            <span className={`w-2.5 h-2.5 rounded-full shrink-0 shadow-xs ${side.dot}`} />
-            <span className="font-bold text-slate-800 text-xs sm:text-sm">
-              <span className="hidden md:inline">{side.label}:</span>
-              <span className="md:hidden">{side.short}:</span>
-            </span>
-            <span className={`font-mono font-black ${side.score >= 0 ? side.pos : 'text-rose-600'}`}>
-              {side.score > 0 ? `+${side.score}` : side.score}
-            </span>
-          </div>
-        </React.Fragment>
-      ))}
+    <div className="flex items-center gap-2 sm:gap-3 rounded-full bg-felt-900/90 border border-cream-100/15 px-3 sm:px-4 py-1.5 text-cream-100 shadow-soft backdrop-blur-md whitespace-nowrap">
+      <div className="flex items-baseline gap-1.5" title="Your side">
+        <span className="w-2 h-2 rounded-full bg-felt-400 self-center" />
+        <span className="hidden sm:inline text-[10px] uppercase tracking-[0.14em] text-cream-300/80">Us</span>
+        <span className="font-display text-lg leading-none tabular-nums">{fmt(us)}</span>
+      </div>
+      <div className="flex items-baseline gap-1.5" title="Opponents">
+        <span className="w-2 h-2 rounded-full bg-suit-red self-center" />
+        <span className="hidden sm:inline text-[10px] uppercase tracking-[0.14em] text-cream-300/80">Them</span>
+        <span className="font-display text-lg leading-none tabular-nums">{fmt(them)}</span>
+      </div>
+      <span className="text-[10px] text-cream-300/60 hidden sm:inline">to {rules.targetGameScore}</span>
 
-      <span className="text-slate-300 font-light">|</span>
+      <span className="w-px h-5 bg-cream-100/15" />
 
-      {/* Current Round Bid & Target */}
-      <div className="flex items-center gap-1.5">
-        <span className="font-bold text-slate-800 text-xs sm:text-sm">
-          {hasTargetChanged ? 'Target:' : 'Bid:'}
-        </span>
+      <div className="flex items-baseline gap-1.5 text-sm">
         {highestBid > 0 ? (
-          <div className="flex items-center gap-1 font-mono font-black text-amber-700">
-            {hasTargetChanged ? (
-              <>
-                <span className="line-through text-slate-400 font-normal text-[11px]">{highestBid}</span>
-                <span className="text-purple-700 flex items-center gap-0.5">
-                  <Crown className="w-3.5 h-3.5 text-amber-500 inline" />
-                  {target}
-                </span>
-              </>
-            ) : (
-              <span>{target}</span>
+          <>
+            <span className="hidden sm:inline text-[10px] uppercase tracking-[0.14em] text-cream-300/80">
+              {phase === 'BIDDING' ? 'High' : targetChanged ? 'Target' : 'Bid'}
+            </span>
+            {targetChanged && <span className="line-through text-cream-300/50 text-xs">{highestBid}</span>}
+            <span className="font-display text-lg leading-none tabular-nums">{target}</span>
+            {bidderName && (
+              <span className={`text-xs truncate max-w-[4.5rem] sm:max-w-none ${bidderOwnSide ? 'text-felt-400' : 'text-[#e36a56]'}`}>{bidderName}</span>
             )}
-            {bidderName && <span className="text-slate-500 font-sans font-medium text-[11px]">({bidderName})</span>}
-          </div>
+          </>
         ) : (
-          <span className="font-mono text-slate-400">-</span>
+          <span className="text-xs text-cream-300/70">{phase === 'BIDDING' ? 'Bidding…' : '—'}</span>
+        )}
+        {dealMultiplier > 1 && (
+          <span
+            className={`ml-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+              dealMultiplier === 4 ? 'bg-suit-red text-cream-50' : 'bg-cream-100 text-felt-800'
+            }`}
+            title={dealMultiplier === 4 ? 'Re-doubled' : 'Doubled'}
+          >
+            {dealMultiplier}×
+          </span>
         )}
       </div>
-
-      {/* Deal Multiplier Badge (Double / Re-Double) */}
-      {dealMultiplier && dealMultiplier > 1 && (
-        <>
-          <span className="text-slate-300 font-light">|</span>
-          <div className="flex items-center gap-1">
-            {dealMultiplier === 2 && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 shadow-xs border border-amber-300">
-                <Zap className="w-3 h-3 fill-current" />
-                2x DBL
-              </span>
-            )}
-            {dealMultiplier === 4 && (
-              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-xs border border-rose-300 animate-pulse">
-                <Zap className="w-3 h-3 fill-current" />
-                4x REDBL
-              </span>
-            )}
-          </div>
-        </>
-      )}
     </div>
   );
 };

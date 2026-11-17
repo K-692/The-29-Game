@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { RoundSummary, Team } from '../../engine/types';
-import { CheckCircle2, XCircle, ArrowRight, Trophy, Clock } from 'lucide-react';
 
 interface InTableRoundSummaryProps {
   summary: RoundSummary;
@@ -23,6 +22,7 @@ export const InTableRoundSummary: React.FC<InTableRoundSummaryProps> = ({
   const isSuccess = summary.biddingTeamWon;
   const didMyTeamWinRound = (isBidderMyTeam && isSuccess) || (!isBidderMyTeam && !isSuccess);
   const myDelta = myTeam === 0 ? summary.gamePointsDelta.team0 : summary.gamePointsDelta.team1;
+  const theirDelta = myTeam === 0 ? summary.gamePointsDelta.team1 : summary.gamePointsDelta.team0;
 
   const handleStartNextDeal = () => {
     if (isDealing) return;
@@ -41,96 +41,51 @@ export const InTableRoundSummary: React.FC<InTableRoundSummaryProps> = ({
   const myLast = myTeam === 0 ? summary.team0WonLastTrick : summary.team1WonLastTrick;
   const theirLast = myTeam === 0 ? summary.team1WonLastTrick : summary.team0WonLastTrick;
   const stakesLabel =
-    summary.dealMultiplier === 4 ? 'Re-Doubled · 4x' : summary.dealMultiplier === 2 ? 'Doubled · 2x' : null;
+    summary.dealMultiplier === 4 ? 're-doubled 4×' : summary.dealMultiplier === 2 ? 'doubled 2×' : null;
+
+  void matchScore; // match score is always on the scoreboard above
+  void isHost;
+  const bidderSide = isBidderMyTeam ? 'Your side' : 'Opponents';
 
   return (
-    <div className="w-full max-w-sm sm:max-w-md mx-auto bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-2xl space-y-2.5 z-30 animate-fade-in select-none">
-      {/* Result Header */}
-      <div className="text-center space-y-0.5">
-        <div className="flex items-center justify-center gap-1.5 flex-wrap">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-slate-100 border border-slate-200">
-            {didMyTeamWinRound ? (
-              <span className="text-emerald-700 flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> Deal Won ({ptsLabel(myDelta)})
-              </span>
-            ) : (
-              <span className="text-rose-700 flex items-center gap-1">
-                <XCircle className="w-3.5 h-3.5 text-rose-600" /> Deal Lost ({ptsLabel(myDelta)})
-              </span>
-            )}
-          </div>
-          {stakesLabel && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-rose-50 border border-rose-200 text-rose-700">
-              {stakesLabel}
+    <div className="panel w-full max-w-xs mx-auto p-5 space-y-4 text-center animate-fade-in">
+      <div>
+        <div className="eyebrow">{bidderSide} {isSuccess ? 'made' : 'missed'} {summary.adjustedTarget}</div>
+        <div className="panel-title text-3xl mt-1">
+          {didMyTeamWinRound ? 'Deal won' : 'Deal lost'}
+          {myDelta !== 0 ? (
+            <span className={`ml-2 text-xl tabular-nums ${myDelta > 0 ? 'text-felt-400' : 'text-[#e36a56]'}`}>
+              {myDelta > 0 ? `+${myDelta}` : myDelta}
+            </span>
+          ) : (
+            <span className={`ml-2 text-base tabular-nums ${theirDelta > 0 ? 'text-[#e36a56]' : 'text-felt-400'}`}>
+              them {theirDelta > 0 ? `+${theirDelta}` : theirDelta}
             </span>
           )}
         </div>
-        <h3 className="text-base sm:text-lg font-black text-slate-800">
-          {isSuccess
-            ? `${biddingTeamLabel} Fulfilled Contract!`
-            : `${biddingTeamLabel} Failed Contract!`}
-        </h3>
-        <p className="text-[11px] text-slate-500">
-          Target was <strong className="text-slate-800">{summary.adjustedTarget} pts</strong> (Bid: {summary.contractBid})
-          {summary.pairDeclared && ` · King-Queen pair ${summary.pairDeclared.adjustment > 0 ? '+4' : '−4'}`}
-        </p>
+        <div className="text-[11px] text-cream-300/80 mt-1 space-x-1.5">
+          <span>Bid {summary.contractBid}</span>
+          {summary.pairDeclared && <span>· pair {summary.pairDeclared.adjustment > 0 ? '+4' : '−4'}</span>}
+          {stakesLabel && <span>· {stakesLabel}</span>}
+        </div>
       </div>
 
-      {/* Points Breakdown: your side first, in your side's colour */}
-      <div className="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
+      <div className="grid grid-cols-2 gap-2">
         {[
-          { label: 'Your Side', pts: myPoints, last: myLast, dot: 'bg-sky-500', text: 'text-sky-700', border: 'border-r border-slate-200 pr-2' },
-          { label: 'Opponents', pts: theirPoints, last: theirLast, dot: 'bg-rose-500', text: 'text-rose-700', border: 'pl-2' },
-        ].map((col) => (
-          <div key={col.label} className={`text-center ${col.border}`}>
-            <div className={`flex items-center justify-center gap-1 text-[10px] font-bold uppercase tracking-wider ${col.text}`}>
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${col.dot}`} />
-              <span>{col.label}</span>
-            </div>
-            <div className="text-xl font-black text-slate-800 mt-0.5">
-              {col.pts} <span className="text-[10px] text-slate-500 font-normal">pts</span>
-            </div>
-            <div className="text-[10px] text-slate-500">{col.last ? 'Won 8th trick bonus' : ' '}</div>
+          { label: 'Us', pts: myPoints, last: myLast, color: 'text-felt-400' },
+          { label: 'Them', pts: theirPoints, last: theirLast, color: 'text-[#e36a56]' },
+        ].map((c) => (
+          <div key={c.label} className="rounded-xl border border-cream-100/10 py-2">
+            <div className={`text-[10px] uppercase tracking-[0.14em] ${c.color}`}>{c.label}</div>
+            <div className="font-display text-2xl tabular-nums">{c.pts}</div>
+            <div className="text-[10px] text-cream-300/60 h-3">{c.last ? '+ last trick' : ''}</div>
           </div>
         ))}
       </div>
 
-      {/* Match Game Score Progress */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-slate-50 rounded-xl border border-slate-200/80 text-[11px]">
-        <div className="flex items-center gap-1 text-slate-700 font-bold">
-          <Trophy className="w-3.5 h-3.5 text-amber-500" /> Match Score (+6 to Win):
-        </div>
-        <div className="flex items-center gap-3 font-mono font-bold text-xs sm:text-sm">
-          {(() => {
-            const mine = myTeam === 0 ? matchScore.team0 : matchScore.team1;
-            const theirs = myTeam === 0 ? matchScore.team1 : matchScore.team0;
-            const fmt = (n: number) => (n > 0 ? `+${n}` : `${n}`);
-            return (
-              <>
-                <span className="text-sky-700" title="Your side">{fmt(mine)}</span>
-                <span className="text-slate-300">|</span>
-                <span className="text-rose-700" title="Opponents">{fmt(theirs)}</span>
-              </>
-            );
-          })()}
-        </div>
-      </div>
-
-      {/* Immediate Next Deal Action */}
-      {isDealing ? (
-        <div className="w-full py-2.5 rounded-xl font-bold text-xs bg-amber-50 border border-amber-300 text-amber-900 shadow-sm flex items-center justify-center gap-2 animate-pulse">
-          <Clock className="w-3.5 h-3.5 text-amber-600 animate-spin" />
-          <span>Dealing next hand...</span>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={handleStartNextDeal}
-          className="w-full py-2.5 rounded-xl font-bold text-xs bg-amber-400 hover:bg-amber-300 active:scale-98 text-slate-950 shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-        >
-          Deal Next Hand <ArrowRight className="w-3.5 h-3.5 text-slate-950" />
-        </button>
-      )}
+      <button type="button" onClick={handleStartNextDeal} disabled={isDealing} className="btn-primary w-full">
+        {isDealing ? 'Dealing…' : 'Next deal'}
+      </button>
     </div>
   );
 };

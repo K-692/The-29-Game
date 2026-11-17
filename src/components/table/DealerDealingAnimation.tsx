@@ -151,15 +151,14 @@ export const DealerDealingAnimation: React.FC<DealerDealingAnimationProps> = ({
             className="absolute -translate-x-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none"
             style={{ left: pt.x, top: pt.y }}
           >
-            <span className="w-3 h-3 rounded-full bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.9)] border border-amber-200 animate-ping" />
-            <span className="absolute w-2 h-2 rounded-full bg-amber-300" />
+            <span className="w-3 h-3 rounded-full bg-cream-100 shadow-[0_0_12px_rgba(245,240,225,0.8)] animate-ping" />
+            <span className="absolute w-2 h-2 rounded-full bg-cream-100" />
           </div>
         ))}
 
       {/* Dealing Progress Pill in Center */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white/95 backdrop-blur-md border border-slate-200 px-4 py-2 rounded-2xl shadow-xl flex items-center gap-2 text-xs font-bold text-slate-800 animate-fade-in">
-        <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
-        <span>Distributing Cards ({dealIndex}/4)...</span>
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-felt-900/90 border border-cream-100/15 text-cream-100 px-4 py-1.5 shadow-soft text-xs animate-fade-in">
+        <span>Dealing… {dealIndex}/4</span>
       </div>
 
       {/* Flying Card Backs */}
@@ -178,7 +177,7 @@ export const DealerDealingAnimation: React.FC<DealerDealingAnimationProps> = ({
               transform: `translate(-50%, -50%) rotate(${rotation}deg) scale(${card.progress === 1 ? 0.8 : 1})`,
               transition: 'left 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), top 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.18s ease-out',
             }}
-            className="w-12 h-16 sm:w-16 sm:h-22 rounded-lg overflow-hidden shadow-2xl border border-amber-900/40 bg-white"
+            className="w-12 h-16 sm:w-16 sm:h-22 rounded-lg overflow-hidden shadow-2xl border border-felt-900/40 bg-cream-50"
           >
             <img
               src="/assets/cards/card_back.svg"

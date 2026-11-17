@@ -111,7 +111,7 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
       <div
         className={`
           relative w-full h-full ${CORNER_RADIUS[size]}
-          ${isPlayable ? 'border-2 border-amber-400' : ''}
+          ${isPlayable ? 'ring-2 ring-[#e8c766]' : ''}
         `}
       >
         {/* Authentic Card Image rendered 1:1 with object-contain to preserve corner ranks and suits */}
@@ -127,7 +127,7 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
 
       {/* Point badge for scoring cards - crisp at top-right outside inner container */}
       {isPlayable && cardData && cardData.points > 0 && !isDragging && (
-        <span className="absolute -top-2.5 -right-2.5 bg-amber-400 text-slate-950 text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-lg border border-amber-200 pointer-events-none z-30">
+        <span className="absolute -top-2.5 -right-2.5 bg-felt-800 text-cream-50 text-[10px] font-semibold px-1.5 py-0.5 rounded-full shadow-soft pointer-events-none z-30">
           +{cardData.points}
         </span>
       )}

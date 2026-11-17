@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Suit, SUIT_COLORS, SUIT_SYMBOLS } from '../../assets/cardManifest';
 import { TrumpMode } from '../../engine/types';
 
@@ -9,91 +9,96 @@ interface EpicTrumpRevealEffectProps {
   onComplete?: () => void;
 }
 
+/** Total length of the reveal sequence. */
+export const TRUMP_REVEAL_MS = 1700;
+
+const SUIT_NAMES: Record<Suit, string> = { DIAMONDS: 'Diamonds', HEARTS: 'Hearts', CLUBS: 'Clubs', SPADES: 'Spades' };
+
 /**
- * Full-Window Epic Trump-Reveal Effect
- * Strictly 1.0 second (1000ms) total duration.
- * Displays the radiant central revealed trump suit symbol (or No Trump emblem) at the center
- * of the screen for 600ms, then smoothly fades away and dissolves out from the center between 600ms–1000ms.
- * Adheres strictly to the zero-popup rule: NO text banner boxes.
+ * Trump reveal: the table dims, a card flips over in the centre to show the
+ * trump suit, a shockwave and a burst of suit symbols radiate out, then the
+ * card settles away. Never blocks input (pointer-events: none).
  */
-export const EpicTrumpRevealEffect: React.FC<EpicTrumpRevealEffectProps> = ({
-  suit,
-  trumpMode,
-  seventhCardId,
-  onComplete,
-}) => {
-  const [isFading, setIsFading] = useState<boolean>(false);
-  // Stable callback ref: parent re-renders must not restart the 1s effect.
+export const EpicTrumpRevealEffect: React.FC<EpicTrumpRevealEffectProps> = ({ suit, trumpMode, onComplete }) => {
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
 
   useEffect(() => {
-    // Stage 1 (0ms-600ms): Vibrant, radiant central presence
-    // Stage 2 (600ms-1000ms): Smooth dissolve and fade-away from the center of the screen
-    const fadeTimer = setTimeout(() => {
-      setIsFading(true);
-    }, 600);
-
-    // Stage 3 (1000ms): Exactly 1.0s total duration, unmount cleanly
-    const completeTimer = setTimeout(() => {
-      onCompleteRef.current?.();
-    }, 1000);
-
-    return () => {
-      clearTimeout(fadeTimer);
-      clearTimeout(completeTimer);
-    };
+    const t = setTimeout(() => onCompleteRef.current?.(), TRUMP_REVEAL_MS);
+    return () => clearTimeout(t);
   }, []);
 
-  const suitSymbol = suit ? SUIT_SYMBOLS[suit] : '';
-  const isRed = suit ? SUIT_COLORS[suit] === 'red' : false;
+  const isNoTrump = trumpMode === 'no-trump' || !suit;
+  const symbol = !isNoTrump && suit ? SUIT_SYMBOLS[suit] : '🃏';
+  const red = !isNoTrump && suit ? SUIT_COLORS[suit] === 'red' : false;
+  const title = isNoTrump ? 'No trump' : SUIT_NAMES[suit!];
+
+  // Burst of small suit symbols flying out radially.
+  const particles = useMemo(
+    () =>
+      Array.from({ length: 14 }, (_, i) => {
+        const angle = (i / 14) * Math.PI * 2 + (Math.random() - 0.5) * 0.35;
+        const dist = 160 + Math.random() * 140;
+        return {
+          dx: Math.cos(angle) * dist,
+          dy: Math.sin(angle) * dist,
+          rot: (Math.random() - 0.5) * 220,
+          delay: 380 + Math.random() * 120,
+          size: 16 + Math.random() * 14,
+        };
+      }),
+    []
+  );
 
   return (
-    <div
-      className={`fixed inset-0 pointer-events-none z-50 flex items-center justify-center overflow-hidden transition-opacity duration-400 ease-out ${
-        isFading ? 'opacity-0' : 'opacity-100'
-      }`}
-    >
-      {/* 1. Viewport Edge Radiance */}
-      <div
-        className="absolute inset-0"
-        style={{
-          boxShadow: 'inset 0 0 100px 30px rgba(251, 191, 36, 0.45), inset 0 0 40px 10px rgba(255, 255, 255, 0.6)',
-        }}
-      />
+    <div className="fixed inset-0 z-50 pointer-events-none overflow-hidden flex items-center justify-center" aria-live="polite">
+      <span className="sr-only">Trump revealed: {title}</span>
 
-      {/* 2. Central Radiant Golden Aura */}
-      <div
-        className={`absolute rounded-full transition-all duration-400 ease-out ${
-          isFading ? 'scale-125 opacity-0' : 'scale-100 opacity-95'
-        }`}
-        style={{
-          width: '75vmin',
-          height: '75vmin',
-          background: 'radial-gradient(circle, rgba(254, 243, 199, 0.9) 0%, rgba(251, 191, 36, 0.55) 35%, rgba(245, 158, 11, 0.2) 60%, transparent 80%)',
-          filter: 'blur(16px)',
-        }}
-      />
+      {/* Table dim */}
+      <div className="absolute inset-0 bg-felt-950 trump-dim" />
 
-      {/* 3. Central Luminous Trump Symbol - Smoothly dissolves and fades away from center */}
-      <div
-        className={`relative flex items-center justify-center select-none text-center transition-all duration-400 ease-out ${
-          isFading ? 'scale-115 opacity-0 -translate-y-3' : 'scale-100 opacity-100 translate-y-0'
-        }`}
-      >
-        {trumpMode === 'no-trump' ? (
-          <div className="px-8 py-4 rounded-3xl bg-amber-400 text-slate-950 font-black text-3xl sm:text-4xl tracking-widest uppercase shadow-[0_0_60px_rgba(251,191,36,1)] border-4 border-white/90">
-            ⚡ NO TRUMP ⚡
+      {/* Shockwave rings */}
+      <div className="absolute w-40 h-40 rounded-full border-2 border-cream-100 trump-ring" style={{ animationDelay: '380ms' }} />
+      <div className="absolute w-40 h-40 rounded-full border border-[#e8c766] trump-ring" style={{ animationDelay: '520ms' }} />
+
+      {/* Suit particles */}
+      {particles.map((p, i) => (
+        <span
+          key={i}
+          className={`absolute trump-particle ${red ? 'text-suit-red' : 'text-cream-50'}`}
+          style={
+            {
+              '--dx': `${p.dx}px`,
+              '--dy': `${p.dy}px`,
+              '--rot': `${p.rot}deg`,
+              animationDelay: `${p.delay}ms`,
+              fontSize: `${p.size}px`,
+            } as React.CSSProperties
+          }
+        >
+          {symbol}
+        </span>
+      ))}
+
+      {/* Flipping card */}
+      <div className="trump-card-wrap" style={{ perspective: '900px' }}>
+        <div className="relative w-36 h-52 sm:w-44 sm:h-64 trump-card" style={{ transformStyle: 'preserve-3d' }}>
+          {/* Back */}
+          <div className="absolute inset-0 rounded-2xl overflow-hidden shadow-soft" style={{ backfaceVisibility: 'hidden' }}>
+            <img src="/assets/cards/card_back.svg" alt="" className="w-full h-full object-cover" />
           </div>
-        ) : (
-          <span
-            className={`text-8xl sm:text-9xl font-black drop-shadow-[0_0_45px_rgba(255,255,255,1)] drop-shadow-[0_0_75px_rgba(251,191,36,0.9)] ${
-              isRed ? 'text-rose-600' : 'text-slate-900'
-            }`}
+          {/* Face */}
+          <div
+            className="absolute inset-0 rounded-2xl bg-cream-50 border border-cream-300 shadow-[0_0_60px_rgba(245,240,225,0.55)] flex flex-col items-center justify-center gap-1"
+            style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
           >
-            {suitSymbol}
-          </span>
-        )}
+            <span className="text-[10px] uppercase tracking-[0.25em] text-felt-600">Trump</span>
+            <span className={`leading-none ${isNoTrump ? 'text-6xl' : 'text-8xl sm:text-9xl'} ${red ? 'text-suit-red' : 'text-felt-900'}`}>
+              {symbol}
+            </span>
+            <span className="font-display text-xl text-felt-800">{title}</span>
+          </div>
+        </div>
       </div>
     </div>
   );

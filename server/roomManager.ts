@@ -1026,28 +1026,37 @@ export class RoomManager {
     }
     room.gameState = res.state;
 
-    let revealMsg = `⚡ ${seat.playerName} revealed the secret Trump suit: ${res.state.trumpSuit}!`;
-    if (res.state.trumpMode === 'no-trump') {
-      revealMsg = `⚡ ${seat.playerName} revealed: Joker / No Trump mode! No suit has trump priority.`;
-    } else if (res.state.trumpMode === 'seventh-card' && res.state.seventhCard) {
-      const cardInfo = CARD_MANIFEST[res.state.seventhCard.cardId];
-      const cardName = cardInfo ? `${cardInfo.rank} of ${cardInfo.suit}` : res.state.seventhCard.cardId;
-      revealMsg = `⚡ ${seat.playerName} revealed the 7th Card Trump: ${cardName}! Trump is ${res.state.trumpSuit}.`;
-    }
-    this.broadcastNotification(room, 'TRUMP_REVEALED', revealMsg);
+    this.announceTrumpReveal(room, seat, false);
 
-    if (res.state.pairDeclaration) {
-      const pair = res.state.pairDeclaration;
+    this.broadcastGameState(room);
+    return { success: true };
+  }
+
+  /** Table-wide notifications for a trump reveal (requested or by cutting) and any pair it exposes. */
+  private announceTrumpReveal(room: LanRoom, seat: SeatInfo, byCut: boolean) {
+    const gs = room.gameState!;
+    const suitName = gs.trumpSuit ? gs.trumpSuit.charAt(0) + gs.trumpSuit.slice(1).toLowerCase() : '';
+    let msg = byCut
+      ? `${seat.playerName} cut with a trump — trump is ${suitName}.`
+      : `${seat.playerName} revealed trump: ${suitName}.`;
+    if (gs.trumpMode === 'no-trump') {
+      msg = `${seat.playerName} revealed: Joker / No Trump.`;
+    } else if (gs.trumpMode === 'seventh-card' && gs.seventhCard) {
+      const info = CARD_MANIFEST[gs.seventhCard.cardId];
+      const cardName = info ? `${info.rank} of ${info.suit.toLowerCase()}` : gs.seventhCard.cardId;
+      msg = `7th card revealed: ${cardName} — trump is ${suitName}.`;
+    }
+    this.broadcastNotification(room, 'TRUMP_REVEALED', msg);
+
+    if (gs.pairDeclaration) {
+      const pair = gs.pairDeclaration;
       const owner = room.seats[pair.playerIndex];
       this.broadcastNotification(
         room,
         'PAIR_DECLARED',
-        `👑 ${owner ? owner.playerName : 'Player'} holds King & Queen of Trump! Target is now ${pair.adjustedTarget}.`
+        `${owner ? owner.playerName : 'Player'} holds King & Queen of trump — target is now ${pair.adjustedTarget}.`
       );
     }
-
-    this.broadcastGameState(room);
-    return { success: true };
   }
 
   /**
@@ -1097,6 +1106,7 @@ export class RoomManager {
       return { success: false, error: 'Illegal card play: You must follow the lead suit.' };
     }
 
+    const wasRevealed = room.gameState.isTrumpRevealed;
     const res = applyCardPlay(room.gameState, seat.position, cardId);
     if (!res.success) {
       return { success: false, error: res.error };
@@ -1104,6 +1114,10 @@ export class RoomManager {
     if (room.activeTurn) room.activeTurn.resolved = true;
     this.stopCountdown(room);
     room.gameState = res.state;
+
+    if (!wasRevealed && res.state.isTrumpRevealed) {
+      this.announceTrumpReveal(room, seat, true);
+    }
 
     if (res.trickCompleted) {
       const lastTrick = res.trickCompleted;
