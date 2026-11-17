@@ -260,7 +260,7 @@ export default function App() {
   const isHost = Boolean(roomState?.seats.find((s) => s.position === myPosition)?.isHost);
 
   return (
-    <div className="w-full min-h-screen bg-slate-950 text-slate-100 font-sans">
+    <div className="w-full min-h-screen bg-felt-800 text-cream-100 font-sans">
       {view === 'home' && (
         <HomeView
           displayName={userName}

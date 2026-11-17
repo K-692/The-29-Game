@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { GamePhase, PlayerInfo, PlayerPosition, Team } from '../../engine/types';
-import { Clock, ShieldAlert, Zap } from 'lucide-react';
 
 interface InTableDoubleDecisionProps {
   phase: GamePhase; // 'DOUBLE_DECISION' | 'REDOUBLE_DECISION'
@@ -60,118 +59,69 @@ export const InTableDoubleDecision: React.FC<InTableDoubleDecisionProps> = ({
   };
 
   const progressPercent = Math.max(0, Math.min(100, (remainingSeconds / 10) * 100));
+  const iDoubled = submitting === 'DOUBLE_OR_REDOUBLE';
 
   return (
-    <div className="relative mx-auto max-w-sm sm:max-w-md w-full bg-slate-950/90 backdrop-blur-md border-2 border-amber-400/90 shadow-[0_0_30px_rgba(251,191,36,0.4)] rounded-3xl p-4 sm:p-5 text-center text-white select-none pointer-events-auto">
-      {/* 10s Timer progress bar */}
-      <div className="w-full bg-slate-800/80 rounded-full h-1.5 mb-3 overflow-hidden">
-        <div
-          className={`h-full transition-all duration-1000 ${
-            remainingSeconds <= 3 ? 'bg-rose-500' : 'bg-amber-400'
-          }`}
-          style={{ width: `${progressPercent}%` }}
-        />
+    <div className="panel relative w-full max-w-sm mx-auto p-4 space-y-3 overflow-hidden animate-fade-in">
+      {/* 10s window */}
+      <div className="absolute top-0 left-0 h-0.5 bg-cream-100/70 transition-[width] duration-1000 ease-linear" style={{ width: `${progressPercent}%` }} />
+
+      <div className="flex items-center justify-between">
+        <div className="panel-title text-lg">{isStage1 ? 'Double?' : 'Re-double?'}</div>
+        <span className={`font-mono text-sm tabular-nums ${remainingSeconds <= 3 ? 'text-[#e36a56]' : 'text-cream-300'}`}>
+          {remainingSeconds}s
+        </span>
       </div>
-
-      {/* Header */}
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <div className="flex items-center gap-1.5 text-xs font-black tracking-wider uppercase text-amber-300">
-          <Zap className="w-4 h-4 text-amber-400 animate-pulse" />
-          <span>{isStage1 ? 'Stage 1: Double Opportunity' : 'Stage 2: Re-Double Opportunity'}</span>
-        </div>
-        <div className="flex items-center gap-1 text-xs font-mono font-bold bg-slate-900 border border-slate-700/80 px-2 py-0.5 rounded-full text-amber-300">
-          <Clock className="w-3.5 h-3.5" />
-          <span>{remainingSeconds}s</span>
-        </div>
-      </div>
-
-      {/* Title & Description */}
-      <h3 className="text-base sm:text-lg font-black tracking-wide text-white mb-1">
-        {isStage1 ? 'Defending Team: Challenge the Bid?' : 'Bidding Team: Re-Double the Stakes?'}
-      </h3>
-
-      <p className="text-xs text-slate-300 mb-4">
-        {isStage1 ? (
-          <>
-            Contract bid is <span className="font-bold text-amber-300">{highestBid}</span>.
-            Doubling doubles match points (<span className="text-amber-400 font-bold">2x</span>: ±2 points).
-          </>
-        ) : (
-          <>
-            The contract was doubled! Re-doubling raises the stakes to{' '}
-            <span className="text-rose-400 font-bold">4x</span> (±4 match points).
-          </>
-        )}
+      <p className="text-xs text-cream-300 -mt-1">
+        {isStage1
+          ? `Contract is ${highestBid}. Defenders can double the stakes to 2×.`
+          : 'The contract was doubled. Bidders can raise it to 4×.'}
       </p>
 
-      {/* Live vote status for the deciding team */}
-      <div className="flex items-center justify-center gap-2 mb-3">
+      <div className="flex items-center gap-1.5 flex-wrap">
         {decidingPositions.map((pos) => {
           const v = votes[pos];
           return (
             <span
               key={pos}
-              className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition-colors duration-300 ${
+              className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors duration-300 ${
                 v === 'PASS'
-                  ? 'bg-slate-800 border-slate-600 text-slate-300'
+                  ? 'border-cream-100/15 text-cream-300/70'
                   : v
-                  ? 'bg-amber-500 border-amber-300 text-slate-950'
-                  : 'bg-slate-900 border-amber-500/40 text-amber-200 animate-pulse'
+                  ? 'bg-cream-100 text-felt-800 border-cream-100'
+                  : 'border-cream-100/30 text-cream-100 animate-pulse'
               }`}
             >
-              {nameOf(pos)}: {v === 'PASS' ? 'Passed' : v ? v : 'Deciding…'}
+              {nameOf(pos)} · {v === 'PASS' ? 'passed' : v ? v.toLowerCase() : 'deciding'}
             </span>
           );
         })}
       </div>
 
-      {/* Decision Buttons or Waiting Notice */}
       {canIDecide ? (
         hasVoted ? (
-          <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-slate-900/90 border border-amber-500/40 text-amber-300 text-xs sm:text-sm font-semibold">
-            <Clock className="w-4 h-4 text-amber-400 animate-pulse" />
-            <span>
-              {submitting === 'DOUBLE_OR_REDOUBLE'
-                ? isStage1 ? 'Doubling...' : 'Re-doubling...'
-                : 'You passed. Waiting for your teammate to decide...'}
-            </span>
-          </div>
+          <p className="text-xs text-cream-200 text-center py-1">
+            {iDoubled ? (isStage1 ? 'Doubling…' : 'Re-doubling…') : 'You passed — waiting for your partner.'}
+          </p>
         ) : (
-          <div className="grid grid-cols-2 gap-3 mt-2">
-            {/* Action Button: DOUBLE or REDOUBLE */}
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
               disabled={submitting !== null}
               onClick={() => handleAction('DOUBLE_OR_REDOUBLE')}
-              className={`cursor-pointer py-2.5 px-3 rounded-2xl font-black text-sm uppercase tracking-wider text-slate-950 shadow-lg transition-all active:scale-95 disabled:opacity-50 ${
-                isStage1
-                  ? 'bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 shadow-amber-500/30 ring-2 ring-amber-300/60'
-                  : 'bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 text-white shadow-rose-500/30 ring-2 ring-rose-300/60'
-              }`}
+              className={isStage1 ? 'btn-primary py-2.5' : 'btn-danger py-2.5'}
             >
-              {isStage1 ? '⚡ DOUBLE (2x)' : '💥 RE-DOUBLE (4x)'}
+              {isStage1 ? 'Double 2×' : 'Re-double 4×'}
             </button>
-
-            {/* PASS Button */}
-            <button
-              type="button"
-              disabled={submitting !== null}
-              onClick={() => handleAction('PASS')}
-              className="cursor-pointer py-2.5 px-3 rounded-2xl font-bold text-sm uppercase tracking-wider bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-600/80 shadow-md transition-all disabled:opacity-50"
-            >
-              {isStage1 ? 'PASS (1x)' : 'PASS (Keep 2x)'}
+            <button type="button" disabled={submitting !== null} onClick={() => handleAction('PASS')} className="btn-ghost py-2.5">
+              Pass
             </button>
           </div>
         )
       ) : (
-        <div className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl bg-slate-900/80 border border-slate-800 text-slate-300 text-xs">
-          <ShieldAlert className="w-4 h-4 text-amber-400 animate-pulse" />
-          <span>
-            {isStage1
-              ? 'Waiting for Defending Team to decide on Double...'
-              : 'Waiting for Bidding Team to decide on Re-Double...'}
-          </span>
-        </div>
+        <p className="text-xs text-cream-300 text-center py-1">
+          {isStage1 ? 'Waiting for the defenders…' : 'Waiting for the bidding side…'}
+        </p>
       )}
     </div>
   );

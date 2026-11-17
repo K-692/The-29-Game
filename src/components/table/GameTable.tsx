@@ -10,7 +10,7 @@ import { CARD_MANIFEST } from '../../assets/cardManifest';
 import { getPlayableCards } from '../../engine/tricks';
 import { soundManager } from '../../common/SoundManager';
 import { Scoreboard } from './Scoreboard';
-import { OpponentSeat } from './OpponentSeat';
+import { SeatBadge } from './SeatBadge';
 import { PlayerHand } from './PlayerHand';
 import { TrickArea } from './TrickArea';
 import { AskToRevealTrumpButton } from './TrumpIndicator';
@@ -241,6 +241,17 @@ export const GameTable: React.FC<GameTableProps> = ({
   const hasPlayerPassed = (pos: PlayerPosition) =>
     isBiddingPhase && publicState.bids.some((b) => b.playerIndex === pos && b.bid === 'PASS');
 
+  // Each player's latest call during the auction, shown as a bubble on their seat.
+  const bidCallFor = (pos: PlayerPosition): string | null => {
+    if (!isBiddingPhase) return null;
+    const mine = publicState.bids.filter((b) => b.playerIndex === pos);
+    const last = mine[mine.length - 1];
+    if (!last) return null;
+    return last.bid === 'PASS' ? 'Pass' : String(last.bid);
+  };
+  const contractBidFor = (pos: PlayerPosition): number | null =>
+    !isBiddingPhase && publicState.highestBidder === pos && publicState.highestBid > 0 ? publicState.highestBid : null;
+
   const meHasPassed = hasPlayerPassed(myPosition);
   const leftHasPassed = hasPlayerPassed(leftOpponentPos);
   const partnerHasPassed = hasPlayerPassed(partnerPos);
@@ -342,7 +353,7 @@ export const GameTable: React.FC<GameTableProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 w-screen h-screen overflow-hidden flex flex-col select-none bg-slate-900">
+    <div className="fixed inset-0 w-screen h-screen overflow-hidden flex flex-col select-none bg-felt-800">
       {/* 1. Full-screen Edge-to-Edge Table Background */}
       <img
         src="/assets/table.jpg"
@@ -350,92 +361,52 @@ export const GameTable: React.FC<GameTableProps> = ({
         className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0"
       />
 
-      {/* 2. Floating Top Controls (No reserved navbar height, no horizontal strip) */}
-      <div className="fixed top-2.5 left-2.5 right-2.5 sm:top-4 sm:left-5 sm:right-5 z-30 flex items-center justify-between pointer-events-none">
-        {/* Left Section: Back / Leave + Room Code */}
+      {/* 2. Top bar: leave + room, scoreboard (always visible), sound + rules */}
+      <div className="fixed top-2.5 left-2.5 right-2.5 sm:top-4 sm:left-5 sm:right-5 z-30 flex items-start justify-between gap-2 pointer-events-none">
         <div className="flex items-center gap-2 pointer-events-auto">
           <button
             onClick={onLeave}
-            className="p-2 text-slate-700 hover:text-slate-950 bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md rounded-2xl transition-all active:scale-95 cursor-pointer"
-            title="Leave Game to Lobby"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center bg-felt-900/85 border border-cream-100/15 text-cream-100 hover:bg-felt-800 shadow-soft transition"
+            title="Leave table"
           >
-            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+            <ArrowLeft className="w-4 h-4" />
           </button>
-
-          <div className="flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md px-2.5 sm:px-3 py-1.5 rounded-2xl text-slate-800">
-            <img src="/assets/game_logo.png" alt="The 29 Game" className="w-5 h-5 sm:w-6 sm:h-6 object-contain drop-shadow" />
-            <div className="flex items-center gap-1 text-[11px] sm:text-xs font-mono font-bold whitespace-nowrap">
-              <Wifi className="w-3 h-3 text-emerald-600" />
-              <span>ROOM: {publicState.roomCode}</span>
-            </div>
+          <div className="hidden sm:flex items-center gap-2 h-9 pl-1.5 pr-3 rounded-full bg-felt-900/85 border border-cream-100/15 text-cream-100 shadow-soft">
+            <img src="/assets/game_logo.png" alt="29" className="w-6 h-6 rounded-md" />
+            <span className="font-mono text-xs tracking-[0.2em]">{publicState.roomCode}</span>
           </div>
         </div>
 
-        {/* Center Section: Active Bidder Name & Avatar during Bidding OR Scoreboard during Trick Play */}
-        <div className="pointer-events-auto flex items-center">
-          {publicState.phase === 'BIDDING' ? (
-            <div
-              className={`bg-white/95 backdrop-blur-md border shadow-lg px-3.5 py-1.5 rounded-2xl flex items-center gap-2 text-xs sm:text-sm font-black transition-all animate-fade-in ${
-                (activePlayer?.team ?? 0) === 0
-                  ? 'border-sky-400 ring-2 ring-sky-300/40 text-sky-950'
-                  : 'border-rose-400 ring-2 ring-rose-300/40 text-rose-950'
-              }`}
-            >
-              <span className="text-base sm:text-lg leading-none" role="img" aria-label="Bidder Avatar">
-                {activePlayer?.avatar || '🦊'}
-              </span>
-              <span>
-                {isMyActiveTurn ? 'Your Turn to Bid' : `${activePlayerName} is bidding`}
-              </span>
-              {publicState.highestBid > 0 && (
-                <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-lg ml-1">
-                  High: {publicState.highestBid} ({highestBidderName})
-                </span>
-              )}
-            </div>
-          ) : (
-            <Scoreboard publicState={publicState} myTeam={myTeam} />
-          )}
+        <div className="pointer-events-auto">
+          <Scoreboard publicState={publicState} myTeam={myTeam} myPosition={myPosition} />
         </div>
 
-        {/* Right Section: Audio Controls & Help */}
         <div className="flex items-center gap-2 pointer-events-auto">
-          {/* Sound Controls */}
-          <div className="flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md px-2 py-1.5 rounded-2xl text-slate-700">
-            <button
-              onClick={handleToggleSound}
-              className="p-1 hover:text-slate-950 transition-colors cursor-pointer"
-              title={isMuted ? 'Unmute' : 'Mute'}
-            >
-              {isMuted || volume === 0 ? (
-                <VolumeX className="w-4 h-4 text-rose-500" />
-              ) : (
-                <Volume2 className="w-4 h-4 text-emerald-600" />
-              )}
-            </button>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={isMuted ? 0 : volume}
-              onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
-              className="w-12 sm:w-16 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-amber-500 hidden sm:block"
-              title={`Volume: ${Math.round(volume * 100)}%`}
-              aria-label="Volume Slider"
-            />
-          </div>
-
-          {/* Help Rules Toggle */}
+          <button
+            onClick={handleToggleSound}
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center bg-felt-900/85 border border-cream-100/15 text-cream-100 hover:bg-felt-800 shadow-soft transition"
+            title={isMuted ? 'Unmute' : 'Mute'}
+          >
+            {isMuted || volume === 0 ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+          </button>
           <button
             onClick={() => setShowRulesDrawer(true)}
-            className="p-2 text-amber-600 hover:text-amber-700 bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-md rounded-2xl transition-all active:scale-95 cursor-pointer"
-            title="Open Rules & Reference (?)"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center bg-felt-900/85 border border-cream-100/15 text-cream-100 hover:bg-felt-800 shadow-soft transition"
+            title="Rules"
           >
-            <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
+            <HelpCircle className="w-4 h-4" />
           </button>
         </div>
       </div>
+
+      {/* Table notifications (trump revealed, doubles, errors…) */}
+      {notification && (
+        <div key={notification.timestamp} className="fixed top-[5.25rem] sm:top-16 left-2.5 sm:left-5 z-[55] pointer-events-none animate-fade-in max-w-[34vw] sm:max-w-[16rem]">
+          <div className="rounded-xl bg-felt-900/90 border border-cream-100/15 text-cream-100 text-xs leading-snug px-3 py-2 shadow-soft backdrop-blur-md">
+            {notification.message}
+          </div>
+        </div>
+      )}
 
       {/* 3. Full-Screen Table Canvas: Relative distribution of 4 seats and center */}
       <main className="relative flex-1 w-full h-full overflow-hidden">
@@ -453,15 +424,16 @@ export const GameTable: React.FC<GameTableProps> = ({
               </div>
             )}
 
-            <OpponentSeat
+            <SeatBadge
               player={partner}
               seatPosition="top"
+              relation={'partner'}
               isCurrentTurn={isTurnPhase && activePlayerPos === partnerPos}
               isDealer={publicState.dealerIndex === partnerPos}
-              isBidder={publicState.highestBidder === partnerPos}
-              bidAmount={publicState.highestBid || undefined}
+              contractBid={contractBidFor(partnerPos)}
+              bidCall={bidCallFor(partnerPos)}
+              isHighBid={isBiddingPhase && publicState.highestBidder === partnerPos}
               playerPoints={publicState.playerPoints ? publicState.playerPoints[partnerPos] : 0}
-              hasPassed={partnerHasPassed}
               isTrickWinner={trickWinnerPos === partnerPos}
             />
           </div>
@@ -481,15 +453,16 @@ export const GameTable: React.FC<GameTableProps> = ({
               </div>
             )}
 
-            <OpponentSeat
+            <SeatBadge
               player={leftOpponent}
               seatPosition="left"
+              relation={'opponent'}
               isCurrentTurn={isTurnPhase && activePlayerPos === leftOpponentPos}
               isDealer={publicState.dealerIndex === leftOpponentPos}
-              isBidder={publicState.highestBidder === leftOpponentPos}
-              bidAmount={publicState.highestBid || undefined}
+              contractBid={contractBidFor(leftOpponentPos)}
+              bidCall={bidCallFor(leftOpponentPos)}
+              isHighBid={isBiddingPhase && publicState.highestBidder === leftOpponentPos}
               playerPoints={publicState.playerPoints ? publicState.playerPoints[leftOpponentPos] : 0}
-              hasPassed={leftHasPassed}
               isTrickWinner={trickWinnerPos === leftOpponentPos}
             />
           </div>
@@ -509,15 +482,16 @@ export const GameTable: React.FC<GameTableProps> = ({
               </div>
             )}
 
-            <OpponentSeat
+            <SeatBadge
               player={rightOpponent}
               seatPosition="right"
+              relation={'opponent'}
               isCurrentTurn={isTurnPhase && activePlayerPos === rightOpponentPos}
               isDealer={publicState.dealerIndex === rightOpponentPos}
-              isBidder={publicState.highestBidder === rightOpponentPos}
-              bidAmount={publicState.highestBid || undefined}
+              contractBid={contractBidFor(rightOpponentPos)}
+              bidCall={bidCallFor(rightOpponentPos)}
+              isHighBid={isBiddingPhase && publicState.highestBidder === rightOpponentPos}
               playerPoints={publicState.playerPoints ? publicState.playerPoints[rightOpponentPos] : 0}
-              hasPassed={rightHasPassed}
               isTrickWinner={trickWinnerPos === rightOpponentPos}
             />
           </div>
@@ -543,6 +517,8 @@ export const GameTable: React.FC<GameTableProps> = ({
               }
               remainingSeconds={remainingSeconds}
               onPlaceBid={onBid}
+              bids={publicState.bids}
+              biddingOrder={publicState.biddingOrder}
             />
           </div>
         )}
@@ -675,125 +651,43 @@ export const GameTable: React.FC<GameTableProps> = ({
         />
 
         {me && (
-          <div
-            id="seat-bottom"
-            data-seat="bottom"
-            className={`relative flex items-center gap-2 px-3 py-1.5 rounded-2xl transition-all duration-200 select-none shadow-md ${
-              trickWinnerPos === myPosition
-                ? 'bg-amber-50/95 border-2 border-amber-400 ring-4 ring-amber-300/80 shadow-[0_0_24px_rgba(251,191,36,0.85)] text-slate-950 animate-pulse'
-                : isBottomTurn
-                ? 'bg-sky-50/95 border-2 border-sky-400 ring-2 ring-sky-300/60 shadow-[0_0_18px_rgba(56,189,248,0.5)] text-slate-900'
-                : 'bg-white/95 border border-sky-200/90 text-slate-800'
-            }`}
-          >
-            {/* Trick Winner Tag */}
-            {trickWinnerPos === myPosition && (
-              <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider text-slate-950 bg-amber-400 border border-amber-300 shadow-md z-20 animate-bounce">
-                WON TRICK
-              </span>
-            )}
-
-            {/* Dealer Badge */}
-            {publicState.dealerIndex === myPosition && (
-              <span
-                className="absolute -top-2 -left-2 bg-amber-400 text-slate-950 font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center shadow-md border border-amber-300 z-10"
-                title="Dealer"
-              >
-                D
-              </span>
-            )}
-
-            {/* Bidder Badge */}
-            {publicState.highestBidder === myPosition && publicState.highestBid && (
-              <span
-                className="absolute -top-2 -right-2 bg-emerald-600 text-white font-black text-[10px] px-1.5 py-0.5 rounded-full shadow-md z-10"
-                title={`Winning Bidder: ${publicState.highestBid}`}
-              >
-                {publicState.highestBid}
-              </span>
-            )}
-
-            {/* Turn or Passed Indicator Tag */}
-            {!trickWinnerPos && isBottomTurn ? (
-              <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider text-white bg-sky-500 shadow-xs z-10">
-                TURN
-              </span>
-            ) : !trickWinnerPos && meHasPassed ? (
-              <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider text-slate-700 bg-slate-200/95 border border-slate-300 shadow-xs z-10">
-                PASSED
-              </span>
-            ) : null}
-
-            {/* Partnership 1 Blue Dot */}
-            <span className="w-2 h-2 rounded-full bg-sky-500 shrink-0" title="Your Partnership" />
-
-            {/* Avatar */}
-            <span
-              data-avatar="bottom"
-              className="text-xl sm:text-2xl leading-none shrink-0"
-              role="img"
-              aria-label="Avatar"
-            >
-              {me.avatar || '🦊'}
-            </span>
-
-            {/* Name and Trick Points */}
-            <div className="flex items-center gap-1.5 text-xs font-bold leading-tight">
-              <span className="text-slate-900 truncate max-w-[95px] sm:max-w-[125px]">
-                {me.name} (You)
-              </span>
-              <span className="text-slate-400 font-normal">·</span>
-              <span className="text-amber-700 font-black whitespace-nowrap">
-                {publicState.playerPoints ? publicState.playerPoints[myPosition] : 0} pts
-              </span>
-            </div>
-          </div>
+          <SeatBadge
+            player={me}
+            seatPosition="bottom"
+            relation="me"
+            isCurrentTurn={isBottomTurn}
+            isDealer={publicState.dealerIndex === myPosition}
+            contractBid={contractBidFor(myPosition)}
+            bidCall={bidCallFor(myPosition)}
+            isHighBid={isBiddingPhase && publicState.highestBidder === myPosition}
+            playerPoints={publicState.playerPoints ? publicState.playerPoints[myPosition] : 0}
+            isTrickWinner={trickWinnerPos === myPosition}
+          />
         )}
       </div>
 
-      {/* 6. Bottom-Right Controls: 30-Second Turn Timer + Active Player Points Box (Item 2) */}
-      <div className="fixed bottom-3 right-3 sm:bottom-4 sm:right-5 z-40 flex items-center gap-2 select-none pointer-events-auto">
-        {/* Turn Timer */}
-        {showTurnTimer && (
+      {/* 6. Turn timer (bottom-right). Shown only while a human has a turn. */}
+      {showTurnTimer && (
+        <div className="fixed bottom-3 right-3 sm:bottom-4 sm:right-5 z-40 pointer-events-none">
           <div
-            className={`bg-white/95 backdrop-blur-md border shadow-xl px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-2xl flex items-center gap-2 text-xs sm:text-sm font-bold transition-all ${
+            className={`flex items-center gap-2 rounded-full px-3.5 py-2 shadow-soft border backdrop-blur-md transition-colors ${
               remainingSeconds <= 5
-                ? 'bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-300 animate-pulse'
-                : 'border-slate-200/90 text-slate-800'
+                ? 'bg-suit-red/90 border-cream-100/30 text-cream-50 animate-pulse'
+                : 'bg-felt-900/85 border-cream-100/15 text-cream-100'
             }`}
-            title="30-Second Turn Countdown"
+            title="Turn timer"
           >
-            <Clock className={`w-4 h-4 ${remainingSeconds <= 5 ? 'text-rose-600' : 'text-amber-500'}`} />
-            <div className="flex flex-col text-left leading-none">
-              <span className="text-[9px] sm:text-[10px] text-slate-400 uppercase tracking-wider font-extrabold">Turn Timer</span>
-              <span className="font-mono text-sm sm:text-base font-black">00:{remainingSeconds.toString().padStart(2, '0')}</span>
-            </div>
+            <Clock className="w-4 h-4" />
+            <span className="text-xs">{isMyActiveTurn ? 'Your turn' : activePlayerName}</span>
+            <span className="font-mono text-sm tabular-nums">{remainingSeconds}s</span>
           </div>
-        )}
-
-        {/* Active Player Points Box (Immediately to the right of Turn Timer) */}
-        {publicState.phase !== 'ROUND_ENDED' && publicState.phase !== 'MATCH_ENDED' && (
-          <div
-            className="bg-white/95 backdrop-blur-md border border-slate-200/90 shadow-xl px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-2xl flex items-center gap-2 text-xs sm:text-sm font-bold text-slate-800 transition-all"
-            title={`${isMyActiveTurn ? 'Your' : activePlayerName} collected trick points`}
-          >
-            <Sparkles className="w-4 h-4 text-amber-500" />
-            <div className="flex flex-col text-left leading-none">
-              <span className="text-[9px] sm:text-[10px] text-slate-400 uppercase tracking-wider font-extrabold">
-                {isMyActiveTurn ? 'Your Points' : `${activePlayerName}'s Pts`}
-              </span>
-              <span className="font-mono text-sm sm:text-base font-black text-amber-600">
-                {activePlayerPoints.toString().padStart(2, '0')}
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* 7. LAN connection banner (only while our own socket is down) */}
       {connectionStatus !== 'connected' && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[60] pointer-events-none animate-fade-in">
-          <div className="flex items-center gap-2 bg-rose-600/95 text-white text-xs font-bold px-4 py-2 rounded-2xl shadow-xl border border-rose-300">
+        <div className="fixed top-28 left-1/2 -translate-x-1/2 z-[60] pointer-events-none animate-fade-in">
+          <div className="flex items-center gap-2 bg-suit-red/95 text-cream-50 text-xs px-4 py-2 rounded-full shadow-soft border border-cream-100/30">
             <Wifi className="w-4 h-4 animate-pulse" />
             Connection to the LAN host lost — reconnecting…
           </div>

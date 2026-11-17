@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { PublicGameState, PlayerPosition } from '../../engine/types';
 import { PlayingCard } from '../card/PlayingCard';
 import { soundManager } from '../../common/SoundManager';
-import { Crown } from 'lucide-react';
 
 interface PhysicalTrumpIndicatorProps {
   publicState: PublicGameState;
@@ -203,14 +202,9 @@ export const PhysicalTrumpIndicator: React.FC<PhysicalTrumpIndicatorProps> = ({
             >
               {trumpMode === 'no-trump' ? (
                 // Clean Joker / NO TRUMP Card Face
-                <div className="w-full h-full bg-linear-to-b from-amber-50 to-white flex flex-col items-center justify-center p-1 text-center border-2 border-amber-400 rounded-sm">
-                  <Crown className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 mb-0.5" />
-                  <span className="text-[9px] sm:text-[10px] font-black text-slate-900 leading-tight tracking-wider">
-                    NO
-                  </span>
-                  <span className="text-[8px] sm:text-[9px] font-black text-amber-700 leading-tight tracking-wider">
-                    TRUMP
-                  </span>
+                <div className="w-full h-full bg-cream-50 flex flex-col items-center justify-center p-1 text-center border border-cream-300 rounded-sm">
+                  <span className="text-lg leading-none">🃏</span>
+                  <span className="text-[8px] sm:text-[9px] font-semibold text-felt-800 leading-tight tracking-wider mt-0.5">NO TRUMP</span>
                 </div>
               ) : trumpMode === 'seventh-card' && (seventhCardStage === 'showing-7th' || seventhCardStage === 'gliding') && revealedSeventhCard ? (
                 // Stage 1 & 2: Authentic 7th card displayed cleanly without badges on top
@@ -228,7 +222,7 @@ export const PhysicalTrumpIndicator: React.FC<PhysicalTrumpIndicatorProps> = ({
         </div>
 
         {/* Clean text "Trump" written strictly BELOW and OUTSIDE of the card */}
-        <span className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider text-amber-300 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] mt-1">
+        <span className="text-[10px] uppercase tracking-[0.18em] text-cream-100 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] mt-1">
           Trump
         </span>
       </div>

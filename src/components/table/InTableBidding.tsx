@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { GameRulesConfig, PlayerInfo, PlayerPosition } from '../../engine/types';
+import { BidEntry, GameRulesConfig, PlayerInfo, PlayerPosition } from '../../engine/types';
 import { getLegalBidOptions } from '../../engine/bidding';
-import { Clock, XCircle, Loader2 } from 'lucide-react';
 
 interface InTableBiddingProps {
   currentHighestBid: number;
@@ -14,8 +13,15 @@ interface InTableBiddingProps {
   isForcedDealer: boolean;
   remainingSeconds: number;
   onPlaceBid: (bid: number | 'PASS') => void;
+  bids?: BidEntry[];
+  biddingOrder?: PlayerPosition[];
 }
 
+/**
+ * Minimal auction panel. It always answers "who am I bidding against?":
+ * the current high bid, who holds it and whether they are your partner or an
+ * opponent, plus every call so far in bidding order.
+ */
 export const InTableBidding: React.FC<InTableBiddingProps> = ({
   currentHighestBid,
   highestBidder,
@@ -27,26 +33,20 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
   isForcedDealer,
   remainingSeconds = 15,
   onPlaceBid,
+  bids = [],
+  biddingOrder = [],
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Reset submitting state whenever activeBidder or turn changes
-  useEffect(() => {
-    setIsSubmitting(false);
-  }, [activeBidder, isMyTurn]);
+  useEffect(() => setIsSubmitting(false), [activeBidder, isMyTurn]);
 
   const legalOptions = getLegalBidOptions(currentHighestBid, rules);
+  const playerAt = (pos: PlayerPosition | null | undefined) => players.find((p) => p.position === pos);
+  const relationOf = (pos: PlayerPosition) =>
+    pos === myPosition ? 'you' : pos % 2 === myPosition % 2 ? 'partner' : 'opponent';
+  const nameOf = (pos: PlayerPosition) => (pos === myPosition ? 'You' : playerAt(pos)?.name || `Seat ${pos + 1}`);
 
-  const activePlayer = players.find(
-    (p) => p.position === (activeBidder !== undefined ? activeBidder : myPosition)
-  );
-  const activeAvatar = activePlayer?.avatar || '🦊';
-  const activeName = activePlayer?.name || 'Player';
-
-  const highBidderPlayer =
-    highestBidder !== null ? players.find((p) => p.position === highestBidder) : null;
-
-  const isUrgent = remainingSeconds <= 5;
+  const active = playerAt(activeBidder);
+  const highRel = highestBidder !== null ? relationOf(highestBidder) : null;
 
   const handleBidClick = (val: number | 'PASS') => {
     if (isSubmitting || !isMyTurn) return;
@@ -55,120 +55,93 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
     setTimeout(() => setIsSubmitting(false), 1500);
   };
 
-  return (
-    <div className="w-full max-w-sm sm:max-w-md mx-auto bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xl space-y-2 sm:space-y-2.5 z-30 select-none text-slate-900 animate-fade-in">
-      {/* Element 1: Current bidder and bid information */}
-      <div className="flex items-center justify-between pb-1.5 border-b border-slate-200">
-        <div className="flex items-center gap-2">
-          <span className="text-lg sm:text-xl" role="img" aria-label="Bidder Avatar">
-            {activeAvatar}
-          </span>
-          <div>
-            <span className="text-xs sm:text-sm font-black text-slate-900 block leading-tight">
-              {isMyTurn ? 'Your Turn to Bid' : `${activeName} is bidding`}
-            </span>
-            {currentHighestBid > 0 && highBidderPlayer ? (
-              <div className="flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold text-slate-600 mt-0.5">
-                <span>Bidding against:</span>
-                <span className="inline-flex items-center gap-1 font-bold text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
-                  <span role="img" aria-label="High Bidder">{highBidderPlayer.avatar || '🦊'}</span>
-                  <span>{highBidderPlayer.name} ({currentHighestBid})</span>
-                </span>
-              </div>
-            ) : (
-              <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 block mt-0.5">
-                Opening Bid (min 16) · No bids yet
-              </span>
-            )}
-          </div>
-        </div>
+  const order = biddingOrder.length === 4 ? biddingOrder : ([0, 1, 2, 3] as PlayerPosition[]);
+  const callOf = (pos: PlayerPosition) => bids.find((b) => b.playerIndex === pos)?.bid;
 
-        {/* 15s Countdown Timer (computer players answer within ~1s, so show "thinking" instead) */}
-        {activePlayer?.isCpu ? (
-          <span className="flex items-center gap-1 text-[11px] sm:text-xs font-bold px-2 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 animate-pulse">
-            thinking…
-          </span>
+  return (
+    <div className="panel w-full max-w-sm mx-auto p-4 space-y-3 animate-fade-in">
+      {/* Who is bidding + timer */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="panel-title text-lg">
+          {isMyTurn ? 'Your bid' : `${active?.name || 'Player'} is bidding`}
+        </div>
+        {active?.isCpu && !isMyTurn ? (
+          <span className="text-xs text-cream-300/80 animate-pulse">thinking…</span>
         ) : (
-        <span
-          className={`flex items-center gap-1 font-mono text-[11px] sm:text-xs font-black px-2 py-0.5 rounded-lg shadow-xs ${
-            isUrgent
-              ? 'bg-rose-500 text-white animate-pulse'
-              : 'bg-amber-100 text-amber-950 border border-amber-300'
-          }`}
-          title="15-Second Bidding Turn Timer"
-        >
-          <Clock className="w-3 h-3" />
-          <span>00:{remainingSeconds.toString().padStart(2, '0')}</span>
-        </span>
+          <span className={`font-mono text-sm tabular-nums ${remainingSeconds <= 5 ? 'text-[#e36a56]' : 'text-cream-300'}`}>
+            {remainingSeconds}s
+          </span>
         )}
       </div>
 
-      {isMyTurn ? (
-        <div className="space-y-2 pt-0.5">
-          {/* Element 2: Grid of all legal bid values (Single-tap immediate submit) */}
-          <div>
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-              Select Bid to Submit:
+      {/* Who you are bidding against */}
+      <div className="rounded-xl bg-felt-950/50 border border-cream-100/10 px-3 py-2.5 text-sm">
+        {currentHighestBid > 0 && highestBidder !== null ? (
+          <div className="flex items-center gap-2">
+            <span className="font-display text-2xl leading-none tabular-nums">{currentHighestBid}</span>
+            <span className="text-cream-200">
+              held by <span className="font-semibold text-cream-50">{nameOf(highestBidder)}</span>
             </span>
-            <div className="grid grid-cols-5 gap-1 sm:gap-1.5">
-              {legalOptions.map((val) => (
-                <button
-                  key={val}
-                  type="button"
-                  disabled={isSubmitting}
-                  onClick={() => handleBidClick(val)}
-                  className={`py-1.5 sm:py-2 px-0.5 rounded-lg font-mono font-black text-xs sm:text-sm border shadow-xs transition-all flex items-center justify-center ${
-                    isSubmitting
-                      ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
-                      : 'bg-amber-50 hover:bg-amber-400 hover:text-slate-950 border-amber-300 text-slate-900 active:scale-95 cursor-pointer'
-                  }`}
-                  title={`Click to Bid ${val}`}
-                >
-                  {val}
-                </button>
-              ))}
-            </div>
+            <span
+              className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${
+                highRel === 'opponent' ? 'bg-suit-red/90 text-cream-50' : 'bg-felt-500 text-cream-50'
+              }`}
+            >
+              {highRel === 'you' ? 'You' : highRel === 'partner' ? 'Partner' : 'Opponent'}
+            </span>
           </div>
+        ) : (
+          <span className="text-cream-300">No bids yet — opening bid is {rules.minBid} or more.</span>
+        )}
+      </div>
 
-          {/* Element 3: Prominent PASS button (Always visible to active bidder unless dealer is forced to open) */}
-          <div className="pt-0.5">
-            {!isForcedDealer ? (
+      {/* Calls so far, in bidding order */}
+      <div className="grid grid-cols-4 gap-1.5">
+        {order.map((pos) => {
+          const call = callOf(pos);
+          const rel = relationOf(pos);
+          const isActive = pos === activeBidder;
+          return (
+            <div
+              key={pos}
+              className={`rounded-lg px-1.5 py-1 text-center border transition-colors ${
+                isActive ? 'border-cream-100/60 bg-cream-100/10' : 'border-cream-100/10'
+              }`}
+            >
+              <div className={`text-[10px] truncate ${rel === 'opponent' ? 'text-[#e36a56]' : 'text-felt-400'}`}>
+                {nameOf(pos)}
+              </div>
+              <div className="text-sm tabular-nums text-cream-50">
+                {call === undefined ? (isActive ? '…' : '–') : call === 'PASS' ? <span className="text-cream-300/70">Pass</span> : call}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {isMyTurn && (
+        <div className="space-y-2 pt-1">
+          <div className="grid grid-cols-7 gap-1.5">
+            {legalOptions.map((val) => (
               <button
+                key={val}
                 type="button"
                 disabled={isSubmitting}
-                onClick={() => handleBidClick('PASS')}
-                className={`w-full py-2 sm:py-2.5 px-3 rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider border-2 shadow-sm transition-all flex items-center justify-center gap-1.5 ${
-                  isSubmitting
-                    ? 'bg-slate-100 text-slate-400 border-slate-300 cursor-not-allowed'
-                    : 'bg-rose-50 hover:bg-rose-100 active:scale-98 text-rose-700 border-rose-300 cursor-pointer'
-                }`}
-                title="Pass your bidding turn"
+                onClick={() => handleBidClick(val)}
+                className="rounded-lg py-2 text-sm tabular-nums bg-cream-100 text-felt-800 font-semibold hover:bg-cream-50 active:scale-95 transition disabled:opacity-40"
+                title={`Bid ${val}`}
               >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-500" />
-                    SUBMITTING...
-                  </>
-                ) : (
-                  <>
-                    <XCircle className="w-3.5 h-3.5 text-rose-600" />
-                    PASS
-                  </>
-                )}
+                {val}
               </button>
-            ) : (
-              <div
-                className="w-full py-2 px-3 rounded-xl text-center text-xs font-bold text-amber-900 bg-amber-50 border-2 border-amber-300 shadow-sm flex items-center justify-center gap-1.5"
-                title="First 3 players passed: As dealer, you must open with minimum 16"
-              >
-                <span>⚠️ Dealer Forced Opening (Must bid 16+)</span>
-              </div>
-            )}
+            ))}
           </div>
-        </div>
-      ) : (
-        <div className="text-center py-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600 font-medium">
-          Waiting for {activeName} to place a bid or pass...
+          {isForcedDealer ? (
+            <p className="text-xs text-center text-cream-300">Everyone passed — as dealer you must open.</p>
+          ) : (
+            <button type="button" disabled={isSubmitting} onClick={() => handleBidClick('PASS')} className="btn-ghost w-full py-2">
+              Pass
+            </button>
+          )}
         </div>
       )}
     </div>

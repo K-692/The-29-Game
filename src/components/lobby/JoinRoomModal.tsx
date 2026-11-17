@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { LogIn, X, Server, Wifi, Users } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { PlayerPosition } from '../../engine/types';
 import { lanClient } from '../../services/lanClient';
+import { Dialog, DialogError } from '../common/Dialog';
 
 interface JoinRoomModalProps {
   initialRoomCode?: string;
@@ -10,17 +11,11 @@ interface JoinRoomModalProps {
   onJoin: (roomCode: string, playerName: string, hostAddress: string, preferredSeat?: PlayerPosition) => Promise<string | null>;
 }
 
-export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({
-  initialRoomCode = '',
-  initialName,
-  onClose,
-  onJoin,
-}) => {
+export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({ initialRoomCode = '', initialName, onClose, onJoin }) => {
   const [code, setCode] = useState(initialRoomCode.toUpperCase());
-  const [name, setName] = useState(initialName || 'Player');
+  const [name, setName] = useState(initialName || '');
   const [hostAddress, setHostAddress] = useState(() => lanClient.getDefaultHostUrl());
-  const [preferredSeat, setPreferredSeat] = useState<PlayerPosition>(2); // Default to Seat 3 (Partner)
-
+  const [showHost, setShowHost] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,7 +24,8 @@ export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({
     if (!code.trim() || !name.trim() || busy) return;
     setBusy(true);
     setError(null);
-    const err = await onJoin(code.trim().toUpperCase(), name.trim(), hostAddress.trim(), preferredSeat);
+    // No seat preference: the first open seat is taken; seats can be switched in the lobby.
+    const err = await onJoin(code.trim().toUpperCase(), name.trim(), hostAddress.trim());
     if (err) {
       setError(err);
       setBusy(false);
@@ -37,106 +33,62 @@ export const JoinRoomModal: React.FC<JoinRoomModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
-      <div className="bg-slate-900 border border-slate-700 rounded-3xl max-w-md w-full shadow-2xl overflow-hidden">
-        {/* Header */}
-        <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
-          <div>
-            <h2 className="text-xl font-black text-slate-100 flex items-center gap-2">
-              <Wifi className="w-5 h-5 text-emerald-400" /> Join LAN Game
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">Connect to a host running on your local Wi-Fi / network</p>
-          </div>
+    <Dialog title="Join a room" subtitle="Ask the host for the 6-letter room code." onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <label className="block space-y-1.5">
+          <span className="eyebrow">Room code</span>
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            placeholder="ABC123"
+            maxLength={8}
+            required
+            autoFocus={!initialRoomCode}
+            className="field font-mono text-lg tracking-[0.35em] text-center uppercase"
+          />
+        </label>
+
+        <label className="block space-y-1.5">
+          <span className="eyebrow">Your name</span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Your name"
+            maxLength={20}
+            required
+            autoFocus={Boolean(initialRoomCode)}
+            className="field"
+          />
+        </label>
+
+        <div>
           <button
-            onClick={onClose}
-            className="p-1 text-slate-400 hover:text-slate-100 hover:bg-slate-800 rounded-lg transition-colors"
+            type="button"
+            onClick={() => setShowHost((v) => !v)}
+            className="flex items-center gap-1 text-xs text-cream-300/80 hover:text-cream-50"
           >
-            <X className="w-5 h-5" />
+            Host address
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showHost ? 'rotate-180' : ''}`} />
           </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Room Code */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
-              6-Digit Room Code
-            </label>
-            <input
-              type="text"
-              value={code}
-              onChange={(e) => setCode(e.target.value.toUpperCase())}
-              placeholder="e.g. TN8492"
-              maxLength={8}
-              required
-              className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-4 py-2.5 text-base font-mono font-bold tracking-widest text-amber-400 outline-none uppercase transition-colors"
-            />
-          </div>
-
-          {/* Player Name */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block">
-              Your Player Name
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter your name"
-              maxLength={20}
-              required
-              className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-4 py-2.5 text-sm text-slate-100 outline-none transition-colors"
-            />
-          </div>
-
-          {/* Preferred Seat */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-300 uppercase tracking-wider block flex items-center gap-1.5">
-              <Users className="w-3.5 h-3.5 text-amber-400" /> Preferred Seat
-            </label>
-            <select
-              value={preferredSeat}
-              onChange={(e) => setPreferredSeat(parseInt(e.target.value, 10) as PlayerPosition)}
-              className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-3 py-2 text-xs font-bold text-slate-200 outline-none transition-colors"
-            >
-              <option value={2}>Seat 3: Top (Team A - Partner to Host)</option>
-              <option value={1}>Seat 2: Left (Team B - Opponent)</option>
-              <option value={3}>Seat 4: Right (Team B - Opponent)</option>
-              <option value={0}>Seat 1: Bottom (Team A)</option>
-            </select>
-          </div>
-
-          {/* Host LAN Server Address */}
-          <div className="space-y-1.5 pt-1">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block flex items-center gap-1.5">
-              <Server className="w-3.5 h-3.5 text-slate-500" /> Host LAN Server Address
-            </label>
-            <input
-              type="text"
-              value={hostAddress}
-              onChange={(e) => setHostAddress(e.target.value)}
-              placeholder="192.168.1.x (port 3000 is assumed)"
-              className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-4 py-2 text-xs font-mono text-slate-300 outline-none transition-colors"
-            />
-            <span className="text-[10px] text-slate-500 block">
-              Pre-filled with the address this page was opened from. Change it only if the host is a different computer.
-            </span>
-          </div>
-
-          {error && (
-            <div role="alert" className="text-xs font-semibold text-rose-200 bg-rose-950/60 border border-rose-500/50 rounded-xl px-3 py-2">
-              {error}
+          {showHost && (
+            <div className="mt-2 space-y-1">
+              <input
+                value={hostAddress}
+                onChange={(e) => setHostAddress(e.target.value)}
+                placeholder="192.168.1.x"
+                className="field font-mono text-xs"
+                aria-label="Host address"
+              />
+              <p className="text-[11px] text-cream-300/60">Only change this if the host is a different computer.</p>
             </div>
           )}
+        </div>
 
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full py-3.5 rounded-xl font-black text-sm bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 shadow-xl shadow-amber-500/25 transition-all transform active:scale-95 disabled:opacity-60 disabled:cursor-wait flex items-center justify-center gap-2 mt-2"
-          >
-            {busy ? 'Connecting…' : (<><LogIn className="w-4 h-4" /> Join Room on LAN</>)}
-          </button>
-        </form>
-      </div>
-    </div>
+        <DialogError message={error} />
+        <button type="submit" disabled={busy || !code.trim() || !name.trim()} className="btn-primary w-full py-3">
+          {busy ? 'Joining…' : 'Join'}
+        </button>
+      </form>
+    </Dialog>
   );
 };

@@ -112,42 +112,32 @@ export const evaluateTrickWinner = (
 
   const leadSuit = leadCard.suit;
 
+  // Trump rule: any trump-suit card beats every non-trump card, and the
+  // highest trump (J > 9 > A > 10 > K > Q > 8 > 7) wins when several are played.
+  // This holds even if the trump was still concealed when the card hit the
+  // table (the play itself reveals it). Joker / No Trump has no trump suit.
+  void isTrumpRevealed;
+  const hasTrump = trumpMode !== 'no-trump' && Boolean(trumpSuit);
+  const isTrumpCard = (suit: Suit) => hasTrump && suit === trumpSuit;
+
   let bestPlayed = playedCards[0];
   let bestCard = leadCard;
-  let trumpWasPlayed = (trumpMode !== 'no-trump' && isTrumpRevealed && trumpSuit && leadCard.suit === trumpSuit);
+  let trumpWasPlayed = isTrumpCard(leadSuit);
 
   for (let i = 1; i < playedCards.length; i++) {
     const pc = playedCards[i];
     const card = CARD_MANIFEST[pc.cardId];
     if (!card) continue;
 
-    // Check if this card is trump (and trump is revealed and trumpMode is not no-trump)
-    const isThisTrump = Boolean(
-      trumpMode !== 'no-trump' && 
-      isTrumpRevealed && 
-      trumpSuit && 
-      card.suit === trumpSuit
-    );
-
-    if (isThisTrump) {
-      if (!trumpWasPlayed) {
-        // First trump played beats any non-trump card
+    if (isTrumpCard(card.suit)) {
+      if (!trumpWasPlayed || card.order > bestCard.order) {
         trumpWasPlayed = true;
         bestPlayed = pc;
         bestCard = card;
-      } else {
-        // Higher trump rank wins (J > 9 > A > 10 > K > Q > 8 > 7)
-        if (card.order > bestCard.order) {
-          bestPlayed = pc;
-          bestCard = card;
-        }
       }
-    } else if (!trumpWasPlayed && card.suit === leadSuit) {
-      // Both are lead suit, higher rank wins
-      if (card.order > bestCard.order) {
-        bestPlayed = pc;
-        bestCard = card;
-      }
+    } else if (!trumpWasPlayed && card.suit === leadSuit && card.order > bestCard.order) {
+      bestPlayed = pc;
+      bestCard = card;
     }
   }
 

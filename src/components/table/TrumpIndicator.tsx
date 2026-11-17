@@ -115,13 +115,11 @@ export const AskToRevealTrumpButton: React.FC<AskToRevealTrumpButtonProps> = ({
       type="button"
       onClick={handleClick}
       disabled={isSubmitting}
-      className={`bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black px-4 py-2.5 rounded-2xl text-xs shadow-xl border-2 border-amber-300/80 flex items-center gap-2 transition-all uppercase tracking-wider cursor-pointer ${
-        isSubmitting ? 'opacity-60 cursor-not-allowed' : ''
-      }`}
-      title="Ask to reveal the concealed trump suit"
+      className="btn-primary rounded-full px-4 py-2 shadow-soft"
+      title="You can't follow suit — ask the bidder to reveal trump"
     >
-      <Eye className="w-4 h-4 text-slate-950" />
-      {isSubmitting ? 'REVEALING...' : 'ASK TO REVEAL TRUMP'}
+      <Eye className="w-4 h-4" />
+      {isSubmitting ? 'Revealing…' : 'Ask for trump'}
     </button>
   );
 };

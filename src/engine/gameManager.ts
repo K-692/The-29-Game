@@ -610,10 +610,18 @@ export const applyTrumpReveal = (
     }
   }
 
+  return { success: true, state: revealTrumpState(state, playerIndex) };
+};
+
+/**
+ * Reveals the concealed trump (by request, or automatically when a player
+ * cuts with a trump card). In 7th Card mode the reserved card returns to the
+ * bidder's hand. Evaluates the King-Queen Pair on reveal.
+ */
+export const revealTrumpState = (state: GameState, revealedBy: PlayerPosition): GameState => {
   let updatedHands = state.hands;
   let updatedSeventhCard = state.seventhCard;
 
-  // If 7th Card mode, return the 7th card to the winning bidder's hand!
   if (state.trumpMode === 'seventh-card' && state.seventhCard && !state.seventhCard.isRevealed) {
     const owner = state.seventhCard.owner;
     const cardId = state.seventhCard.cardId;
@@ -621,13 +629,9 @@ export const applyTrumpReveal = (
       ...state.hands,
       [owner]: sortHand([...state.hands[owner], cardId]),
     };
-    updatedSeventhCard = {
-      ...state.seventhCard,
-      isRevealed: true,
-    };
+    updatedSeventhCard = { ...state.seventhCard, isRevealed: true };
   }
 
-  // Check for King-Queen Pair / Royals upon legal trump reveal
   const detectedPair = detectKingQueenPair(
     updatedHands,
     state.trumpSuit,
@@ -638,19 +642,16 @@ export const applyTrumpReveal = (
   );
 
   return {
-    success: true,
-    state: {
-      ...state,
-      hands: updatedHands,
-      seventhCard: updatedSeventhCard,
-      isTrumpRevealed: true,
-      trumpRevealedBy: playerIndex,
-      trumpRevealedAtTrick: state.currentTrickNumber,
-      pairDeclaration: detectedPair || state.pairDeclaration,
-      adjustedTarget: detectedPair ? detectedPair.adjustedTarget : state.adjustedTarget,
-      version: state.version + 1,
-      lastActionTimestamp: Date.now(),
-    },
+    ...state,
+    hands: updatedHands,
+    seventhCard: updatedSeventhCard,
+    isTrumpRevealed: true,
+    trumpRevealedBy: revealedBy,
+    trumpRevealedAtTrick: state.currentTrickNumber,
+    pairDeclaration: detectedPair || state.pairDeclaration,
+    adjustedTarget: detectedPair ? detectedPair.adjustedTarget : state.adjustedTarget,
+    version: state.version + 1,
+    lastActionTimestamp: Date.now(),
   };
 };
 
@@ -690,8 +691,23 @@ export const applyCardPlay = (
     return { success: false, state, error: validation.reason };
   }
 
+  // Cutting with a trump while it is still concealed reveals it to the table.
+  const playedSuit = CARD_MANIFEST[cardId]?.suit;
+  const leadSuitForCut = leadCardId ? CARD_MANIFEST[leadCardId]?.suit : null;
+  if (
+    !state.isTrumpRevealed &&
+    state.trumpMode !== 'no-trump' &&
+    state.trumpSuit &&
+    leadSuitForCut &&
+    playedSuit === state.trumpSuit &&
+    leadSuitForCut !== state.trumpSuit
+  ) {
+    state = revealTrumpState(state, playerIndex);
+  }
+
   // Remove card from player hand
-  const newHand = hand.filter((id) => id !== cardId);
+  const hand2 = state.hands[playerIndex];
+  const newHand = hand2.filter((id) => id !== cardId);
   const newHands = { ...state.hands, [playerIndex]: newHand };
 
   const playedCard: PlayedCard = { cardId, playerIndex };
