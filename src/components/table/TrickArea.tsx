@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { CompletedTrick, PlayedCard, PlayerInfo, PlayerPosition } from '../../engine/types';
+import { CompletedTrick, PlayedCard, PlayerInfo, PlayerPosition, TrumpMode } from '../../engine/types';
+import { Suit } from '../../assets/cardManifest';
+import { evaluateTrickWinner } from '../../engine/tricks';
 import { PlayingCard } from '../card/PlayingCard';
 import { soundManager } from '../../common/SoundManager';
 
@@ -12,6 +14,10 @@ interface TrickAreaProps {
   dropZoneRef?: React.Ref<HTMLDivElement>;
   currentTrickNumber?: number;
   roundNumber?: number;
+  trumpSuit?: Suit | null;
+  isTrumpRevealed?: boolean;
+  trumpMode?: TrumpMode;
+  onTrickWinnerDetermined?: (winnerPos: PlayerPosition | null) => void;
 }
 
 const SLOT_ROTATIONS: Record<'bottom' | 'top' | 'left' | 'right', number> = {
@@ -30,11 +36,16 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
   dropZoneRef,
   currentTrickNumber = 1,
   roundNumber = 1,
+  trumpSuit = null,
+  isTrumpRevealed = false,
+  trumpMode = 'suit',
+  onTrickWinnerDetermined,
 }) => {
-  // State for freeze-frame and collection animation
+  // State for freeze-frame and collective 4-card win animation
   const [frozenCards, setFrozenCards] = useState<PlayedCard[] | null>(null);
   const [isCollecting, setIsCollecting] = useState<boolean>(false);
-  const [collectionVectors, setCollectionVectors] = useState<Record<string, { x: number; y: number }>>({});
+  const [winningRelPos, setWinningRelPos] = useState<'bottom' | 'left' | 'top' | 'right' | null>(null);
+  const [targetVector, setTargetVector] = useState<{ x: number; y: number } | null>(null);
   const [retiredTrickKey, setRetiredTrickKey] = useState<string | null>(null);
 
   const slotRefs = {
@@ -73,9 +84,11 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
       if (timer2Ref.current) clearTimeout(timer2Ref.current);
       setFrozenCards(null);
       setIsCollecting(false);
-      setCollectionVectors({});
+      setWinningRelPos(null);
+      setTargetVector(null);
+      onTrickWinnerDetermined?.(null);
     }
-  }, [currentTrickKey]);
+  }, [currentTrickKey, onTrickWinnerDetermined]);
 
   // Play placement sound when new card arrives on felt
   useEffect(() => {
@@ -106,68 +119,100 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
     setFrozenCards(cardsToAnimate);
     setIsCollecting(false);
 
-    const latestTrick = lastCompletedTrick || (completedTricks.length > 0 ? completedTricks[completedTricks.length - 1] : null);
-    const winnerPos = latestTrick ? latestTrick.winner : myPosition;
+    // Evaluate authoritative trick winner
+    const getTrickWinner = (): PlayerPosition => {
+      if (lastCompletedTrick && lastCompletedTrick.trickNumber === currentTrickNumber) {
+        return lastCompletedTrick.winner;
+      }
+      if (cardsToAnimate.length === 4) {
+        try {
+          const trickResult = evaluateTrickWinner(
+            cardsToAnimate,
+            cardsToAnimate[0].playerIndex,
+            trumpSuit,
+            isTrumpRevealed,
+            currentTrickNumber,
+            true,
+            trumpMode
+          );
+          return trickResult.winner;
+        } catch {
+          // Fallback to latest trick or current player
+        }
+      }
+      return lastCompletedTrick?.winner ?? (completedTricks.length > 0 ? completedTricks[completedTricks.length - 1].winner : myPosition);
+    };
+
+    const winnerPos = getTrickWinner();
     const targetRelPos = getRelativePosition(winnerPos);
+    setWinningRelPos(targetRelPos);
+
+    // Calculate dynamic trajectory vector to winning seat center
+    const targetSeatEl = targetRelPos === 'bottom'
+      ? (document.querySelector('#player-hand') || document.querySelector('[data-seat="bottom"]'))
+      : (document.querySelector(`[data-seat="${targetRelPos}"]`) || document.querySelector(`[data-avatar="${targetRelPos}"]`));
+
+    const trickEl = document.querySelector('#trick-area');
+    if (trickEl && targetSeatEl) {
+      const trickRect = trickEl.getBoundingClientRect();
+      const seatRect = targetSeatEl.getBoundingClientRect();
+      const trickCenterX = trickRect.left + trickRect.width / 2;
+      const trickCenterY = trickRect.top + trickRect.height / 2;
+      const seatCenterX = seatRect.left + seatRect.width / 2;
+      const seatCenterY = seatRect.top + seatRect.height / 2;
+      setTargetVector({
+        x: Math.round(seatCenterX - trickCenterX),
+        y: Math.round(seatCenterY - trickCenterY),
+      });
+    } else {
+      switch (targetRelPos) {
+        case 'bottom': setTargetVector({ x: 0, y: 260 }); break;
+        case 'top': setTargetVector({ x: 0, y: -240 }); break;
+        case 'left': setTargetVector({ x: -300, y: 0 }); break;
+        case 'right': setTargetVector({ x: 300, y: 0 }); break;
+      }
+    }
 
     if (timer1Ref.current) clearTimeout(timer1Ref.current);
     if (timer2Ref.current) clearTimeout(timer2Ref.current);
 
-    // Step 1: Hold all 4 cards on the felt for 800ms so trick outcome is clearly visible
+    // Step 1: Hold all 4 cards on the felt for 750ms so trick outcome is clearly visible
     timer1Ref.current = setTimeout(() => {
-      // Step 2: Calculate dynamic trajectory directly into the winning player's avatar center
-      const targetAvatarEl =
-        document.querySelector(`[data-avatar="${targetRelPos}"]`) ||
-        document.querySelector(`[data-seat="${targetRelPos}"]`);
-      const targetRect = targetAvatarEl?.getBoundingClientRect();
-
-      const vectors: Record<string, { x: number; y: number }> = {};
-      cardsToAnimate.forEach((pc) => {
-        const key = `${pc.cardId}_${pc.playerIndex}`;
-        const pcRelPos = getRelativePosition(pc.playerIndex);
-        const slotEl = slotRefs[pcRelPos].current;
-
-        if (slotEl && targetRect) {
-          const slotRect = slotEl.getBoundingClientRect();
-          const targetCenterX = targetRect.left + targetRect.width / 2;
-          const targetCenterY = targetRect.top + targetRect.height / 2;
-          const slotCenterX = slotRect.left + slotRect.width / 2;
-          const slotCenterY = slotRect.top + slotRect.height / 2;
-          vectors[key] = {
-            x: targetCenterX - slotCenterX,
-            y: targetCenterY - slotCenterY,
-          };
-        } else {
-          // Dynamic fallback offsets based on table orientation
-          switch (targetRelPos) {
-            case 'bottom': vectors[key] = { x: 0, y: 360 }; break;
-            case 'top': vectors[key] = { x: 0, y: -360 }; break;
-            case 'left': vectors[key] = { x: -440, y: 0 }; break;
-            case 'right': vectors[key] = { x: 440, y: 0 }; break;
-          }
-        }
-      });
-
-      setCollectionVectors(vectors);
+      // Step 2: Trigger collection animation where all 4 cards move together towards winning player
       setIsCollecting(true);
       soundManager.playTrickShove();
-    }, 800);
+      onTrickWinnerDetermined?.(winnerPos);
+    }, 750);
 
-    // Step 3: At 1450ms (800ms hold + 650ms slide), collection finishes and trick is authoritatively retired
+    // Step 3: At 1350ms (750ms hold + 520ms animation + 80ms cushion), collection finishes and trick is authoritatively retired
     timer2Ref.current = setTimeout(() => {
       setRetiredTrickKey(currentTrickKey);
       setFrozenCards(null);
       setIsCollecting(false);
-      setCollectionVectors({});
-    }, 1450);
-  }, [isFourCards, currentTrickKey, retiredTrickKey, lastCompletedTrick, completedTricks.length, myPosition]);
+      setWinningRelPos(null);
+      setTargetVector(null);
+      onTrickWinnerDetermined?.(null);
+    }, 1350);
+  }, [
+    isFourCards, 
+    currentTrickKey, 
+    retiredTrickKey, 
+    lastCompletedTrick, 
+    completedTricks.length, 
+    myPosition,
+    trumpSuit,
+    isTrumpRevealed,
+    trumpMode,
+    onTrickWinnerDetermined,
+  ]);
 
   useEffect(() => {
     return () => {
       if (timer1Ref.current) clearTimeout(timer1Ref.current);
       if (timer2Ref.current) clearTimeout(timer2Ref.current);
+      onTrickWinnerDetermined?.(null);
     };
-  }, []);
+  }, [onTrickWinnerDetermined]);
 
   // Cards to render:
   // If this trick has finished collection (retired), render nothing so cards NEVER pop back onto the felt!
@@ -196,129 +241,100 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
       {/* Invisible drop target hitbox */}
       <div className="absolute inset-0 pointer-events-auto" />
 
-      {/* 4 Dedicated Slots with Fixed Anchors */}
-      {/* 1. BOTTOM SLOT */}
+      {/* Dynamic Trick Group Container: Animates all 4 cards moving together towards winning player */}
       <div
-        ref={slotRefs.bottom}
-        data-trick-slot="bottom"
-        className="absolute bottom-2 left-1/2 -translate-x-1/2 w-16 h-[5.6rem] sm:w-[4.5rem] sm:h-[6.3rem] md:w-20 md:h-[7rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
+        id="trick-cards-group"
+        className={`relative w-full h-full flex items-center justify-center pointer-events-none ${
+          isCollecting && winningRelPos ? `animate-trick-win-${winningRelPos}` : ''
+        }`}
+        style={targetVector ? ({
+          '--trick-win-x': `${targetVector.x}px`,
+          '--trick-win-y': `${targetVector.y}px`,
+        } as React.CSSProperties) : undefined}
       >
-        {cardsBySlot.bottom && (
-          <div
-            key={`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`}
-            className={`w-full h-full flex items-center justify-center ${isCollecting ? '' : 'animate-card-land-bottom'}`}
-            style={{
-              transform: isCollecting && collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`]
-                ? `translate3d(${collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`].y}px, 0) scale(0.25)`
-                : 'translate3d(0, 0, 0) scale(1)',
-              transition: isCollecting
-                ? 'transform 0.65s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.65s cubic-bezier(0.4, 0.0, 0.2, 1)'
-                : undefined,
-              opacity: isCollecting ? 0 : 1,
-              willChange: 'transform, opacity',
-            }}
-          >
-            <PlayingCard
-              cardId={cardsBySlot.bottom.cardId}
-              rotation={SLOT_ROTATIONS.bottom}
-              size="sm"
-              className="shadow-xl"
-            />
-          </div>
-        )}
-      </div>
+        {/* 1. BOTTOM SLOT */}
+        <div
+          ref={slotRefs.bottom}
+          data-trick-slot="bottom"
+          className="absolute bottom-2 left-1/2 -translate-x-1/2 w-16 h-[5.6rem] sm:w-[4.5rem] sm:h-[6.3rem] md:w-20 md:h-[7rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
+        >
+          {cardsBySlot.bottom && (
+            <div
+              key={`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`}
+              className="w-full h-full flex items-center justify-center animate-card-land-bottom"
+            >
+              <PlayingCard
+                cardId={cardsBySlot.bottom.cardId}
+                rotation={SLOT_ROTATIONS.bottom}
+                size="sm"
+                className="shadow-xl"
+              />
+            </div>
+          )}
+        </div>
 
-      {/* 2. TOP SLOT */}
-      <div
-        ref={slotRefs.top}
-        data-trick-slot="top"
-        className="absolute top-2 left-1/2 -translate-x-1/2 w-16 h-[5.6rem] sm:w-[4.5rem] sm:h-[6.3rem] md:w-20 md:h-[7rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
-      >
-        {cardsBySlot.top && (
-          <div
-            key={`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`}
-            className={`w-full h-full flex items-center justify-center ${isCollecting ? '' : 'animate-card-land-top'}`}
-            style={{
-              transform: isCollecting && collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`]
-                ? `translate3d(${collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`].y}px, 0) scale(0.25)`
-                : 'translate3d(0, 0, 0) scale(1)',
-              transition: isCollecting
-                ? 'transform 0.65s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.65s cubic-bezier(0.4, 0.0, 0.2, 1)'
-                : undefined,
-              opacity: isCollecting ? 0 : 1,
-              willChange: 'transform, opacity',
-            }}
-          >
-            <PlayingCard
-              cardId={cardsBySlot.top.cardId}
-              rotation={SLOT_ROTATIONS.top}
-              size="sm"
-              className="shadow-xl"
-            />
-          </div>
-        )}
-      </div>
+        {/* 2. TOP SLOT */}
+        <div
+          ref={slotRefs.top}
+          data-trick-slot="top"
+          className="absolute top-2 left-1/2 -translate-x-1/2 w-16 h-[5.6rem] sm:w-[4.5rem] sm:h-[6.3rem] md:w-20 md:h-[7rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
+        >
+          {cardsBySlot.top && (
+            <div
+              key={`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`}
+              className="w-full h-full flex items-center justify-center animate-card-land-top"
+            >
+              <PlayingCard
+                cardId={cardsBySlot.top.cardId}
+                rotation={SLOT_ROTATIONS.top}
+                size="sm"
+                className="shadow-xl"
+              />
+            </div>
+          )}
+        </div>
 
-      {/* 3. LEFT SLOT */}
-      <div
-        ref={slotRefs.left}
-        data-trick-slot="left"
-        className="absolute left-3 top-1/2 -translate-y-1/2 w-16 h-[5.6rem] sm:w-[4.5rem] sm:h-[6.3rem] md:w-20 md:h-[7rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
-      >
-        {cardsBySlot.left && (
-          <div
-            key={`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`}
-            className={`w-full h-full flex items-center justify-center ${isCollecting ? '' : 'animate-card-land-left'}`}
-            style={{
-              transform: isCollecting && collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`]
-                ? `translate3d(${collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`].y}px, 0) scale(0.25)`
-                : 'translate3d(0, 0, 0) scale(1)',
-              transition: isCollecting
-                ? 'transform 0.65s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.65s cubic-bezier(0.4, 0.0, 0.2, 1)'
-                : undefined,
-              opacity: isCollecting ? 0 : 1,
-              willChange: 'transform, opacity',
-            }}
-          >
-            <PlayingCard
-              cardId={cardsBySlot.left.cardId}
-              rotation={SLOT_ROTATIONS.left}
-              size="sm"
-              className="shadow-xl"
-            />
-          </div>
-        )}
-      </div>
+        {/* 3. LEFT SLOT */}
+        <div
+          ref={slotRefs.left}
+          data-trick-slot="left"
+          className="absolute left-3 top-1/2 -translate-y-1/2 w-16 h-[5.6rem] sm:w-[4.5rem] sm:h-[6.3rem] md:w-20 md:h-[7rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
+        >
+          {cardsBySlot.left && (
+            <div
+              key={`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`}
+              className="w-full h-full flex items-center justify-center animate-card-land-left"
+            >
+              <PlayingCard
+                cardId={cardsBySlot.left.cardId}
+                rotation={SLOT_ROTATIONS.left}
+                size="sm"
+                className="shadow-xl"
+              />
+            </div>
+          )}
+        </div>
 
-      {/* 4. RIGHT SLOT */}
-      <div
-        ref={slotRefs.right}
-        data-trick-slot="right"
-        className="absolute right-3 top-1/2 -translate-y-1/2 w-16 h-[5.6rem] sm:w-[4.5rem] sm:h-[6.3rem] md:w-20 md:h-[7rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
-      >
-        {cardsBySlot.right && (
-          <div
-            key={`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`}
-            className={`w-full h-full flex items-center justify-center ${isCollecting ? '' : 'animate-card-land-right'}`}
-            style={{
-              transform: isCollecting && collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`]
-                ? `translate3d(${collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`].x}px, ${collectionVectors[`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`].y}px, 0) scale(0.25)`
-                : 'translate3d(0, 0, 0) scale(1)',
-              transition: isCollecting
-                ? 'transform 0.65s cubic-bezier(0.4, 0.0, 0.2, 1), opacity 0.65s cubic-bezier(0.4, 0.0, 0.2, 1)'
-                : undefined,
-              opacity: isCollecting ? 0 : 1,
-              willChange: 'transform, opacity',
-            }}
-          >
-            <PlayingCard
-              cardId={cardsBySlot.right.cardId}
-              rotation={SLOT_ROTATIONS.right}
-              size="sm"
-              className="shadow-xl"
-            />
-          </div>
-        )}
+        {/* 4. RIGHT SLOT */}
+        <div
+          ref={slotRefs.right}
+          data-trick-slot="right"
+          className="absolute right-3 top-1/2 -translate-y-1/2 w-16 h-[5.6rem] sm:w-[4.5rem] sm:h-[6.3rem] md:w-20 md:h-[7rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
+        >
+          {cardsBySlot.right && (
+            <div
+              key={`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`}
+              className="w-full h-full flex items-center justify-center animate-card-land-right"
+            >
+              <PlayingCard
+                cardId={cardsBySlot.right.cardId}
+                rotation={SLOT_ROTATIONS.right}
+                size="sm"
+                className="shadow-xl"
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

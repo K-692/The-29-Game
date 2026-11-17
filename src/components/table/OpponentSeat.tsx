@@ -10,6 +10,7 @@ interface OpponentSeatProps {
   playerPoints: number;
   seatPosition: 'top' | 'left' | 'right';
   hasPassed?: boolean;
+  isTrickWinner?: boolean;
 }
 
 export const OpponentSeat: React.FC<OpponentSeatProps> = ({
@@ -21,6 +22,7 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
   playerPoints,
   seatPosition,
   hasPassed = false,
+  isTrickWinner = false,
 }) => {
   // Partnership 1 (Seats 1 & 3): Soft Blue; Partnership 2 (Seats 2 & 4): Soft Coral
   const isPartnership1 = player.team === 0;
@@ -31,7 +33,9 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
       id={`seat-${seatPosition}`}
       data-seat={seatPosition}
       className={`relative flex items-center gap-2 px-3 py-1.5 rounded-2xl transition-all duration-200 select-none shadow-md ${
-        isCurrentTurn
+        isTrickWinner
+          ? 'bg-amber-50/95 border-2 border-amber-400 ring-4 ring-amber-300/80 shadow-[0_0_24px_rgba(251,191,36,0.85)] text-slate-950 animate-pulse'
+          : isCurrentTurn
           ? isPartnership1
             ? 'bg-sky-50/95 border-2 border-sky-400 ring-2 ring-sky-300/60 shadow-[0_0_16px_rgba(56,189,248,0.45)] text-slate-900'
             : 'bg-rose-50/95 border-2 border-rose-400 ring-2 ring-rose-300/60 shadow-[0_0_16px_rgba(251,113,133,0.45)] text-slate-900'
@@ -40,6 +44,12 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
           : 'bg-white/95 border border-rose-200/90 text-slate-800'
       }`}
     >
+      {/* Trick Winner Tag */}
+      {isTrickWinner && (
+        <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider text-slate-950 bg-amber-400 border border-amber-300 shadow-md z-20 animate-bounce">
+          WON TRICK
+        </span>
+      )}
       {/* Dealer Badge */}
       {isDealer && (
         <span
@@ -61,7 +71,7 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
       )}
 
       {/* Turn Indicator Tag */}
-      {isCurrentTurn ? (
+      {!isTrickWinner && isCurrentTurn ? (
         <span
           className={`absolute -bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider text-white shadow-xs z-10 ${
             isPartnership1 ? 'bg-sky-500' : 'bg-rose-500'
@@ -69,7 +79,7 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
         >
           TURN
         </span>
-      ) : hasPassed ? (
+      ) : !isTrickWinner && hasPassed ? (
         <span
           className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider text-slate-700 bg-slate-200/95 border border-slate-300 shadow-xs z-10"
         >

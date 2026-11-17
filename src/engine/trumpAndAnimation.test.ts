@@ -14,6 +14,7 @@ import {
   applyTrumpReveal,
 } from './gameManager';
 import { DEFAULT_RULES_CONFIG } from './types';
+import { evaluateTrickWinner } from './tricks';
 
 describe('Card Manifest and Trump Display Cards', () => {
   it('preserves the authoritative 32-card playing deck', () => {
@@ -155,5 +156,75 @@ describe('Trump Indicator and 7th Card Reveal Lifecycle', () => {
     state = applyTrumpReveal(state, state.currentTurn).state;
     expect(state.isTrumpRevealed).toBe(true);
     expect(state.trumpMode).toBe('no-trump');
+  });
+
+  it('determines the correct winning player and maps the 4-card collective win animation trajectory', () => {
+    // Relative position mapper matching TrickArea
+    const getRelativePosition = (pos: 0 | 1 | 2 | 3, myPos: 0 | 1 | 2 | 3): 'bottom' | 'left' | 'top' | 'right' => {
+      const diff = (pos - myPos + 4) % 4;
+      switch (diff) {
+        case 0: return 'bottom';
+        case 1: return 'left';
+        case 2: return 'top';
+        case 3: return 'right';
+        default: return 'bottom';
+      }
+    };
+
+    // Case A: Bottom player (Player 0) wins with highest trump Jack
+    const trickCardsP0Wins = [
+      { cardId: 'K_HEARTS', playerIndex: 1 as const },
+      { cardId: '10_HEARTS', playerIndex: 2 as const },
+      { cardId: '8_HEARTS', playerIndex: 3 as const },
+      { cardId: 'J_SPADES', playerIndex: 0 as const }, // Trump Jack
+    ];
+    const resultP0 = evaluateTrickWinner(trickCardsP0Wins, 1, 'SPADES', true, 1, true, 'suit');
+    expect(resultP0.winner).toBe(0);
+    const relPosP0 = getRelativePosition(resultP0.winner, 0);
+    expect(relPosP0).toBe('bottom');
+    const animClassP0 = `animate-trick-win-${relPosP0}`;
+    expect(animClassP0).toBe('animate-trick-win-bottom');
+
+    // Case B: Left opponent (Player 1) wins with Jack of lead suit
+    const trickCardsP1Wins = [
+      { cardId: 'J_HEARTS', playerIndex: 1 as const }, // Jack of Hearts leads
+      { cardId: '9_HEARTS', playerIndex: 2 as const },
+      { cardId: 'A_HEARTS', playerIndex: 3 as const },
+      { cardId: '10_HEARTS', playerIndex: 0 as const },
+    ];
+    const resultP1 = evaluateTrickWinner(trickCardsP1Wins, 1, 'CLUBS', true, 2, true, 'suit');
+    expect(resultP1.winner).toBe(1);
+    const relPosP1 = getRelativePosition(resultP1.winner, 0);
+    expect(relPosP1).toBe('left');
+    const animClassP1 = `animate-trick-win-${relPosP1}`;
+    expect(animClassP1).toBe('animate-trick-win-left');
+
+    // Case C: Top partner (Player 2) wins with highest trump
+    const trickCardsP2Wins = [
+      { cardId: 'A_CLUBS', playerIndex: 3 as const },
+      { cardId: '8_CLUBS', playerIndex: 0 as const },
+      { cardId: '7_CLUBS', playerIndex: 1 as const },
+      { cardId: '9_DIAMONDS', playerIndex: 2 as const }, // Trump 9
+    ];
+    const resultP2 = evaluateTrickWinner(trickCardsP2Wins, 3, 'DIAMONDS', true, 3, true, 'suit');
+    expect(resultP2.winner).toBe(2);
+    const relPosP2 = getRelativePosition(resultP2.winner, 0);
+    expect(relPosP2).toBe('top');
+    const animClassP2 = `animate-trick-win-${relPosP2}`;
+    expect(animClassP2).toBe('animate-trick-win-top');
+
+    // Case D: Right opponent (Player 3) wins with 9 of lead suit (Trump unrevealed)
+    const trickCardsP3Wins = [
+      { cardId: 'K_CLUBS', playerIndex: 0 as const },
+      { cardId: '8_CLUBS', playerIndex: 1 as const },
+      { cardId: '7_CLUBS', playerIndex: 2 as const },
+      { cardId: '9_CLUBS', playerIndex: 3 as const }, // 9 is second highest card in 29
+    ];
+    const resultP3 = evaluateTrickWinner(trickCardsP3Wins, 0, 'HEARTS', false, 4, true, 'suit');
+    expect(resultP3.winner).toBe(3);
+    const relPosP3 = getRelativePosition(resultP3.winner, 0);
+    expect(relPosP3).toBe('right');
+    const animClassP3 = `animate-trick-win-${relPosP3}`;
+    expect(animClassP3).toBe('animate-trick-win-right');
   });
 });

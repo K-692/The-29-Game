@@ -104,12 +104,13 @@
   - **Partnership 1 (Seats 1 & 3 - South & North)**: Identifiable by **Soft Sky Blue** accents (`border-sky-300`, `bg-sky-500` dot indicator, `text-sky-700`).
   - **Partnership 2 (Seats 2 & 4 - West & East)**: Identifiable by **Soft Coral / Rose** accents (`border-rose-300`, `bg-rose-500` dot indicator, `text-rose-700`).
   - Scoreboard and player seats use these high-contrast partnership colors instead of cluttered Team A / Team B text.
-- **Reliable 4-Card Trick Visibility & Collection Animation**:
+- **Reliable 4-Card Trick Visibility & Collective Win Animation**:
   - Every trick reliably renders all 4 played cards in a clear diamond/cross formation without clipping or overlapping.
-  - Cards stay visible in the centre for **exactly 1.0 second**.
-  - All four cards then smoothly glide directly into the winning player's seat using dynamic layout coordinates (`getBoundingClientRect()`), accompanied by authentic `card-shove-1.ogg`.
-  - The 8th/final trick of the deal visibly renders all 4 cards and plays the full collection animation before displaying the round summary.
-  - Removed jumping "Your Turn" boxes and per-trick winner popups for an uninterrupted, elegant gameplay flow.
+  - Individual cards land onto the table felt using directional CSS animations (`cardLandBottom`, `cardLandTop`, `cardLandLeft`, `cardLandRight`) with smooth cubic-bezier easing (`cubic-bezier(0.2, 0.8, 0.2, 1)`).
+  - Cards pause clearly on the felt for 750ms so all players can register the outcome of the trick.
+  - When the hand/turn is won, an effect triggers where **all 4 cards move together as one unified cluster directly to the winning player's seat** (`animate-trick-win-bottom`, `animate-trick-win-top`, `animate-trick-win-left`, `animate-trick-win-right`), following the exact same directional animation logic and easing curve as the card landing effect.
+  - The winning player's seat simultaneously illuminates with an amber glow and `WON TRICK` badge, accompanied by authentic trick collection sound effects.
+  - The 8th/final trick of the deal visibly renders all 4 cards and plays the full collective win animation before smoothly transitioning to the round summary.
 - **Dedicated Bottom-Right 30-Second Turn Timer**:
   - Human-player turn timer is positioned neatly at the **bottom-right** of the screen, separate from the card hand.
   - Formats cleanly as `00:30` down to `00:00` with an urgent pulse during the final 5 seconds.

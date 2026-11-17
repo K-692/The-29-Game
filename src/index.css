@@ -135,6 +135,83 @@
   will-change: transform, opacity;
 }
 
+/* Trick collection animations moving all 4 cards together to the winning player */
+@keyframes trickWinBottom {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--trick-win-x, 0px), var(--trick-win-y, 260px), 0) scale(0.45);
+    opacity: 0;
+  }
+}
+
+@keyframes trickWinTop {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--trick-win-x, 0px), var(--trick-win-y, -240px), 0) scale(0.45);
+    opacity: 0;
+  }
+}
+
+@keyframes trickWinLeft {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--trick-win-x, -300px), var(--trick-win-y, 0px), 0) scale(0.45);
+    opacity: 0;
+  }
+}
+
+@keyframes trickWinRight {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate3d(var(--trick-win-x, 300px), var(--trick-win-y, 0px), 0) scale(0.45);
+    opacity: 0;
+  }
+}
+
+.animate-trick-win-bottom {
+  animation: trickWinBottom 0.52s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-trick-win-top {
+  animation: trickWinTop 0.52s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-trick-win-left {
+  animation: trickWinLeft 0.52s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.animate-trick-win-right {
+  animation: trickWinRight 0.52s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  will-change: transform, opacity;
+}
+
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;

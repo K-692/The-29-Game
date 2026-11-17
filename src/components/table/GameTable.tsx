@@ -71,6 +71,14 @@ export const GameTable: React.FC<GameTableProps> = ({
   const [volume, setVolumeState] = useState(soundManager.getVolume());
   const [showRulesDrawer, setShowRulesDrawer] = useState(false);
   const [showDealingAnimation, setShowDealingAnimation] = useState(false);
+  const [trickWinnerPos, setTrickWinnerPos] = useState<PlayerPosition | null>(null);
+
+  // Clear trick winner state if trick advances or cards are cleared
+  useEffect(() => {
+    if (publicState.currentTrickCards.length < 4) {
+      setTrickWinnerPos(null);
+    }
+  }, [publicState.currentTrickCards.length, publicState.currentTrickNumber]);
 
   // Track round for dealer distribution animation
   const lastDealtRoundRef = useRef<number | null>(null);
@@ -423,6 +431,7 @@ export const GameTable: React.FC<GameTableProps> = ({
               bidAmount={publicState.highestBid || undefined}
               playerPoints={publicState.playerPoints ? publicState.playerPoints[partnerPos] : 0}
               hasPassed={partnerHasPassed}
+              isTrickWinner={trickWinnerPos === partnerPos}
             />
           </div>
         )}
@@ -450,6 +459,7 @@ export const GameTable: React.FC<GameTableProps> = ({
               bidAmount={publicState.highestBid || undefined}
               playerPoints={publicState.playerPoints ? publicState.playerPoints[leftOpponentPos] : 0}
               hasPassed={leftHasPassed}
+              isTrickWinner={trickWinnerPos === leftOpponentPos}
             />
           </div>
         )}
@@ -477,6 +487,7 @@ export const GameTable: React.FC<GameTableProps> = ({
               bidAmount={publicState.highestBid || undefined}
               playerPoints={publicState.playerPoints ? publicState.playerPoints[rightOpponentPos] : 0}
               hasPassed={rightHasPassed}
+              isTrickWinner={trickWinnerPos === rightOpponentPos}
             />
           </div>
         )}
@@ -546,6 +557,10 @@ export const GameTable: React.FC<GameTableProps> = ({
               dropZoneRef={dropZoneRef}
               currentTrickNumber={publicState.currentTrickNumber}
               roundNumber={publicState.roundNumber}
+              trumpSuit={publicState.revealedTrumpSuit}
+              isTrumpRevealed={publicState.isTrumpRevealed}
+              trumpMode={publicState.trumpMode}
+              onTrickWinnerDetermined={setTrickWinnerPos}
             />
           </div>
         )}
@@ -602,11 +617,20 @@ export const GameTable: React.FC<GameTableProps> = ({
             id="seat-bottom"
             data-seat="bottom"
             className={`relative flex items-center gap-2 px-3 py-1.5 rounded-2xl transition-all duration-200 select-none shadow-md ${
-              isBottomTurn
+              trickWinnerPos === myPosition
+                ? 'bg-amber-50/95 border-2 border-amber-400 ring-4 ring-amber-300/80 shadow-[0_0_24px_rgba(251,191,36,0.85)] text-slate-950 animate-pulse'
+                : isBottomTurn
                 ? 'bg-sky-50/95 border-2 border-sky-400 ring-2 ring-sky-300/60 shadow-[0_0_18px_rgba(56,189,248,0.5)] text-slate-900'
                 : 'bg-white/95 border border-sky-200/90 text-slate-800'
             }`}
           >
+            {/* Trick Winner Tag */}
+            {trickWinnerPos === myPosition && (
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider text-slate-950 bg-amber-400 border border-amber-300 shadow-md z-20 animate-bounce">
+                WON TRICK
+              </span>
+            )}
+
             {/* Dealer Badge */}
             {publicState.dealerIndex === myPosition && (
               <span
@@ -628,11 +652,11 @@ export const GameTable: React.FC<GameTableProps> = ({
             )}
 
             {/* Turn or Passed Indicator Tag */}
-            {isBottomTurn ? (
+            {!trickWinnerPos && isBottomTurn ? (
               <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider text-white bg-sky-500 shadow-xs z-10">
                 TURN
               </span>
-            ) : meHasPassed ? (
+            ) : !trickWinnerPos && meHasPassed ? (
               <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider text-slate-700 bg-slate-200/95 border border-slate-300 shadow-xs z-10">
                 PASSED
               </span>
