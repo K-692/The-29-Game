@@ -46,6 +46,8 @@ export interface PlayerInfo {
   isHost: boolean;
   isReady: boolean;
   connected: boolean;
+  /** Seat is played by the server's computer player. */
+  isCpu?: boolean;
   avatarSeed?: string;
   avatar?: string; // Animal / character emoji (🦊, 🐼, 🐯, 🦁, etc.)
 }

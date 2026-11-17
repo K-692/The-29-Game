@@ -108,6 +108,14 @@ export const OpponentSeat: React.FC<OpponentSeatProps> = ({
         <span className="text-slate-900 truncate max-w-[95px] sm:max-w-[120px]">
           {player.name}
         </span>
+        {player.isCpu && (
+          <span
+            className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-700 border border-indigo-200"
+            title="Computer player"
+          >
+            CPU
+          </span>
+        )}
         <span className="text-slate-400 font-normal">·</span>
         <span className="text-amber-700 font-black whitespace-nowrap">
           {playerPoints} pts
