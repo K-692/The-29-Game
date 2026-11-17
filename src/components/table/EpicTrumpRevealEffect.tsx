@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Suit, SUIT_COLORS, SUIT_SYMBOLS } from '../../assets/cardManifest';
 import { TrumpMode } from '../../engine/types';
 
@@ -23,6 +23,9 @@ export const EpicTrumpRevealEffect: React.FC<EpicTrumpRevealEffectProps> = ({
   onComplete,
 }) => {
   const [isFading, setIsFading] = useState<boolean>(false);
+  // Stable callback ref: parent re-renders must not restart the 1s effect.
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   useEffect(() => {
     // Stage 1 (0ms-600ms): Vibrant, radiant central presence
@@ -33,14 +36,14 @@ export const EpicTrumpRevealEffect: React.FC<EpicTrumpRevealEffectProps> = ({
 
     // Stage 3 (1000ms): Exactly 1.0s total duration, unmount cleanly
     const completeTimer = setTimeout(() => {
-      onComplete?.();
+      onCompleteRef.current?.();
     }, 1000);
 
     return () => {
       clearTimeout(fadeTimer);
       clearTimeout(completeTimer);
     };
-  }, [onComplete]);
+  }, []);
 
   const suitSymbol = suit ? SUIT_SYMBOLS[suit] : '';
   const isRed = suit ? SUIT_COLORS[suit] === 'red' : false;

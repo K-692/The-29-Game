@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GamePhase, PlayerPosition, Team } from '../../engine/types';
+import { GamePhase, PlayerInfo, PlayerPosition, Team } from '../../engine/types';
 import { Clock, ShieldAlert, Zap } from 'lucide-react';
 
 interface InTableDoubleDecisionProps {
@@ -10,8 +10,9 @@ interface InTableDoubleDecisionProps {
   remainingSeconds: number;
   doubleVotes?: Partial<Record<PlayerPosition, 'DOUBLE' | 'PASS'>>;
   redoubleVotes?: Partial<Record<PlayerPosition, 'REDOUBLE' | 'PASS'>>;
-  onDouble: () => void;
-  onPass: () => void;
+  players?: PlayerInfo[];
+  onDouble: () => Promise<{ success: boolean } | void> | void;
+  onPass: () => Promise<{ success: boolean } | void> | void;
 }
 
 export const InTableDoubleDecision: React.FC<InTableDoubleDecisionProps> = ({
@@ -22,10 +23,11 @@ export const InTableDoubleDecision: React.FC<InTableDoubleDecisionProps> = ({
   remainingSeconds,
   doubleVotes,
   redoubleVotes,
+  players = [],
   onDouble,
   onPass,
 }) => {
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState<null | 'DOUBLE_OR_REDOUBLE' | 'PASS'>(null);
 
   const biddingTeam: Team = (highestBidder === 0 || highestBidder === 2) ? 0 : 1;
   const myTeam: Team = (myPosition === 0 || myPosition === 2) ? 0 : 1;
@@ -37,17 +39,24 @@ export const InTableDoubleDecision: React.FC<InTableDoubleDecisionProps> = ({
   // In Stage 2: Bidding team decides
   const canIDecide = isStage1 ? (myTeam !== biddingTeam) : (myTeam === biddingTeam);
 
-  const myVote = isStage1 ? doubleVotes?.[myPosition] : redoubleVotes?.[myPosition];
-  const hasVoted = Boolean(myVote) || submitting;
+  const votes = (isStage1 ? doubleVotes : redoubleVotes) || {};
+  const myVote = votes[myPosition];
+  const hasVoted = Boolean(myVote) || submitting !== null;
 
-  const handleAction = (action: 'DOUBLE_OR_REDOUBLE' | 'PASS') => {
+  // The team currently deciding, in seat order, with each player's vote status.
+  const decidingTeam: Team = isStage1 ? (biddingTeam === 0 ? 1 : 0) : biddingTeam;
+  const decidingPositions: PlayerPosition[] = decidingTeam === 0 ? [0, 2] : [1, 3];
+  const nameOf = (pos: PlayerPosition) => {
+    if (pos === myPosition) return 'You';
+    return players.find((p) => p.position === pos)?.name || `Seat ${pos + 1}`;
+  };
+
+  const handleAction = async (action: 'DOUBLE_OR_REDOUBLE' | 'PASS') => {
     if (submitting || myVote) return;
-    setSubmitting(true);
-    if (action === 'DOUBLE_OR_REDOUBLE') {
-      onDouble();
-    } else {
-      onPass();
-    }
+    setSubmitting(action);
+    const res = action === 'DOUBLE_OR_REDOUBLE' ? await onDouble() : await onPass();
+    // If the server rejected the vote (e.g. window just closed), let the player see the real state.
+    if (res && res.success === false) setSubmitting(null);
   };
 
   const progressPercent = Math.max(0, Math.min(100, (remainingSeconds / 10) * 100));
@@ -95,19 +104,44 @@ export const InTableDoubleDecision: React.FC<InTableDoubleDecisionProps> = ({
         )}
       </p>
 
+      {/* Live vote status for the deciding team */}
+      <div className="flex items-center justify-center gap-2 mb-3">
+        {decidingPositions.map((pos) => {
+          const v = votes[pos];
+          return (
+            <span
+              key={pos}
+              className={`text-[11px] font-bold px-2.5 py-1 rounded-full border transition-colors duration-300 ${
+                v === 'PASS'
+                  ? 'bg-slate-800 border-slate-600 text-slate-300'
+                  : v
+                  ? 'bg-amber-500 border-amber-300 text-slate-950'
+                  : 'bg-slate-900 border-amber-500/40 text-amber-200 animate-pulse'
+              }`}
+            >
+              {nameOf(pos)}: {v === 'PASS' ? 'Passed' : v ? v : 'Deciding…'}
+            </span>
+          );
+        })}
+      </div>
+
       {/* Decision Buttons or Waiting Notice */}
       {canIDecide ? (
         hasVoted ? (
           <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-2xl bg-slate-900/90 border border-amber-500/40 text-amber-300 text-xs sm:text-sm font-semibold">
             <Clock className="w-4 h-4 text-amber-400 animate-pulse" />
-            <span>You passed. Waiting for your teammate to decide...</span>
+            <span>
+              {submitting === 'DOUBLE_OR_REDOUBLE'
+                ? isStage1 ? 'Doubling...' : 'Re-doubling...'
+                : 'You passed. Waiting for your teammate to decide...'}
+            </span>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 mt-2">
             {/* Action Button: DOUBLE or REDOUBLE */}
             <button
               type="button"
-              disabled={submitting}
+              disabled={submitting !== null}
               onClick={() => handleAction('DOUBLE_OR_REDOUBLE')}
               className={`cursor-pointer py-2.5 px-3 rounded-2xl font-black text-sm uppercase tracking-wider text-slate-950 shadow-lg transition-all active:scale-95 disabled:opacity-50 ${
                 isStage1
@@ -121,7 +155,7 @@ export const InTableDoubleDecision: React.FC<InTableDoubleDecisionProps> = ({
             {/* PASS Button */}
             <button
               type="button"
-              disabled={submitting}
+              disabled={submitting !== null}
               onClick={() => handleAction('PASS')}
               className="cursor-pointer py-2.5 px-3 rounded-2xl font-bold text-sm uppercase tracking-wider bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 border border-slate-600/80 shadow-md transition-all disabled:opacity-50"
             >
@@ -131,7 +165,7 @@ export const InTableDoubleDecision: React.FC<InTableDoubleDecisionProps> = ({
         )
       ) : (
         <div className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl bg-slate-900/80 border border-slate-800 text-slate-300 text-xs">
-          <ShieldAlert className="w-4 h-4 text-amber-400 animate-spin" />
+          <ShieldAlert className="w-4 h-4 text-amber-400 animate-pulse" />
           <span>
             {isStage1
               ? 'Waiting for Defending Team to decide on Double...'

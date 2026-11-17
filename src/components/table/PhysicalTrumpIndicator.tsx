@@ -39,6 +39,16 @@ export const PhysicalTrumpIndicator: React.FC<PhysicalTrumpIndicatorProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const revealedRoundRef = useRef<number | null>(null);
   const prevIsRevealedRef = useRef<boolean>(false);
+  // Sequence timers live in a ref and are cleared only on a new deal or unmount,
+  // so ordinary re-renders (timer ticks, state updates) can't cancel the 3-stage reveal.
+  const sequenceTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const onTriggerEpicRevealRef = useRef(onTriggerEpicReveal);
+  onTriggerEpicRevealRef.current = onTriggerEpicReveal;
+  const clearSequenceTimers = () => {
+    sequenceTimersRef.current.forEach(clearTimeout);
+    sequenceTimersRef.current = [];
+  };
+  useEffect(() => clearSequenceTimers, []);
 
   // Check if trump has been selected (active during TRICK_PLAY, DEALING_SECOND, or ROUND_ENDED)
   const isTrumpActive = Boolean(
@@ -67,9 +77,10 @@ export const PhysicalTrumpIndicator: React.FC<PhysicalTrumpIndicatorProps> = ({
       if (revealedRoundRef.current !== roundNumber) {
         revealedRoundRef.current = roundNumber;
         soundManager.playEventOnce(`trump_reveal_round_${roundNumber}`, 'deal');
-        onTriggerEpicReveal?.();
+        onTriggerEpicRevealRef.current?.();
 
         if (trumpMode === 'seventh-card' && revealedSeventhCard) {
+          clearSequenceTimers();
           // Stage 1: Show original 7th card for 1200ms
           setSeventhCardStage('showing-7th');
 
@@ -109,10 +120,7 @@ export const PhysicalTrumpIndicator: React.FC<PhysicalTrumpIndicatorProps> = ({
             setGlideCoords(null);
           }, 1750);
 
-          return () => {
-            clearTimeout(t1);
-            clearTimeout(t2);
-          };
+          sequenceTimersRef.current.push(t1, t2);
         }
       }
     } else if (isTrumpRevealed && trumpMode === 'seventh-card') {
@@ -126,11 +134,13 @@ export const PhysicalTrumpIndicator: React.FC<PhysicalTrumpIndicatorProps> = ({
     }
 
     prevIsRevealedRef.current = isTrumpRevealed;
-  }, [isTrumpRevealed, trumpMode, revealedSeventhCard, roundNumber, highestBidder, myPosition, onTriggerEpicReveal]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTrumpRevealed, trumpMode, revealedSeventhCard, roundNumber, highestBidder, myPosition]);
 
   // Reset when deal advances
   useEffect(() => {
     if (phase === 'BIDDING' || phase === 'TRUMP_SELECTION') {
+      clearSequenceTimers();
       setSeventhCardStage('idle');
       setGlideCoords(null);
       prevIsRevealedRef.current = false;

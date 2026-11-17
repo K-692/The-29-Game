@@ -23,6 +23,9 @@ export const hasRoyalsPair = (handCardIds: string[], trumpSuit: Suit): boolean =
   return handCardIds.includes(kingId) && handCardIds.includes(queenId);
 };
 
+/** Pair / Royals only changes the target when the contract bid is at least this high. */
+export const PAIR_MIN_CONTRACT_BID = 19;
+
 /**
  * Detects King-Queen Pair in any player's hand after trump has been revealed.
  * Applies strictly when original contract bid >= 19 and trump is a normal suit (not Joker).
@@ -37,7 +40,7 @@ export const detectKingQueenPair = (
   highestBidder: PlayerPosition | null,
   currentTrickNumber: number = 1
 ): PairDeclaration | null => {
-  if (!isTrumpRevealed || !trumpSuit || contractBid < 19 || highestBidder === null) {
+  if (!isTrumpRevealed || !trumpSuit || contractBid < PAIR_MIN_CONTRACT_BID || highestBidder === null) {
     return null;
   }
 

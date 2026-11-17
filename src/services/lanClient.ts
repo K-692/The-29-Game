@@ -1,6 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import { GameRulesConfig, GameState, PlayerPosition, PublicGameState, Team, TrumpSelectionChoice } from '../engine/types';
-import { Suit } from '../assets/cardManifest';
+import { CompletedTrick, GameRulesConfig, PlayerPosition, PublicGameState, Team, TrumpSelectionChoice } from '../engine/types';
 
 export interface LanSeat {
   position: PlayerPosition;
@@ -9,8 +8,9 @@ export interface LanSeat {
   playerName: string;
   avatar?: string;
   isHost: boolean;
-  isCpu: boolean;
   connected: boolean;
+  /** Seat is claimed by a player (they may be briefly disconnected). */
+  occupied?: boolean;
 }
 
 export interface LanRoomState {
@@ -29,83 +29,246 @@ export interface InTableNotification {
 }
 
 export interface TimerTickData {
+  turnId?: string;
   remainingSeconds: number;
   turnDeadline?: number;
   turnPosition: PlayerPosition;
   phase: string;
 }
 
-export interface LanConnectionConfig {
-  hostAddress: string;
+export interface GameStateUpdate {
+  publicState: PublicGameState;
+  myPosition: PlayerPosition;
 }
 
+export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
+
+type ActionResult = { success: boolean; error?: string };
+type RoomResult = ActionResult & { roomCode?: string; sessionToken?: string; position?: PlayerPosition };
+
+interface EventMap {
+  room_update: LanRoomState;
+  game_state_update: GameStateUpdate;
+  timer_tick: TimerTickData;
+  in_table_notification: InTableNotification;
+  TRICK_COMPLETED: { trick: CompletedTrick };
+  connection_status: ConnectionStatus;
+  session_lost: { reason: string };
+}
+
+type EventName = keyof EventMap;
+type Listener<E extends EventName> = (data: EventMap[E]) => void;
+
+const SERVER_EVENTS: EventName[] = [
+  'room_update',
+  'game_state_update',
+  'timer_tick',
+  'in_table_notification',
+  'TRICK_COMPLETED',
+];
+
+const SESSION_KEY = 'twenty_nine_lan_session';
+
+/**
+ * Seat sessions live in sessionStorage: they survive a page refresh but are
+ * per-tab, so two tabs (or two players sharing one laptop) never grab the
+ * same seat.
+ */
+const sessionStore = (): Storage | null => {
+  try {
+    return typeof window !== 'undefined' ? window.sessionStorage : null;
+  } catch {
+    return null;
+  }
+};
+const ACK_TIMEOUT_MS = 6000;
+
+/**
+ * Socket.IO client for the LAN host.
+ *
+ * Listeners are kept in our own registry and re-dispatched from whichever
+ * socket is current, so switching host address (joining via a typed IP) or a
+ * transport reconnect never drops subscriptions. On every (re)connect we
+ * automatically re-attach to our seat using the saved session token.
+ */
 class LanClientService {
   private socket: Socket | null = null;
-  private currentHostUrl: string = '';
-  private sessionToken: string = '';
-  private roomCode: string = '';
+  private currentHostUrl = '';
+  private sessionToken = '';
+  private roomCode = '';
   private myPosition: PlayerPosition = 0;
+  private status: ConnectionStatus = 'disconnected';
+  private listeners: { [E in EventName]?: Set<Listener<E>> } = {};
+
+  constructor() {
+    const saved = this.getSavedSession();
+    if (saved) {
+      this.roomCode = saved.roomCode;
+      this.sessionToken = saved.sessionToken;
+      this.myPosition = saved.position;
+    }
+  }
 
   /**
    * Resolves the default LAN server URL based on the browser's current location.
+   * In Vite dev mode (port 5173) the backend runs on port 3000 of the same host.
    */
   public getDefaultHostUrl(): string {
     if (typeof window === 'undefined') return 'http://localhost:3000';
-
     const hostname = window.location.hostname || 'localhost';
-    const port = window.location.port;
-
-    // If running under Vite dev server (5173), default backend target is port 3000
-    if (port === '5173') {
+    if (window.location.port === '5173') {
       return `http://${hostname}:3000`;
     }
-
     return window.location.origin;
+  }
+
+  /** Normalises "192.168.1.5", "192.168.1.5:3000" or a full URL into a URL. */
+  public normaliseHostUrl(raw: string): string {
+    let url = raw.trim();
+    if (!url) return this.getDefaultHostUrl();
+    if (!/^https?:\/\//i.test(url)) url = `http://${url}`;
+    try {
+      const parsed = new URL(url);
+      if (!parsed.port && parsed.protocol === 'http:') parsed.port = '3000';
+      return parsed.origin;
+    } catch {
+      return this.getDefaultHostUrl();
+    }
+  }
+
+  public getHostUrl(): string {
+    return this.currentHostUrl || this.getDefaultHostUrl();
   }
 
   /**
    * Initializes or reuses the Socket.IO connection.
    */
   public connect(customHostUrl?: string): Socket {
-    const targetUrl = customHostUrl?.trim() || this.getDefaultHostUrl();
+    const targetUrl = customHostUrl ? this.normaliseHostUrl(customHostUrl) : this.currentHostUrl || this.getDefaultHostUrl();
 
-    if (this.socket && this.currentHostUrl === targetUrl && this.socket.connected) {
+    if (this.socket && this.currentHostUrl === targetUrl) {
+      if (!this.socket.connected && !this.socket.active) this.socket.connect();
       return this.socket;
     }
 
     if (this.socket) {
+      this.socket.removeAllListeners();
       this.socket.disconnect();
     }
 
     this.currentHostUrl = targetUrl;
-    this.socket = io(targetUrl, {
+    const socket = io(targetUrl, {
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 10,
-      reconnectionDelay: 1000,
+      reconnection: true,
+      reconnectionDelay: 800,
+      reconnectionDelayMax: 4000,
+      timeout: 8000,
     });
+    this.socket = socket;
+    this.setStatus('connecting');
 
-    return this.socket;
+    for (const event of SERVER_EVENTS) {
+      socket.on(event, (data: unknown) => this.dispatch(event, data as never));
+    }
+
+    socket.on('connect', () => {
+      this.setStatus('connected');
+      // Re-attach to our seat after any (re)connect: page refresh, Wi-Fi blip, server restart.
+      if (this.roomCode && this.sessionToken) {
+        const attempted = { roomCode: this.roomCode, sessionToken: this.sessionToken };
+        socket.emit(
+          'reconnect_seat',
+          attempted,
+          (res: ActionResult & { position?: PlayerPosition }) => {
+            // Ignore stale answers if we have since created/joined another room.
+            if (this.sessionToken !== attempted.sessionToken) return;
+            if (res?.success && res.position !== undefined) {
+              this.myPosition = res.position;
+              this.persistSession();
+            } else {
+              this.clearSavedSession();
+              this.dispatch('session_lost', { reason: res?.error || 'Your seat is no longer available.' });
+            }
+          }
+        );
+      }
+    });
+    socket.on('disconnect', () => this.setStatus('disconnected'));
+    socket.io.on('reconnect_attempt', () => this.setStatus('connecting'));
+
+    return socket;
   }
 
   public getSocket(): Socket | null {
     return this.socket;
   }
 
+  public getStatus(): ConnectionStatus {
+    return this.status;
+  }
+
+  public hasSession(): boolean {
+    return Boolean(this.roomCode && this.sessionToken);
+  }
+
+  private setStatus(status: ConnectionStatus) {
+    if (this.status === status) return;
+    this.status = status;
+    this.dispatch('connection_status', status);
+  }
+
+  private dispatch<E extends EventName>(event: E, data: EventMap[E]) {
+    const set = this.listeners[event] as Set<Listener<E>> | undefined;
+    if (!set) return;
+    for (const cb of [...set]) {
+      try {
+        cb(data);
+      } catch (err) {
+        console.error(`[lanClient] listener for ${event} failed`, err);
+      }
+    }
+  }
+
+  private subscribe<E extends EventName>(event: E, cb: Listener<E>): () => void {
+    if (!this.listeners[event]) {
+      (this.listeners as Record<string, Set<unknown>>)[event] = new Set();
+    }
+    const set = this.listeners[event] as Set<Listener<E>>;
+    set.add(cb);
+    return () => {
+      set.delete(cb);
+    };
+  }
+
+  // --- Session persistence ---
+
+  private persistSession() {
+    try {
+      sessionStore()?.setItem(
+        SESSION_KEY,
+        JSON.stringify({
+          roomCode: this.roomCode,
+          sessionToken: this.sessionToken,
+          position: this.myPosition,
+          hostUrl: this.currentHostUrl,
+        })
+      );
+    } catch {
+      /* storage unavailable: session simply won't survive a refresh */
+    }
+  }
+
   public saveSession(roomCode: string, sessionToken: string, position: PlayerPosition) {
     this.roomCode = roomCode;
     this.sessionToken = sessionToken;
     this.myPosition = position;
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('twenty_nine_lan_session', JSON.stringify({ roomCode, sessionToken, position }));
-    }
+    this.persistSession();
   }
 
-  public getSavedSession(): { roomCode: string; sessionToken: string; position: PlayerPosition } | null {
-    if (typeof window === 'undefined') return null;
-    const raw = localStorage.getItem('twenty_nine_lan_session');
-    if (!raw) return null;
+  public getSavedSession(): { roomCode: string; sessionToken: string; position: PlayerPosition; hostUrl?: string } | null {
     try {
-      return JSON.parse(raw);
+      const raw = sessionStore()?.getItem(SESSION_KEY);
+      return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
     }
@@ -114,190 +277,143 @@ class LanClientService {
   public clearSavedSession() {
     this.roomCode = '';
     this.sessionToken = '';
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('twenty_nine_lan_session');
+    try {
+      sessionStore()?.removeItem(SESSION_KEY);
+    } catch {
+      /* ignore */
     }
+  }
+
+  // --- Request helper ---
+
+  private request<T extends ActionResult>(event: string, payload: Record<string, unknown>): Promise<T> {
+    return new Promise((resolve) => {
+      const socket = this.socket || this.connect();
+      socket
+        .timeout(ACK_TIMEOUT_MS)
+        .emit(event, payload, (err: Error | null, res: T) => {
+          if (err) {
+            resolve({ success: false, error: 'The LAN host did not respond. Check that you are on the same Wi-Fi.' } as T);
+          } else {
+            resolve(res);
+          }
+        });
+    });
+  }
+
+  private sessionPayload(extra: Record<string, unknown> = {}) {
+    return { roomCode: this.roomCode, sessionToken: this.sessionToken, ...extra };
   }
 
   // --- API Methods ---
 
-  public createRoom(
-    hostName: string,
-    rules?: GameRulesConfig,
-    preferredSeat: PlayerPosition = 0
-  ): Promise<{ success: boolean; roomCode?: string; sessionToken?: string; position?: PlayerPosition; error?: string }> {
-    return new Promise((resolve) => {
-      const socket = this.socket || this.connect();
-      socket.emit('create_room', { hostName, rules, preferredSeat }, (res: any) => {
-        if (res.success && res.roomCode && res.sessionToken) {
-          this.saveSession(res.roomCode, res.sessionToken, res.position ?? preferredSeat);
-        }
-        resolve(res);
-      });
-    });
+  public async createRoom(hostName: string, rules?: GameRulesConfig, preferredSeat: PlayerPosition = 0): Promise<RoomResult> {
+    const res = await this.request<RoomResult>('create_room', { hostName, rules, preferredSeat });
+    if (res.success && res.roomCode && res.sessionToken) {
+      this.saveSession(res.roomCode, res.sessionToken, res.position ?? preferredSeat);
+    }
+    return res;
   }
 
-  public joinRoom(
-    roomCode: string,
-    playerName: string,
-    preferredSeat?: PlayerPosition
-  ): Promise<{ success: boolean; roomCode?: string; sessionToken?: string; position?: PlayerPosition; error?: string }> {
-    return new Promise((resolve) => {
-      const socket = this.socket || this.connect();
-      socket.emit('join_room', { roomCode, playerName, preferredSeat }, (res: any) => {
-        if (res.success && res.roomCode && res.sessionToken) {
-          this.saveSession(res.roomCode, res.sessionToken, res.position ?? 1);
-        }
-        resolve(res);
-      });
-    });
+  public async joinRoom(roomCode: string, playerName: string, preferredSeat?: PlayerPosition): Promise<RoomResult> {
+    const res = await this.request<RoomResult>('join_room', { roomCode, playerName, preferredSeat });
+    if (res.success && res.roomCode && res.sessionToken) {
+      this.saveSession(res.roomCode, res.sessionToken, res.position ?? 0);
+    }
+    return res;
   }
 
-  public selectSeat(targetPosition: PlayerPosition): Promise<{ success: boolean; error?: string }> {
-    return new Promise((resolve) => {
-      if (!this.socket) return resolve({ success: false, error: 'Not connected' });
-      this.socket.emit(
-        'select_seat',
-        { roomCode: this.roomCode, sessionToken: this.sessionToken, targetPosition },
-        (res: any) => {
-          if (res.success) {
-            this.myPosition = targetPosition;
-            this.saveSession(this.roomCode, this.sessionToken, targetPosition);
-          }
-          resolve(res);
-        }
-      );
-    });
+  public async selectSeat(targetPosition: PlayerPosition): Promise<ActionResult> {
+    const res = await this.request<ActionResult>('select_seat', this.sessionPayload({ targetPosition }));
+    if (res.success) {
+      this.myPosition = targetPosition;
+      this.persistSession();
+    }
+    return res;
   }
 
-  public reconnectSeat(
-    roomCode: string,
-    sessionToken: string
-  ): Promise<{ success: boolean; position?: PlayerPosition; error?: string }> {
-    return new Promise((resolve) => {
-      const socket = this.socket || this.connect();
-      socket.emit('reconnect_seat', { roomCode, sessionToken }, (res: any) => {
-        if (res.success && res.position !== undefined) {
-          this.saveSession(roomCode, sessionToken, res.position);
-        }
-        resolve(res);
-      });
-    });
+  public async reconnectSeat(roomCode: string, sessionToken: string): Promise<ActionResult & { position?: PlayerPosition }> {
+    const res = await this.request<ActionResult & { position?: PlayerPosition }>('reconnect_seat', { roomCode, sessionToken });
+    if (res.success && res.position !== undefined) {
+      this.saveSession(roomCode, sessionToken, res.position);
+    }
+    return res;
   }
 
-  public startMatch(): Promise<{ success: boolean; error?: string }> {
-    return new Promise((resolve) => {
-      if (!this.socket) return resolve({ success: false, error: 'Not connected' });
-      this.socket.emit('start_match', { roomCode: this.roomCode, sessionToken: this.sessionToken }, resolve);
-    });
+  public async leaveRoom(): Promise<ActionResult> {
+    if (!this.roomCode || !this.socket) {
+      this.clearSavedSession();
+      return { success: true };
+    }
+    const res = await this.request<ActionResult>('leave_room', this.sessionPayload());
+    this.clearSavedSession();
+    return res;
   }
 
-  public placeBid(bid: number | 'PASS'): Promise<{ success: boolean; error?: string }> {
-    return new Promise((resolve) => {
-      if (!this.socket) return resolve({ success: false, error: 'Not connected' });
-      this.socket.emit('place_bid', { roomCode: this.roomCode, sessionToken: this.sessionToken, bid }, resolve);
-    });
+  public startMatch(): Promise<ActionResult> {
+    return this.request('start_match', this.sessionPayload());
   }
 
-  public selectTrump(choice: TrumpSelectionChoice): Promise<{ success: boolean; error?: string }> {
-    return new Promise((resolve) => {
-      if (!this.socket) return resolve({ success: false, error: 'Not connected' });
-      this.socket.emit('select_trump', { roomCode: this.roomCode, sessionToken: this.sessionToken, choice, suit: choice }, resolve);
-    });
+  public placeBid(bid: number | 'PASS'): Promise<ActionResult> {
+    return this.request('place_bid', this.sessionPayload({ bid }));
   }
 
-  public revealTrump(payload?: { requestId?: string; playerPosition?: PlayerPosition; roundNumber?: number; trickNumber?: number }): Promise<{ success: boolean; error?: string }> {
-    return new Promise((resolve) => {
-      if (!this.socket) return resolve({ success: false, error: 'Not connected' });
-      this.socket.emit('reveal_trump', { 
-        roomCode: this.roomCode, 
-        sessionToken: this.sessionToken,
-        ...payload,
-      }, resolve);
-    });
+  public selectTrump(choice: TrumpSelectionChoice): Promise<ActionResult> {
+    return this.request('select_trump', this.sessionPayload({ choice, suit: choice }));
   }
 
-  public playCard(cardId: string): Promise<{ success: boolean; error?: string }> {
-    return new Promise((resolve) => {
-      if (!this.socket) return resolve({ success: false, error: 'Not connected' });
-      this.socket.emit('play_card', { roomCode: this.roomCode, sessionToken: this.sessionToken, cardId }, resolve);
-    });
+  public revealTrump(payload?: { requestId?: string; playerPosition?: PlayerPosition; roundNumber?: number; trickNumber?: number }): Promise<ActionResult> {
+    return this.request('reveal_trump', this.sessionPayload({ ...payload }));
   }
 
-  public declarePair(): Promise<{ success: boolean; error?: string }> {
-    return new Promise((resolve) => {
-      if (!this.socket) return resolve({ success: false, error: 'Not connected' });
-      this.socket.emit('declare_pair', { roomCode: this.roomCode, sessionToken: this.sessionToken }, resolve);
-    });
+  public playCard(cardId: string): Promise<ActionResult> {
+    return this.request('play_card', this.sessionPayload({ cardId }));
   }
 
-  public submitDoubleDecision(decision: 'DOUBLE' | 'PASS'): Promise<{ success: boolean; error?: string }> {
-    return new Promise((resolve) => {
-      if (!this.socket) return resolve({ success: false, error: 'Not connected' });
-      this.socket.emit(
-        'double_decision',
-        { roomCode: this.roomCode, sessionToken: this.sessionToken, decision },
-        resolve
-      );
-    });
+  public declarePair(): Promise<ActionResult> {
+    return this.request('declare_pair', this.sessionPayload());
   }
 
-  public submitRedoubleDecision(decision: 'REDOUBLE' | 'PASS'): Promise<{ success: boolean; error?: string }> {
-    return new Promise((resolve) => {
-      if (!this.socket) return resolve({ success: false, error: 'Not connected' });
-      this.socket.emit(
-        'redouble_decision',
-        { roomCode: this.roomCode, sessionToken: this.sessionToken, decision },
-        resolve
-      );
-    });
+  public submitDoubleDecision(decision: 'DOUBLE' | 'PASS'): Promise<ActionResult> {
+    return this.request('double_decision', this.sessionPayload({ decision }));
   }
 
-  public nextRound(): Promise<{ success: boolean; error?: string }> {
-    return new Promise((resolve) => {
-      if (!this.socket) return resolve({ success: false, error: 'Not connected' });
-      this.socket.emit('next_round', { roomCode: this.roomCode, sessionToken: this.sessionToken }, resolve);
-    });
+  public submitRedoubleDecision(decision: 'REDOUBLE' | 'PASS'): Promise<ActionResult> {
+    return this.request('redouble_decision', this.sessionPayload({ decision }));
+  }
+
+  public nextRound(): Promise<ActionResult> {
+    return this.request('next_round', this.sessionPayload());
   }
 
   // --- Subscriptions ---
 
-  public onRoomUpdate(callback: (room: LanRoomState) => void): () => void {
-    if (!this.socket) this.connect();
-    this.socket?.on('room_update', callback);
-    return () => this.socket?.off('room_update', callback);
+  public onRoomUpdate(cb: Listener<'room_update'>) {
+    return this.subscribe('room_update', cb);
   }
 
-  public onGameStateUpdate(
-    callback: (data: { gameState: GameState; publicState: PublicGameState; myPosition: PlayerPosition }) => void
-  ): () => void {
-    if (!this.socket) this.connect();
-    this.socket?.on('game_state_update', callback);
-    return () => this.socket?.off('game_state_update', callback);
+  public onGameStateUpdate(cb: Listener<'game_state_update'>) {
+    return this.subscribe('game_state_update', cb);
   }
 
-  public onTimerTick(callback: (data: TimerTickData) => void): () => void {
-    if (!this.socket) this.connect();
-    this.socket?.on('timer_tick', callback);
-    return () => this.socket?.off('timer_tick', callback);
+  public onTimerTick(cb: Listener<'timer_tick'>) {
+    return this.subscribe('timer_tick', cb);
   }
 
-  public onInTableNotification(callback: (notif: InTableNotification) => void): () => void {
-    if (!this.socket) this.connect();
-    this.socket?.on('in_table_notification', callback);
-    return () => this.socket?.off('in_table_notification', callback);
+  public onInTableNotification(cb: Listener<'in_table_notification'>) {
+    return this.subscribe('in_table_notification', cb);
   }
 
-  public onTrickCompleted(callback: (data: { trick: any }) => void): () => void {
-    if (!this.socket) this.connect();
-    this.socket?.on('TRICK_COMPLETED', callback);
-    return () => this.socket?.off('TRICK_COMPLETED', callback);
+  public onTrickCompleted(cb: Listener<'TRICK_COMPLETED'>) {
+    return this.subscribe('TRICK_COMPLETED', cb);
   }
 
-  public onPairAnnouncement(callback: (data: { pair: any; playerName: string }) => void): () => void {
-    if (!this.socket) this.connect();
-    this.socket?.on('PAIR_ANNOUNCEMENT', callback);
-    return () => this.socket?.off('PAIR_ANNOUNCEMENT', callback);
+  public onConnectionStatus(cb: Listener<'connection_status'>) {
+    return this.subscribe('connection_status', cb);
+  }
+
+  public onSessionLost(cb: Listener<'session_lost'>) {
+    return this.subscribe('session_lost', cb);
   }
 }
 

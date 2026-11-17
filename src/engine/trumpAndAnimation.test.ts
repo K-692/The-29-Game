@@ -47,10 +47,10 @@ describe('Card Manifest and Trump Display Cards', () => {
 describe('Trump Indicator and 7th Card Reveal Lifecycle', () => {
   it('executes 7th card mode: conceals card, reveals exact 7th card, restores to owner hand, and resolves suit', () => {
     const players = [
-      { id: 'p0', name: 'Krish', position: 0 as const, team: 0 as const, isHost: true, isCpu: false, isReady: true, connected: true },
-      { id: 'p1', name: 'Ishaan', position: 1 as const, team: 1 as const, isHost: false, isCpu: false, isReady: true, connected: true },
-      { id: 'p2', name: 'Aarav', position: 2 as const, team: 0 as const, isHost: false, isCpu: false, isReady: true, connected: true },
-      { id: 'p3', name: 'Karan', position: 3 as const, team: 1 as const, isHost: false, isCpu: false, isReady: true, connected: true },
+      { id: 'p0', name: 'Krish', position: 0 as const, team: 0 as const, isHost: true, isReady: true, connected: true },
+      { id: 'p1', name: 'Ishaan', position: 1 as const, team: 1 as const, isHost: false, isReady: true, connected: true },
+      { id: 'p2', name: 'Aarav', position: 2 as const, team: 0 as const, isHost: false, isReady: true, connected: true },
+      { id: 'p3', name: 'Karan', position: 3 as const, team: 1 as const, isHost: false, isReady: true, connected: true },
     ];
 
     let state = createInitialGame('R12345', players, DEFAULT_RULES_CONFIG);
@@ -116,10 +116,10 @@ describe('Trump Indicator and 7th Card Reveal Lifecycle', () => {
 
   it('normal suit selection: conceals trump until reveal, then maps to correct 6 display card', () => {
     const players = [
-      { id: 'p0', name: 'Krish', position: 0 as const, team: 0 as const, isHost: true, isCpu: false, isReady: true, connected: true },
-      { id: 'p1', name: 'Ishaan', position: 1 as const, team: 1 as const, isHost: false, isCpu: false, isReady: true, connected: true },
-      { id: 'p2', name: 'Aarav', position: 2 as const, team: 0 as const, isHost: false, isCpu: false, isReady: true, connected: true },
-      { id: 'p3', name: 'Karan', position: 3 as const, team: 1 as const, isHost: false, isCpu: false, isReady: true, connected: true },
+      { id: 'p0', name: 'Krish', position: 0 as const, team: 0 as const, isHost: true, isReady: true, connected: true },
+      { id: 'p1', name: 'Ishaan', position: 1 as const, team: 1 as const, isHost: false, isReady: true, connected: true },
+      { id: 'p2', name: 'Aarav', position: 2 as const, team: 0 as const, isHost: false, isReady: true, connected: true },
+      { id: 'p3', name: 'Karan', position: 3 as const, team: 1 as const, isHost: false, isReady: true, connected: true },
     ];
 
     let state = createInitialGame('R67890', players, DEFAULT_RULES_CONFIG);
@@ -144,10 +144,10 @@ describe('Trump Indicator and 7th Card Reveal Lifecycle', () => {
 
   it('no trump / joker mode: maintains concealed status and reveals cleanly', () => {
     const players = [
-      { id: 'p0', name: 'Krish', position: 0 as const, team: 0 as const, isHost: true, isCpu: false, isReady: true, connected: true },
-      { id: 'p1', name: 'Ishaan', position: 1 as const, team: 1 as const, isHost: false, isCpu: false, isReady: true, connected: true },
-      { id: 'p2', name: 'Aarav', position: 2 as const, team: 0 as const, isHost: false, isCpu: false, isReady: true, connected: true },
-      { id: 'p3', name: 'Karan', position: 3 as const, team: 1 as const, isHost: false, isCpu: false, isReady: true, connected: true },
+      { id: 'p0', name: 'Krish', position: 0 as const, team: 0 as const, isHost: true, isReady: true, connected: true },
+      { id: 'p1', name: 'Ishaan', position: 1 as const, team: 1 as const, isHost: false, isReady: true, connected: true },
+      { id: 'p2', name: 'Aarav', position: 2 as const, team: 0 as const, isHost: false, isReady: true, connected: true },
+      { id: 'p3', name: 'Karan', position: 3 as const, team: 1 as const, isHost: false, isReady: true, connected: true },
     ];
 
     let state = createInitialGame('RJOKER', players, DEFAULT_RULES_CONFIG);

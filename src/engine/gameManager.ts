@@ -2,7 +2,7 @@ import { CARD_MANIFEST, Suit } from '../assets/cardManifest';
 import { evaluateBiddingState, isLegalBid } from './bidding';
 import { getBiddingOrder, getLeftOfDealer, hasPointCard } from './biddingOrder';
 import { create29Deck, deal29Deck, shuffleDeck, sortHand } from './deck';
-import { canDeclarePair, detectKingQueenPair, evaluateRoundScore, calculatePlayerPoints } from './scoring';
+import { canDeclarePair, detectKingQueenPair, PAIR_MIN_CONTRACT_BID, evaluateRoundScore, calculatePlayerPoints } from './scoring';
 import { evaluateTrickWinner, isLegalCardPlay } from './tricks';
 import { 
   BidEntry,
@@ -442,6 +442,10 @@ export const applyDoubleDecision = (
     return { success: false, state, error: 'Only the defending team can make the Double decision' };
   }
 
+  if (state.doubleVotes?.[playerIndex]) {
+    return { success: false, state, error: 'You have already made your Double decision' };
+  }
+
   const defendingTeam: Team = biddingTeam === 0 ? 1 : 0;
   const defenderPositions: [PlayerPosition, PlayerPosition] = defendingTeam === 0 ? [0, 2] : [1, 3];
 
@@ -516,6 +520,10 @@ export const applyRedoubleDecision = (
   const playerTeam: Team = (playerIndex === 0 || playerIndex === 2) ? 0 : 1;
   if (playerTeam !== biddingTeam) {
     return { success: false, state, error: 'Only the bidding team can make the Re-Double decision' };
+  }
+
+  if (state.redoubleVotes?.[playerIndex]) {
+    return { success: false, state, error: 'You have already made your Re-Double decision' };
   }
 
   const bidderPositions: [PlayerPosition, PlayerPosition] = biddingTeam === 0 ? [0, 2] : [1, 3];
@@ -660,6 +668,10 @@ export const applyCardPlay = (
 
   if (state.currentTurn !== playerIndex) {
     return { success: false, state, error: 'Not your turn to play' };
+  }
+
+  if (state.currentTrickCards.length >= 4) {
+    return { success: false, state, error: 'Trick is complete and being collected' };
   }
 
   const hand = state.hands[playerIndex];
@@ -835,6 +847,10 @@ export const applyPairDeclaration = (
 
   if (!check.canDeclare) {
     return { success: false, state, error: check.reason };
+  }
+
+  if (state.highestBid < PAIR_MIN_CONTRACT_BID) {
+    return { success: false, state, error: `King-Queen Pair only applies when the contract bid is ${PAIR_MIN_CONTRACT_BID} or higher` };
   }
 
   const playerTeam: Team = (playerIndex === 0 || playerIndex === 2) ? 0 : 1;

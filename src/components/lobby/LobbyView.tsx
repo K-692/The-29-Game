@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import QRCode from 'qrcode';
 import { PlayerPosition } from '../../engine/types';
-import { LanSeat } from '../../services/lanClient';
+import { LanSeat, lanClient } from '../../services/lanClient';
 import { 
   ArrowLeft, 
-  Bot, 
+  Loader2,
   Check, 
   Copy, 
   Play, 
@@ -24,6 +24,7 @@ interface LobbyViewProps {
   onSelectSeat: (pos: PlayerPosition) => void;
   onStartMatch: () => void;
   onLeave: () => void;
+  startError?: string | null;
 }
 
 export const LobbyView: React.FC<LobbyViewProps> = ({
@@ -34,14 +35,39 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   onSelectSeat,
   onStartMatch,
   onLeave,
+  startError,
 }) => {
   const [copied, setCopied] = useState(false);
   const [showQr, setShowQr] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
 
-  const inviteUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}${window.location.pathname}?room=${roomCode}`
-    : `http://localhost:3000/?room=${roomCode}`;
+  // Build the invite link from the host's real LAN IP. Opening the page as
+  // "localhost" on the host would otherwise produce a link nobody else can use.
+  const [lanOrigin, setLanOrigin] = useState<string>(() =>
+    typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
+  );
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${lanClient.getHostUrl()}/api/lan-info`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((info: { primaryIp?: string; port?: number } | null) => {
+        if (cancelled || !info?.primaryIp || typeof window === 'undefined') return;
+        const { protocol, port, hostname } = window.location;
+        const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]';
+        if (!isLocal) return; // already opened via a LAN address
+        // In Vite dev (5173) share the dev page; otherwise share the host server.
+        const sharePort = port === '5173' ? '5173' : String(info.port ?? port);
+        setLanOrigin(`${protocol}//${info.primaryIp}${sharePort ? `:${sharePort}` : ''}`);
+      })
+      .catch(() => {
+        /* keep window origin */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const inviteUrl = `${lanOrigin}${typeof window !== 'undefined' ? window.location.pathname : '/'}?room=${roomCode}`;
 
   useEffect(() => {
     QRCode.toDataURL(inviteUrl, { width: 200, margin: 1, color: { dark: '#000000', light: '#ffffff' } }, (err, url) => {
@@ -52,7 +78,26 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
   }, [inviteUrl]);
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(inviteUrl);
+    // navigator.clipboard is unavailable on plain-http LAN addresses; fall back to a hidden textarea.
+    const fallbackCopy = () => {
+      const ta = document.createElement('textarea');
+      ta.value = inviteUrl;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+      } catch {
+        /* ignore */
+      }
+      document.body.removeChild(ta);
+    };
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(inviteUrl).catch(fallbackCopy);
+    } else {
+      fallbackCopy();
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -68,8 +113,8 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
 
   const renderSeatCard = (seat: LanSeat | undefined, pos: PlayerPosition, label: string, teamLabel: string, isTeamA: boolean) => {
     const isMySeat = myPosition === pos;
-    const isOccupied = Boolean(seat?.connected && seat?.playerId && !seat.isCpu);
-    const isBot = Boolean(seat?.isCpu);
+    const isOccupied = Boolean(seat?.occupied ?? (seat?.connected && seat?.playerId));
+    const isReconnecting = isOccupied && !seat?.connected;
 
     return (
       <div
@@ -131,8 +176,8 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
                 : 'bg-slate-950 border-slate-800 text-slate-500'
             }`}
           >
-            {isBot ? (
-              <Bot className="w-5 h-5 text-indigo-400" />
+            {isReconnecting ? (
+              <Loader2 className="w-5 h-5 text-amber-400 animate-spin" />
             ) : isOccupied || isMySeat ? (
               <User className="w-5 h-5" />
             ) : (
@@ -154,11 +199,11 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
               ) : isOccupied ? (
                 <span>{seat?.playerName}</span>
               ) : (
-                <span className="text-slate-400 italic">Empty (Auto-fills CPU)</span>
+                <span className="text-slate-400 italic">Waiting for a player…</span>
               )}
             </div>
             <div className="text-[11px] text-slate-500">
-              {isOccupied || isMySeat ? 'Connected player' : 'Will be played by Bot if empty'}
+              {isReconnecting ? 'Reconnecting…' : isOccupied || isMySeat ? 'Connected' : 'Open seat — share the invite link'}
             </div>
           </div>
         </div>
@@ -180,7 +225,9 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
     );
   };
 
-  const humanCount = seats.filter((s) => s.connected && s.playerId && !s.isCpu).length;
+  const playerCount = seats.filter((s) => s.connected && (s.occupied ?? Boolean(s.playerId))).length;
+  const missing = 4 - playerCount;
+  const canStart = missing === 0;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-6">
@@ -276,7 +323,7 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
 
         {/* Informational Banner */}
         <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-3.5 text-center text-xs text-slate-400">
-          💡 Any vacant seats will be automatically filled by smart CPU bots when the host starts the match.
+          💡 29 is played by exactly 4 people. The match can start once every seat is filled. Partners sit opposite each other.
         </div>
       </main>
 
@@ -285,19 +332,23 @@ export const LobbyView: React.FC<LobbyViewProps> = ({
         <div className="text-xs text-slate-400 flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-emerald-400" />
           <span>
-            {humanCount} Human{humanCount !== 1 ? 's' : ''} in lobby • {4 - humanCount} CPU Bot{4 - humanCount !== 1 ? 's' : ''} ready
+            {playerCount} / 4 players connected{missing > 0 ? ` • waiting for ${missing} more` : ' • ready to start'}
           </span>
         </div>
 
         {isHost ? (
-          <button
-            type="button"
-            onClick={onStartMatch}
-            className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 transform active:scale-95"
-          >
-            <Play className="w-4 h-4 fill-slate-950" />
-            Start Match Now ({humanCount} Player{humanCount > 1 ? 's' : ''} + {4 - humanCount} CPU)
-          </button>
+          <div className="flex flex-col items-center sm:items-end gap-1.5 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={onStartMatch}
+              disabled={!canStart}
+              className="w-full sm:w-auto px-8 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-sm shadow-xl shadow-emerald-500/25 transition-all flex items-center justify-center gap-2 transform active:scale-95 disabled:from-slate-700 disabled:to-slate-700 disabled:text-slate-400 disabled:shadow-none disabled:cursor-not-allowed disabled:active:scale-100"
+            >
+              <Play className={`w-4 h-4 ${canStart ? 'fill-slate-950' : 'fill-slate-400'}`} />
+              {canStart ? 'Start Match' : `Waiting for ${missing} more player${missing > 1 ? 's' : ''}`}
+            </button>
+            {startError && <span className="text-[11px] text-rose-300 font-semibold">{startError}</span>}
+          </div>
         ) : (
           <div className="text-xs text-slate-400 font-medium italic animate-pulse">
             Waiting for the Room Host to start the match...

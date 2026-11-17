@@ -18,7 +18,6 @@ import {
 } from './gameManager';
 import { DEFAULT_RULES_CONFIG, PlayerInfo, PlayerPosition } from './types';
 import { getLeftOfDealer, getBiddingOrder, hasPointCard, countPointCards, sumPointValues } from './biddingOrder';
-import { AUTHENTIC_BOT_NAMES, getRandomBotNames } from './botNames';
 
 describe('Asset Manifest & Deck Verification', () => {
   it('should have exactly 32 cards in the 29 card manifest', () => {
@@ -148,10 +147,10 @@ describe('Trick Evaluation & Follow-Suit', () => {
 
 describe('Security & Public Game State', () => {
   const dummyPlayers: PlayerInfo[] = [
-    { id: 'p0', name: 'Player 0', position: 0, team: 0, isHost: true, isCpu: false, isReady: true, connected: true },
-    { id: 'p1', name: 'Player 1', position: 1, team: 1, isHost: false, isCpu: false, isReady: true, connected: true },
-    { id: 'p2', name: 'Player 2', position: 2, team: 0, isHost: false, isCpu: false, isReady: true, connected: true },
-    { id: 'p3', name: 'Player 3', position: 3, team: 1, isHost: false, isCpu: false, isReady: true, connected: true },
+    { id: 'p0', name: 'Player 0', position: 0, team: 0, isHost: true, isReady: true, connected: true },
+    { id: 'p1', name: 'Player 1', position: 1, team: 1, isHost: false, isReady: true, connected: true },
+    { id: 'p2', name: 'Player 2', position: 2, team: 0, isHost: false, isReady: true, connected: true },
+    { id: 'p3', name: 'Player 3', position: 3, team: 1, isHost: false, isReady: true, connected: true },
   ];
 
   it('should securely hide opponent hands and concealed trump in public state', () => {
@@ -261,10 +260,10 @@ describe('Dealer Selection, Seating & Bidding Order Rules', () => {
 
   it('should guarantee first bidder holds at least 1 point card upon initial deal', () => {
     const dummyPlayers: PlayerInfo[] = [
-      { id: 'p0', name: 'Player 0', position: 0, team: 0, isHost: true, isCpu: false, isReady: true, connected: true },
-      { id: 'p1', name: 'Player 1', position: 1, team: 1, isHost: false, isCpu: false, isReady: true, connected: true },
-      { id: 'p2', name: 'Player 2', position: 2, team: 0, isHost: false, isCpu: false, isReady: true, connected: true },
-      { id: 'p3', name: 'Player 3', position: 3, team: 1, isHost: false, isCpu: false, isReady: true, connected: true },
+      { id: 'p0', name: 'Player 0', position: 0, team: 0, isHost: true, isReady: true, connected: true },
+      { id: 'p1', name: 'Player 1', position: 1, team: 1, isHost: false, isReady: true, connected: true },
+      { id: 'p2', name: 'Player 2', position: 2, team: 0, isHost: false, isReady: true, connected: true },
+      { id: 'p3', name: 'Player 3', position: 3, team: 1, isHost: false, isReady: true, connected: true },
     ];
 
     for (let trial = 0; trial < 10; trial++) {
@@ -281,10 +280,10 @@ describe('Dealer Selection, Seating & Bidding Order Rules', () => {
 
   it('should rotate dealer clockwise on startNewRound', () => {
     const dummyPlayers: PlayerInfo[] = [
-      { id: 'p0', name: 'Player 0', position: 0, team: 0, isHost: true, isCpu: false, isReady: true, connected: true },
-      { id: 'p1', name: 'Player 1', position: 1, team: 1, isHost: false, isCpu: false, isReady: true, connected: true },
-      { id: 'p2', name: 'Player 2', position: 2, team: 0, isHost: false, isCpu: false, isReady: true, connected: true },
-      { id: 'p3', name: 'Player 3', position: 3, team: 1, isHost: false, isCpu: false, isReady: true, connected: true },
+      { id: 'p0', name: 'Player 0', position: 0, team: 0, isHost: true, isReady: true, connected: true },
+      { id: 'p1', name: 'Player 1', position: 1, team: 1, isHost: false, isReady: true, connected: true },
+      { id: 'p2', name: 'Player 2', position: 2, team: 0, isHost: false, isReady: true, connected: true },
+      { id: 'p3', name: 'Player 3', position: 3, team: 1, isHost: false, isReady: true, connected: true },
     ];
 
     let state = createInitialGame('ROTATION_TEST', dummyPlayers);
@@ -300,30 +299,12 @@ describe('Dealer Selection, Seating & Bidding Order Rules', () => {
   });
 });
 
-describe('Authentic Bot Names Pool', () => {
-  it('should have a rich pool of authentic Indian names with no generic Bot labels', () => {
-    expect(AUTHENTIC_BOT_NAMES.length).toBeGreaterThanOrEqual(30);
-    for (const name of AUTHENTIC_BOT_NAMES) {
-      expect(name).not.toMatch(/bot/i);
-      expect(name).not.toMatch(/cpu/i);
-      expect(name).not.toMatch(/computer/i);
-    }
-  });
-
-  it('should select distinct random bot names excluding host name', () => {
-    const selected = getRandomBotNames(3, ['Aarav']);
-    expect(selected).toHaveLength(3);
-    expect(new Set(selected).size).toBe(3);
-    expect(selected).not.toContain('Aarav');
-  });
-});
-
 describe('Single-Round Bidding & Forced Dealer Bid Mechanics', () => {
   const dummyPlayers: PlayerInfo[] = [
-    { id: 'p0', name: 'Player 0', position: 0, team: 0, isHost: true, isCpu: false, isReady: true, connected: true },
-    { id: 'p1', name: 'Player 1', position: 1, team: 1, isHost: false, isCpu: false, isReady: true, connected: true },
-    { id: 'p2', name: 'Player 2', position: 2, team: 0, isHost: false, isCpu: false, isReady: true, connected: true },
-    { id: 'p3', name: 'Player 3', position: 3, team: 1, isHost: false, isCpu: false, isReady: true, connected: true },
+    { id: 'p0', name: 'Player 0', position: 0, team: 0, isHost: true, isReady: true, connected: true },
+    { id: 'p1', name: 'Player 1', position: 1, team: 1, isHost: false, isReady: true, connected: true },
+    { id: 'p2', name: 'Player 2', position: 2, team: 0, isHost: false, isReady: true, connected: true },
+    { id: 'p3', name: 'Player 3', position: 3, team: 1, isHost: false, isReady: true, connected: true },
   ];
 
   it('should strictly limit bidding to 4 turns and transition to TRUMP_SELECTION', () => {
@@ -393,10 +374,10 @@ describe('Single-Round Bidding & Forced Dealer Bid Mechanics', () => {
 
 describe('Six Trump Options & 7th Card Mechanics', () => {
   const dummyPlayers: PlayerInfo[] = [
-    { id: 'p0', name: 'Player 0', position: 0, team: 0, isHost: true, isCpu: false, isReady: true, connected: true },
-    { id: 'p1', name: 'Player 1', position: 1, team: 1, isHost: false, isCpu: false, isReady: true, connected: true },
-    { id: 'p2', name: 'Player 2', position: 2, team: 0, isHost: false, isCpu: false, isReady: true, connected: true },
-    { id: 'p3', name: 'Player 3', position: 3, team: 1, isHost: false, isCpu: false, isReady: true, connected: true },
+    { id: 'p0', name: 'Player 0', position: 0, team: 0, isHost: true, isReady: true, connected: true },
+    { id: 'p1', name: 'Player 1', position: 1, team: 1, isHost: false, isReady: true, connected: true },
+    { id: 'p2', name: 'Player 2', position: 2, team: 0, isHost: false, isReady: true, connected: true },
+    { id: 'p3', name: 'Player 3', position: 3, team: 1, isHost: false, isReady: true, connected: true },
   ];
 
   it('should support standard Suit trump selection and second deal distribution', () => {

@@ -7,7 +7,6 @@ import {
   TrumpSelectionChoice 
 } from '../../engine/types';
 import { CARD_MANIFEST } from '../../assets/cardManifest';
-import { canDeclarePair } from '../../engine/scoring';
 import { getPlayableCards } from '../../engine/tricks';
 import { soundManager } from '../../common/SoundManager';
 import { Scoreboard } from './Scoreboard';
@@ -26,11 +25,10 @@ import { InTableRoundSummary } from './InTableRoundSummary';
 import { MatchOverModal } from './MatchOverModal';
 import { RulesDrawer } from './RulesDrawer';
 import { DealerDealingAnimation } from './DealerDealingAnimation';
-import { InTableNotification, lanClient } from '../../services/lanClient';
+import { ConnectionStatus, InTableNotification } from '../../services/lanClient';
 import { PairDeclaration } from '../../engine/types';
 import { 
   ArrowLeft, 
-  Crown, 
   HelpCircle, 
   Volume2, 
   VolumeX, 
@@ -48,11 +46,12 @@ interface GameTableProps {
   notification?: InTableNotification | null;
   onBid: (bid: number | 'PASS') => void;
   onSelectTrump: (choice: TrumpSelectionChoice) => void;
-  onDoubleDecision?: (decision: 'DOUBLE' | 'PASS') => void;
-  onRedoubleDecision?: (decision: 'REDOUBLE' | 'PASS') => void;
+  onDoubleDecision?: (decision: 'DOUBLE' | 'PASS') => Promise<{ success: boolean; error?: string }> | void;
+  onRedoubleDecision?: (decision: 'REDOUBLE' | 'PASS') => Promise<{ success: boolean; error?: string }> | void;
   onRevealTrump: (data?: { requestId?: string; playerPosition?: PlayerPosition; roundNumber?: number; trickNumber?: number }) => Promise<any> | void;
-  onPlayCard: (cardId: string) => void;
-  onDeclarePair: () => void;
+  onPlayCard: (cardId: string) => void | Promise<{ success: boolean; error?: string } | void>;
+  onDeclarePair?: () => void;
+  connectionStatus?: ConnectionStatus;
   onNextRound: () => void;
   onRematch: () => void;
   onLeave: () => void;
@@ -70,7 +69,7 @@ export const GameTable: React.FC<GameTableProps> = ({
   onRedoubleDecision,
   onRevealTrump,
   onPlayCard,
-  onDeclarePair,
+  connectionStatus = 'connected',
   onNextRound,
   onRematch,
   onLeave,
@@ -82,27 +81,22 @@ export const GameTable: React.FC<GameTableProps> = ({
   const [trickWinnerPos, setTrickWinnerPos] = useState<PlayerPosition | null>(null);
   const [pairAnnouncement, setPairAnnouncement] = useState<{ pair: PairDeclaration; playerName: string } | null>(null);
 
-  // Synchronize pair announcement socket events and auto-detection upon reveal
+  // King-Queen pair announcement: driven only by authoritative state so every
+  // client shows it exactly once per deal (no duplicate socket-triggered replays).
+  const announcedPairKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    const unsub = lanClient.onPairAnnouncement((data) => {
-      setPairAnnouncement(data);
-    });
-    return unsub;
-  }, []);
-
-  const prevPairRef = useRef<any>(null);
-  useEffect(() => {
-    if (publicState.pairDeclaration && !prevPairRef.current) {
-      prevPairRef.current = publicState.pairDeclaration;
-      const owner = publicState.players.find((p) => p.position === publicState.pairDeclaration?.playerIndex);
+    const pair = publicState.pairDeclaration;
+    if (!pair) return;
+    const key = `r${publicState.roundNumber}_p${pair.playerIndex}_${pair.suit}`;
+    if (announcedPairKeyRef.current !== key) {
+      announcedPairKeyRef.current = key;
+      const owner = publicState.players.find((p) => p.position === pair.playerIndex);
       setPairAnnouncement({
-        pair: publicState.pairDeclaration,
-        playerName: owner ? owner.name : `Player ${(publicState.pairDeclaration?.playerIndex ?? 0) + 1}`,
+        pair,
+        playerName: owner ? (owner.position === myPosition ? 'You' : owner.name) : `Player ${pair.playerIndex + 1}`,
       });
-    } else if (!publicState.pairDeclaration) {
-      prevPairRef.current = null;
     }
-  }, [publicState.pairDeclaration, publicState.players]);
+  }, [publicState.pairDeclaration, publicState.players, publicState.roundNumber, myPosition]);
 
   // Clear trick winner state if trick advances or cards are cleared
   useEffect(() => {
@@ -144,9 +138,7 @@ export const GameTable: React.FC<GameTableProps> = ({
     }
   }, [publicState.phase, publicState.roundNumber]);
 
-  const handlePlayCard = (cardId: string) => {
-    onPlayCard(cardId);
-  };
+  const handlePlayCard = (cardId: string) => onPlayCard(cardId);
 
   // Drag-and-drop state coordinates between Table and Player Hand
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -302,16 +294,6 @@ export const GameTable: React.FC<GameTableProps> = ({
     });
   };
 
-  // Check if player can declare Pair/Royals
-  const pairCheck = canDeclarePair(
-    publicState.myHand,
-    myPosition,
-    publicState.revealedTrumpSuit,
-    publicState.isTrumpRevealed,
-    publicState.completedTricks,
-    publicState.pairDeclaration
-  );
-
   const handleToggleSound = () => {
     const muted = soundManager.toggleMute();
     setIsMuted(muted);
@@ -333,8 +315,14 @@ export const GameTable: React.FC<GameTableProps> = ({
     publicState.phase === 'TRUMP_SELECTION'
       ? (publicState.highestBidder ?? publicState.currentTurn)
       : publicState.currentTurn;
+  // Turn highlights only make sense while someone actually has a turn
+  // (not during Double/Re-Double windows, announcements or round summaries).
+  const isTurnPhase =
+    publicState.phase === 'BIDDING' ||
+    publicState.phase === 'TRUMP_SELECTION' ||
+    (publicState.phase === 'TRICK_PLAY' && publicState.currentTrickCards.length < 4);
   const isMyActiveTurn = activePlayerPos === myPosition;
-  const isBottomTurn = activePlayerPos === myPosition;
+  const isBottomTurn = isTurnPhase && activePlayerPos === myPosition;
   const activePlayer = publicState.players.find((p) => p.position === activePlayerPos);
   const activePlayerName = isMyActiveTurn ? 'You' : (activePlayer?.name || 'Player');
   const activePlayerPoints = (publicState.playerPoints && publicState.playerPoints[activePlayerPos] !== undefined)
@@ -466,7 +454,7 @@ export const GameTable: React.FC<GameTableProps> = ({
             <OpponentSeat
               player={partner}
               seatPosition="top"
-              isCurrentTurn={activePlayerPos === partnerPos}
+              isCurrentTurn={isTurnPhase && activePlayerPos === partnerPos}
               isDealer={publicState.dealerIndex === partnerPos}
               isBidder={publicState.highestBidder === partnerPos}
               bidAmount={publicState.highestBid || undefined}
@@ -494,7 +482,7 @@ export const GameTable: React.FC<GameTableProps> = ({
             <OpponentSeat
               player={leftOpponent}
               seatPosition="left"
-              isCurrentTurn={activePlayerPos === leftOpponentPos}
+              isCurrentTurn={isTurnPhase && activePlayerPos === leftOpponentPos}
               isDealer={publicState.dealerIndex === leftOpponentPos}
               isBidder={publicState.highestBidder === leftOpponentPos}
               bidAmount={publicState.highestBid || undefined}
@@ -522,7 +510,7 @@ export const GameTable: React.FC<GameTableProps> = ({
             <OpponentSeat
               player={rightOpponent}
               seatPosition="right"
-              isCurrentTurn={activePlayerPos === rightOpponentPos}
+              isCurrentTurn={isTurnPhase && activePlayerPos === rightOpponentPos}
               isDealer={publicState.dealerIndex === rightOpponentPos}
               isBidder={publicState.highestBidder === rightOpponentPos}
               bidAmount={publicState.highestBid || undefined}
@@ -584,6 +572,8 @@ export const GameTable: React.FC<GameTableProps> = ({
         {(publicState.phase === 'DOUBLE_DECISION' || publicState.phase === 'REDOUBLE_DECISION') && (
           <div className="absolute top-[44%] sm:top-[46%] left-1/2 -translate-x-1/2 -translate-y-1/2 z-35 w-full max-w-md px-2">
             <InTableDoubleDecision
+              key={`${publicState.roundNumber}_${publicState.phase}`}
+              players={publicState.players}
               phase={publicState.phase}
               highestBidder={publicState.highestBidder}
               highestBid={publicState.highestBid}
@@ -591,20 +581,16 @@ export const GameTable: React.FC<GameTableProps> = ({
               remainingSeconds={remainingSeconds}
               doubleVotes={publicState.doubleVotes}
               redoubleVotes={publicState.redoubleVotes}
-              onDouble={() => {
-                if (publicState.phase === 'DOUBLE_DECISION') {
-                  onDoubleDecision?.('DOUBLE');
-                } else {
-                  onRedoubleDecision?.('REDOUBLE');
-                }
-              }}
-              onPass={() => {
-                if (publicState.phase === 'DOUBLE_DECISION') {
-                  onDoubleDecision?.('PASS');
-                } else {
-                  onRedoubleDecision?.('PASS');
-                }
-              }}
+              onDouble={() =>
+                publicState.phase === 'DOUBLE_DECISION'
+                  ? onDoubleDecision?.('DOUBLE')
+                  : onRedoubleDecision?.('REDOUBLE')
+              }
+              onPass={() =>
+                publicState.phase === 'DOUBLE_DECISION'
+                  ? onDoubleDecision?.('PASS')
+                  : onRedoubleDecision?.('PASS')
+              }
             />
           </div>
         )}
@@ -655,20 +641,6 @@ export const GameTable: React.FC<GameTableProps> = ({
 
         {/* 4. Bottom Area: Player Seat 1 (You) and Hand */}
         <div className="absolute bottom-1 sm:bottom-2 left-0 right-0 z-30 flex flex-col items-center pointer-events-auto">
-          {/* Pair Declaration Action Button (if legal) */}
-          {pairCheck.canDeclare && (
-            <div className="mb-1">
-              <button
-                type="button"
-                onClick={onDeclarePair}
-                className="px-4 py-1.5 rounded-2xl bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-bold text-xs shadow-lg flex items-center gap-2 animate-pulse transition-transform"
-              >
-                <Crown className="w-4 h-4 text-amber-300" />
-                Declare Pair / Royals (±4 pts)!
-              </button>
-            </div>
-          )}
-
           {/* Horizontally Spread Player Hand in Bottom Center */}
           <PlayerHand
             cardIds={publicState.myHand}
@@ -815,6 +787,16 @@ export const GameTable: React.FC<GameTableProps> = ({
           </div>
         )}
       </div>
+
+      {/* 7. LAN connection banner (only while our own socket is down) */}
+      {connectionStatus !== 'connected' && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[60] pointer-events-none animate-fade-in">
+          <div className="flex items-center gap-2 bg-rose-600/95 text-white text-xs font-bold px-4 py-2 rounded-2xl shadow-xl border border-rose-300">
+            <Wifi className="w-4 h-4 animate-pulse" />
+            Connection to the LAN host lost — reconnecting…
+          </div>
+        </div>
+      )}
 
       {/* 8. Full-Window Epic Trump-Reveal Effect (1000ms golden-white luminous burst) */}
       {showEpicReveal && (

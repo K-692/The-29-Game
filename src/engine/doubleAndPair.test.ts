@@ -15,10 +15,10 @@ import { DEFAULT_RULES_CONFIG, PlayerInfo, PlayerPosition } from './types';
 import { CARD_MANIFEST } from '../assets/cardManifest';
 
 const dummyPlayers: PlayerInfo[] = [
-  { id: 'p0', name: 'Player 1', avatar: '🦊', position: 0, team: 0, isHost: true, isCpu: false, isReady: true, connected: true },
-  { id: 'p1', name: 'Player 2', avatar: '🐼', position: 1, team: 1, isHost: false, isCpu: false, isReady: true, connected: true },
-  { id: 'p2', name: 'Player 3', avatar: '🐯', position: 2, team: 0, isHost: false, isCpu: false, isReady: true, connected: true },
-  { id: 'p3', name: 'Player 4', avatar: '🐸', position: 3, team: 1, isHost: false, isCpu: false, isReady: true, connected: true },
+  { id: 'p0', name: 'Player 1', avatar: '🦊', position: 0, team: 0, isHost: true, isReady: true, connected: true },
+  { id: 'p1', name: 'Player 2', avatar: '🐼', position: 1, team: 1, isHost: false, isReady: true, connected: true },
+  { id: 'p2', name: 'Player 3', avatar: '🐯', position: 2, team: 0, isHost: false, isReady: true, connected: true },
+  { id: 'p3', name: 'Player 4', avatar: '🐸', position: 3, team: 1, isHost: false, isReady: true, connected: true },
 ];
 
 describe('Double & Re-Double Engine Mechanics', () => {

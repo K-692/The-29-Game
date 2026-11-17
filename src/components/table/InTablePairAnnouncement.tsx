@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { PairDeclaration } from '../../engine/types';
 import { PlayingCard } from '../card/PlayingCard';
 import { Crown } from 'lucide-react';
@@ -14,12 +14,14 @@ export const InTablePairAnnouncement: React.FC<InTablePairAnnouncementProps> = (
   playerName,
   onDismiss,
 }) => {
+  // Keep the latest callback in a ref so parent re-renders (e.g. the 1s turn
+  // timer) never restart the 2-second display window.
+  const onDismissRef = useRef(onDismiss);
+  onDismissRef.current = onDismiss;
   useEffect(() => {
-    const timer = setTimeout(() => {
-      onDismiss?.();
-    }, 2000);
+    const timer = setTimeout(() => onDismissRef.current?.(), 2000);
     return () => clearTimeout(timer);
-  }, [onDismiss]);
+  }, []);
 
   const kingId = pair.kingCardId || `K_${pair.suit}`;
   const queenId = pair.queenCardId || `Q_${pair.suit}`;
