@@ -34,7 +34,7 @@ import {
 } from '../bot';
 import { getRandomBotNames } from '../botNames';
 import { getPlayableCards } from '../tricks';
-import { isLegalBid } from '../bidding';
+import { isForcedOpening, isLegalBid } from '../bidding';
 import {
   CompletedTrick,
   DEFAULT_RULES_CONFIG,
@@ -595,7 +595,7 @@ const applyAction = (
     case 'BID': {
       if (gs.phase !== 'BIDDING' || gs.currentTurn !== pos) return { ok: false, error: 'Not your turn to bid.' };
       const forced =
-        gs.bids.length === 3 && gs.bids.every((b) => b.bid === 'PASS') && pos === gs.dealerIndex && gs.rules.forcedDealerBid;
+        isForcedOpening(gs.bids, pos, gs.rules);
       const legal = isLegalBid(action.bid, gs.highestBid, gs.rules, forced);
       if (!legal.legal) return { ok: false, error: legal.reason || 'Illegal bid.' };
       const res = applyBid(gs, pos, action.bid);
@@ -799,8 +799,8 @@ const runCpuAction = (room: RoomRecord, seat: SeatRecord, now: number, rng: Rand
   switch (gs.phase) {
     case 'BIDDING': {
       const forced =
-        gs.bids.length === 3 && gs.bids.every((b) => b.bid === 'PASS') && pos === gs.dealerIndex && gs.rules.forcedDealerBid;
-      return run({ type: 'BID', bid: getBotBidDecision(hand, gs.highestBid, gs.rules, forced) }) ||
+        isForcedOpening(gs.bids, pos, gs.rules);
+      return run({ type: 'BID', bid: getBotBidDecision(hand, gs.highestBid, gs.rules, forced, gs.highestBidder !== null && gs.highestBidder % 2 === pos % 2) }) ||
         run({ type: 'BID', bid: forced ? gs.rules.minBid : 'PASS' });
     }
     case 'TRUMP_SELECTION':

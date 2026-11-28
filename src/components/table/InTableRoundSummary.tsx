@@ -67,6 +67,11 @@ export const InTableRoundSummary: React.FC<InTableRoundSummaryProps> = ({
           <span>Bid {summary.contractBid}</span>
           {summary.pairDeclared && <span>· pair {summary.pairDeclared.adjustment > 0 ? '+4' : '−4'}</span>}
           {stakesLabel && <span>· {stakesLabel}</span>}
+          {summary.sweep && (
+            <span className="text-cream-50">
+              · {summary.sweep === 'BIDDING' ? 'bidders' : 'defenders'} took every point ×2
+            </span>
+          )}
         </div>
       </div>
 

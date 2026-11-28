@@ -2,7 +2,7 @@ import { getRandomBotNames, REALISTIC_BOT_NAMES } from './botNames';
 import { describe, it, expect } from 'vitest';
 import { CARD_MANIFEST, getAllCards, CardIdentity, Suit, Rank } from '../assets/cardManifest';
 import { create29Deck, deal29Deck, shuffleDeck } from './deck';
-import { evaluateBiddingState, isLegalBid } from './bidding';
+import { evaluateBiddingState, isForcedOpening, isLegalBid } from './bidding';
 import { getPlayableCards, evaluateTrickWinner, calculateTrickPoints } from './tricks';
 import { canDeclarePair, evaluateRoundScore, hasRoyalsPair } from './scoring';
 import { 
@@ -82,17 +82,17 @@ describe('Bidding Engine', () => {
     expect(isLegalBid('PASS', 0, rules, true).legal).toBe(false);
   });
 
-  it('should force dealer minimum bid if all 4 players pass initially', () => {
+  it('forces the last player to open when the other three pass before any bid', () => {
     const bids = [
       { playerIndex: 1 as PlayerPosition, bid: 'PASS' as const, timestamp: 1 },
       { playerIndex: 2 as PlayerPosition, bid: 'PASS' as const, timestamp: 2 },
       { playerIndex: 3 as PlayerPosition, bid: 'PASS' as const, timestamp: 3 },
-      { playerIndex: 0 as PlayerPosition, bid: 'PASS' as const, timestamp: 4 }, // Dealer
     ];
     const status = evaluateBiddingState(bids, 0, rules);
-    expect(status.isComplete).toBe(true);
-    expect(status.highestBid).toBe(16);
-    expect(status.highestBidder).toBe(0);
+    expect(status.isComplete).toBe(false);
+    expect(status.nextTurn).toBe(0);
+    expect(isForcedOpening(bids, 0, rules)).toBe(true);
+    expect(isLegalBid('PASS', 0, rules, true).legal).toBe(false);
   });
 
   it('should complete bidding when 3 players have passed', () => {
@@ -209,9 +209,10 @@ describe('Scoring & Match Progression', () => {
       trickNumber: i + 1,
       leadPlayer: 0 as PlayerPosition,
       cards: [],
-      winner: (i % 2 === 0 ? 0 : 2) as PlayerPosition,
-      winningTeam: 0 as const,
-      points: i === 0 ? 10 : (i === 1 ? 7 : 0),
+      // Defenders take the last trick (3 pts) so this is not a sweep
+      winner: (i === 7 ? 1 : i % 2 === 0 ? 0 : 2) as PlayerPosition,
+      winningTeam: (i === 7 ? 1 : 0) as 0 | 1,
+      points: i === 0 ? 10 : i === 1 ? 7 : i === 7 ? 3 : 0,
       leadSuit: 'HEARTS' as Suit,
     }));
 
@@ -228,6 +229,35 @@ describe('Scoring & Match Progression', () => {
     expect(result.gamePointsDelta.team0).toBe(1);
     expect(result.newMatchScore.team0).toBe(1);
     expect(result.isMatchOver).toBe(false);
+    expect(result.sweep).toBeNull();
+  });
+
+  const sweepTricks = (winningTeam: 0 | 1) =>
+    Array.from({ length: 8 }).map((_, i) => ({
+      trickNumber: i + 1,
+      leadPlayer: 0 as PlayerPosition,
+      cards: [],
+      winner: (winningTeam === 0 ? 0 : 1) as PlayerPosition,
+      winningTeam,
+      points: i === 7 ? 4 : 3, // 7×3 + 4 = 25 (any total; the other side has 0)
+      leadSuit: 'HEARTS' as Suit,
+    }));
+
+  it('bidding side takes every point → +2', () => {
+    const r = evaluateRoundScore(sweepTricks(0), 0, 20, DEFAULT_RULES_CONFIG, { team0: 0, team1: 0 }, null);
+    expect(r.sweep).toBe('BIDDING');
+    expect(r.gamePointsDelta).toEqual({ team0: 2, team1: 0 });
+  });
+
+  it('defenders take every point → bidding side −2', () => {
+    const r = evaluateRoundScore(sweepTricks(1), 0, 16, DEFAULT_RULES_CONFIG, { team0: 0, team1: 0 }, null);
+    expect(r.sweep).toBe('DEFENDING');
+    expect(r.gamePointsDelta).toEqual({ team0: -2, team1: 0 });
+  });
+
+  it('a sweep is still multiplied by Double (2×) and Re-double (4×)', () => {
+    expect(evaluateRoundScore(sweepTricks(0), 0, 20, DEFAULT_RULES_CONFIG, { team0: 0, team1: 0 }, null, 2).gamePointsDelta.team0).toBe(4);
+    expect(evaluateRoundScore(sweepTricks(1), 0, 20, DEFAULT_RULES_CONFIG, { team0: 0, team1: 0 }, null, 4).gamePointsDelta.team0).toBe(-8);
   });
 });
 
@@ -313,7 +343,7 @@ describe('Computer Player Names', () => {
   });
 });
 
-describe('Single-Round Bidding & Forced Dealer Bid Mechanics', () => {
+describe('Open Auction & Forced Opening', () => {
   const dummyPlayers: PlayerInfo[] = [
     { id: 'p0', name: 'Player 0', position: 0, team: 0, isHost: true, isReady: true, connected: true },
     { id: 'p1', name: 'Player 1', position: 1, team: 1, isHost: false, isReady: true, connected: true },
@@ -321,70 +351,62 @@ describe('Single-Round Bidding & Forced Dealer Bid Mechanics', () => {
     { id: 'p3', name: 'Player 3', position: 3, team: 1, isHost: false, isReady: true, connected: true },
   ];
 
-  it('should strictly limit bidding to 4 turns and transition to TRUMP_SELECTION', () => {
-    let state = createInitialGame('AUCTION_4_TURNS', dummyPlayers);
-    state = startNewRound(state, 0); // Dealer = 0, Order = [1, 2, 3, 0]
-    expect(state.phase).toBe('BIDDING');
+  it('keeps going round until only the high bidder is left (players can raise again)', () => {
+    let state = createInitialGame('AUCTION_OPEN', dummyPlayers);
+    state = startNewRound(state, 0); // Dealer = 0, order = [1, 2, 3, 0]
     expect(state.currentTurn).toBe(1);
-
-    // Turn 1: P1 bids 16
-    let res = applyBid(state, 1, 16);
-    expect(res.success).toBe(true);
-    state = res.state;
-    expect(state.phase).toBe('BIDDING');
+    const bid = (p: PlayerPosition, b: number | 'PASS') => {
+      const r = applyBid(state, p, b);
+      expect(r.success).toBe(true);
+      state = r.state;
+    };
+    bid(1, 16);
+    bid(2, 17);
+    bid(3, 'PASS');
+    bid(0, 18);
+    // Second time round: P1 raises again, P2 answers, P3 (passed) is skipped
+    expect(state.currentTurn).toBe(1);
+    bid(1, 19);
     expect(state.currentTurn).toBe(2);
-
-    // Turn 2: P2 bids 17
-    res = applyBid(state, 2, 17);
-    expect(res.success).toBe(true);
-    state = res.state;
+    bid(2, 20);
+    expect(state.currentTurn).toBe(0);
+    bid(0, 'PASS');
+    expect(state.currentTurn).toBe(1);
     expect(state.phase).toBe('BIDDING');
-    expect(state.currentTurn).toBe(3);
-
-    // Turn 3: P3 passes
-    res = applyBid(state, 3, 'PASS');
-    expect(res.success).toBe(true);
-    state = res.state;
-    expect(state.phase).toBe('BIDDING');
-    expect(state.currentTurn).toBe(0); // Dealer's turn
-
-    // Turn 4: P0 (Dealer) passes
-    res = applyBid(state, 0, 'PASS');
-    expect(res.success).toBe(true);
-    state = res.state;
-
-    // Auction complete! Exactly 4 turns, phase is TRUMP_SELECTION
+    bid(1, 'PASS');
+    // Only P2 is left → wins at 20
     expect(state.phase).toBe('TRUMP_SELECTION');
-    expect(state.highestBid).toBe(17);
     expect(state.highestBidder).toBe(2);
-
-    // Any attempt to place a 5th bid must fail
-    const fifthBidRes = applyBid(state, 1, 18);
-    expect(fifthBidRes.success).toBe(false);
+    expect(state.highestBid).toBe(20);
   });
 
-  it('should force dealer to bid minimum 16 if first 3 players pass', () => {
-    let state = createInitialGame('FORCED_DEALER', dummyPlayers);
-    state = startNewRound(state, 0); // Dealer = 0, Order = [1, 2, 3, 0]
+  it('rejects out-of-turn bids and bids from players who already passed', () => {
+    let state = createInitialGame('AUCTION_RULES', dummyPlayers);
+    state = startNewRound(state, 0);
+    expect(applyBid(state, 2, 16).success).toBe(false);
+    state = applyBid(state, 1, 'PASS').state;
+    state = applyBid(state, 2, 16).state;
+    state = applyBid(state, 3, 17).state;
+    state = applyBid(state, 0, 'PASS').state;
+    expect(state.currentTurn).toBe(2); // P1 passed and is skipped
+    expect(applyBid(state, 1, 18).success).toBe(false);
+  });
 
-    // P1, P2, P3 pass
+  it('forces the dealer to open at 16 when the first three pass', () => {
+    let state = createInitialGame('AUCTION_FORCED', dummyPlayers);
+    state = startNewRound(state, 0);
     state = applyBid(state, 1, 'PASS').state;
     state = applyBid(state, 2, 'PASS').state;
     state = applyBid(state, 3, 'PASS').state;
-
-    // Dealer (P0) turn: Dealer attempts to PASS -> rejected
-    const dealerPass = applyBid(state, 0, 'PASS');
-    expect(dealerPass.success).toBe(false);
-    expect(dealerPass.error).toContain('minimum opening bid');
-
-    // Dealer bids 16 -> accepted and wins auction
-    const dealerBid = applyBid(state, 0, 16);
-    expect(dealerBid.success).toBe(true);
-    expect(dealerBid.state.phase).toBe('TRUMP_SELECTION');
-    expect(dealerBid.state.highestBid).toBe(16);
-    expect(dealerBid.state.highestBidder).toBe(0);
+    expect(state.currentTurn).toBe(0);
+    expect(applyBid(state, 0, 'PASS').success).toBe(false);
+    const r = applyBid(state, 0, 16);
+    expect(r.success).toBe(true);
+    expect(r.state.phase).toBe('TRUMP_SELECTION');
+    expect(r.state.highestBidder).toBe(0);
   });
 });
+
 
 describe('Six Trump Options & 7th Card Mechanics', () => {
   const dummyPlayers: PlayerInfo[] = [

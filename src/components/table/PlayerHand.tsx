@@ -13,7 +13,8 @@ interface PlayerHandProps {
   playableCardIds: string[];
   isMyTurn: boolean;
   dropTargetRect: DOMRect | null;
-  onPlayCard: (cardId: string) => void | Promise<{ success: boolean } | void>;
+  /** `fromRect` is where the card was released, so it can fly from there to the table. */
+  onPlayCard: (cardId: string, fromRect?: DOMRect) => void | Promise<{ success: boolean } | void>;
   onDragStateChange?: (state: DragState) => void;
   disabled?: boolean;
 }
@@ -141,8 +142,9 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
 
       if (isOver && playableCardIds.includes(cardId)) {
         // Suppress snap-back: mark card as pending in-flight so it does not snap back to hand
+        const fromRect = e.currentTarget.getBoundingClientRect();
         setPendingPlayCardId(cardId);
-        Promise.resolve(onPlayCard(cardId)).then((res) => {
+        Promise.resolve(onPlayCard(cardId, fromRect)).then((res) => {
           // Server rejected the play: return the card to the hand.
           if (res && res.success === false) {
             setPendingPlayCardId((cur) => (cur === cardId ? null : cur));
@@ -233,7 +235,7 @@ export const PlayerHand: React.FC<PlayerHandProps> = ({
               style={{
                 zIndex,
                 transform: transformStyle,
-                transition: isDraggingThis ? 'none' : 'transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease',
+                transition: isDraggingThis || isCardInFlight ? 'none' : 'transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s ease',
                 touchAction: 'none',
                 opacity: isCardInFlight ? 0 : isUnplayableDuringTurn ? 0.65 : 1,
                 filter: isUnplayableDuringTurn ? 'brightness(0.9)' : 'none',

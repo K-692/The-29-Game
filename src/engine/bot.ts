@@ -62,7 +62,8 @@ export const getBotBidDecision = (
   handCardIds: string[],
   currentHighestBid: number,
   rules: GameRulesConfig,
-  isForcedDealer: boolean
+  isForcedDealer: boolean,
+  partnerHoldsBid: boolean = false
 ): number | 'PASS' => {
   if (isForcedDealer) {
     return rules.minBid;
@@ -71,7 +72,9 @@ export const getBotBidDecision = (
   const { maxBid } = evaluateHandForBid(handCardIds);
   const nextRequiredBid = Math.max(rules.minBid, currentHighestBid + 1);
 
-  if (nextRequiredBid <= maxBid) {
+  // Don't outbid your own partner unless the hand is clearly stronger.
+  const ceiling = partnerHoldsBid ? maxBid - 2 : maxBid;
+  if (nextRequiredBid <= ceiling) {
     return nextRequiredBid;
   }
 

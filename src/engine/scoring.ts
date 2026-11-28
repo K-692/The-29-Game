@@ -123,6 +123,8 @@ export interface RoundScoringResult {
   biddingTeamWon: boolean;
   adjustedTarget: number;
   gamePointsDelta: { team0: number; team1: number };
+  /** One side took every point of the deal (scored double). */
+  sweep: 'BIDDING' | 'DEFENDING' | null;
   newMatchScore: { team0: number; team1: number };
   isMatchOver: boolean;
   winnerTeam: Team | null;
@@ -167,9 +169,19 @@ export const evaluateRoundScore = (
   const biddingTeamPoints = biddingTeam === 0 ? team0CardPoints : team1CardPoints;
   const biddingTeamWon = biddingTeamPoints >= adjustedTarget;
 
-  // Calculate game points magnitude based on Double / Re-Double multiplier:
-  // Normal = 1, Double = 2, Re-Double = 4 (Section 2.E)
-  const pointMagnitude = dealMultiplier;
+  // Sweep: one side takes every point of the deal → the deal counts double
+  // (+2 if the bidding side took everything, −2 if the defenders did),
+  // further multiplied by Double (2×) / Re-double (4×).
+  const defendingTeamPoints = biddingTeam === 0 ? team1CardPoints : team0CardPoints;
+  const sweep: RoundScoringResult['sweep'] =
+    completedTricks.length === 8 && defendingTeamPoints === 0
+      ? 'BIDDING'
+      : completedTricks.length === 8 && biddingTeamPoints === 0
+      ? 'DEFENDING'
+      : null;
+
+  // Game points: 1 per deal, 2 for a sweep, times the Double / Re-double multiplier.
+  const pointMagnitude = (sweep ? 2 : 1) * dealMultiplier;
 
   const gamePointsDelta = { team0: 0, team1: 0 };
 
@@ -215,6 +227,7 @@ export const evaluateRoundScore = (
     biddingTeamWon,
     adjustedTarget,
     gamePointsDelta,
+    sweep,
     newMatchScore,
     isMatchOver,
     winnerTeam,

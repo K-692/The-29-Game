@@ -56,7 +56,8 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
   };
 
   const order = biddingOrder.length === 4 ? biddingOrder : ([0, 1, 2, 3] as PlayerPosition[]);
-  const callOf = (pos: PlayerPosition) => bids.find((b) => b.playerIndex === pos)?.bid;
+  // Latest call per player (players can raise several times in the auction).
+  const callOf = (pos: PlayerPosition) => [...bids].reverse().find((b) => b.playerIndex === pos)?.bid;
 
   return (
     <div className="panel w-full max-w-sm mx-auto p-4 space-y-3 animate-fade-in">
@@ -136,7 +137,7 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
             ))}
           </div>
           {isForcedDealer ? (
-            <p className="text-xs text-center text-cream-300">Everyone passed — as dealer you must open.</p>
+            <p className="text-xs text-center text-cream-300">Everyone else passed — you must open.</p>
           ) : (
             <button type="button" disabled={isSubmitting} onClick={() => handleBidClick('PASS')} className="btn-ghost w-full py-2">
               Pass

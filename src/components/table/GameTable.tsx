@@ -9,6 +9,7 @@ import {
 } from '../../engine/types';
 import { CARD_MANIFEST } from '../../assets/cardManifest';
 import { getPlayableCards } from '../../engine/tricks';
+import { isForcedOpening } from '../../engine/bidding';
 import { soundManager } from '../../common/SoundManager';
 import { Scoreboard } from './Scoreboard';
 import { SeatBadge } from './SeatBadge';
@@ -139,7 +140,24 @@ export const GameTable: React.FC<GameTableProps> = ({
     }
   }, [publicState.phase, publicState.roundNumber]);
 
-  const handlePlayCard = (cardId: string) => onPlayCard(cardId);
+  // Your card on its way to the table (shown before the server confirms it).
+  const [ownFlight, setOwnFlight] = useState<{ cardId: string; fromRect: DOMRect | null } | null>(null);
+  const handlePlayCard = async (cardId: string, fromRect?: DOMRect) => {
+    setOwnFlight({ cardId, fromRect: fromRect ?? null });
+    const res = await onPlayCard(cardId);
+    if (res && res.success === false) {
+      setOwnFlight((cur) => (cur?.cardId === cardId ? null : cur));
+    }
+    return res;
+  };
+  // Once the server has the card on the table (or the trick has moved on), the
+  // confirmed card takes over the same element, so the optimistic copy can go.
+  useEffect(() => {
+    if (!ownFlight) return;
+    const onTable = publicState.currentTrickCards.some((pc) => pc.cardId === ownFlight.cardId);
+    const stillInHand = publicState.myHand.includes(ownFlight.cardId);
+    if (onTable || !stillInHand) setOwnFlight(null);
+  }, [ownFlight, publicState.currentTrickCards, publicState.myHand]);
 
   // Drag-and-drop state coordinates between Table and Player Hand
   const dropZoneRef = useRef<HTMLDivElement>(null);
@@ -506,12 +524,7 @@ export const GameTable: React.FC<GameTableProps> = ({
               rules={publicState.rules}
               isMyTurn={isMyTurn}
               myPosition={myPosition}
-              isForcedDealer={
-                publicState.bids.length === 3 &&
-                publicState.bids.every((b) => b.bid === 'PASS') &&
-                myPosition === publicState.dealerIndex &&
-                publicState.rules.forcedDealerBid
-              }
+              isForcedDealer={isForcedOpening(publicState.bids, myPosition, publicState.rules)}
               remainingSeconds={remainingSeconds}
               onPlaceBid={onBid}
               bids={publicState.bids}
@@ -610,6 +623,7 @@ export const GameTable: React.FC<GameTableProps> = ({
               isTrumpRevealed={publicState.isTrumpRevealed}
               trumpMode={publicState.trumpMode}
               onTrickWinnerDetermined={setTrickWinnerPos}
+              pendingOwnCard={ownFlight}
             />
           </div>
         )}

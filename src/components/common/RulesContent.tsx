@@ -15,7 +15,7 @@ export const RulesContent: React.FC = () => (
       <p>Rank in every suit: <b className="text-cream-50">J &gt; 9 &gt; A &gt; 10 &gt; K &gt; Q &gt; 8 &gt; 7</b>. Points: J 3 · 9 2 · A 1 · 10 1 (28) + 1 for the last trick = 29.</p>
     </Section>
     <Section title="Bidding">
-      <p>Four cards each, then one round of bids from 16 to 29, starting left of the dealer. Each bid must beat the last; you may pass. If the first three pass, the dealer must open at 16.</p>
+      <p>Four cards each, then an open auction from 16 to 29, starting left of the dealer. On your turn raise or pass — once you pass you're out. Bidding keeps going round, so players can raise again and again, until only one bidder is left. If the first three pass without a bid, the last player must open at 16.</p>
       <p>Bubbles on each seat show every call, so you can always see who holds the high bid and whether they're your partner or an opponent.</p>
     </Section>
     <Section title="Trump">
@@ -32,7 +32,9 @@ export const RulesContent: React.FC = () => (
       <p>When trump is revealed, a player holding both the King and Queen of trump changes the target by 4 (bid 19+ only): −4 if on the bidding side (min 16), +4 if defending (max 29).</p>
     </Section>
     <Section title="Scoring">
-      <p>The bidding side scores +1 (×2 / ×4 if doubled) for reaching the target, otherwise −1 (×2 / ×4). First side to +6 wins; a side at −6 loses.</p>
+      <p>The bidding side scores +1 (×2 / ×4 if doubled) for reaching the target, otherwise −1 (×2 / ×4).</p>
+      <p><b className="text-cream-50">Sweep:</b> if the bidding side takes every point of the deal it scores +2; if the defenders take every point the bidding side scores −2 (also ×2 / ×4 when doubled).</p>
+      <p>First side to +6 wins; a side at −6 loses.</p>
     </Section>
   </div>
 );

@@ -1,5 +1,5 @@
 import { CARD_MANIFEST, Suit } from '../assets/cardManifest';
-import { evaluateBiddingState, isLegalBid } from './bidding';
+import { evaluateBiddingState, isForcedOpening, isLegalBid } from './bidding';
 import { getBiddingOrder, getLeftOfDealer, hasPointCard } from './biddingOrder';
 import { create29Deck, deal29Deck, shuffleDeck, sortHand } from './deck';
 import { canDeclarePair, detectKingQueenPair, PAIR_MIN_CONTRACT_BID, evaluateRoundScore, calculatePlayerPoints } from './scoring';
@@ -187,22 +187,12 @@ export const applyBid = (
     return { success: false, state, error: 'Not your turn to bid' };
   }
 
-  const turnIndex = state.bids.length;
-  if (turnIndex >= 4) {
-    return { success: false, state, error: 'Bidding for this deal is already completed' };
+  if (state.bids.some((b) => b.playerIndex === playerIndex && b.bid === 'PASS')) {
+    return { success: false, state, error: 'You have already passed' };
   }
 
-  const expectedBidder = state.biddingOrder[turnIndex];
-  if (expectedBidder !== playerIndex) {
-    return { success: false, state, error: 'Out-of-turn bid action' };
-  }
-
-  // Forced dealer bid applies only on the 4th turn when the first three players passed
-  const isForcedDealer = 
-    turnIndex === 3 && 
-    state.bids.every((b) => b.bid === 'PASS') && 
-    playerIndex === state.dealerIndex && 
-    state.rules.forcedDealerBid;
+  // Everyone else passed before any bid: this player must open.
+  const isForcedDealer = isForcedOpening(state.bids, playerIndex, state.rules);
 
   const validation = isLegalBid(bid, state.highestBid, state.rules, isForcedDealer);
   if (!validation.legal) {
@@ -225,7 +215,7 @@ export const applyBid = (
           ...state,
           phase: 'TRUMP_SELECTION',
           bids: newBids,
-          biddingTurnIndex: 4,
+          biddingTurnIndex: newBids.length,
           highestBid: biddingStatus.highestBid,
           highestBidder: biddingStatus.highestBidder,
           currentTurn: biddingStatus.highestBidder,
@@ -804,6 +794,7 @@ export const completeTrickTransition = (
       biddingTeamWon: roundResult.biddingTeamWon,
       pairDeclared: state.pairDeclaration || undefined,
       gamePointsDelta: roundResult.gamePointsDelta,
+      sweep: roundResult.sweep,
       matchScore: roundResult.newMatchScore,
     };
 

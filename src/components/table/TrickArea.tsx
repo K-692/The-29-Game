@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { CompletedTrick, PlayedCard, PlayerInfo, PlayerPosition, TrumpMode } from '../../engine/types';
 import { Suit } from '../../assets/cardManifest';
 import { evaluateTrickWinner } from '../../engine/tricks';
@@ -18,6 +18,8 @@ interface TrickAreaProps {
   isTrumpRevealed?: boolean;
   trumpMode?: TrumpMode;
   onTrickWinnerDetermined?: (winnerPos: PlayerPosition | null) => void;
+  /** Your card, shown immediately on drop (before the server confirms it). */
+  pendingOwnCard?: { cardId: string; fromRect: DOMRect | null } | null;
 }
 
 const SLOT_ROTATIONS: Record<'bottom' | 'top' | 'left' | 'right', number> = {
@@ -25,6 +27,69 @@ const SLOT_ROTATIONS: Record<'bottom' | 'top' | 'left' | 'right', number> = {
   top: 2,
   left: 3,
   right: -3,
+};
+
+const FLY_MS = 380;
+
+/**
+ * A card arriving on the table. It animates once, on mount, from where it
+ * came from: the exact spot you dropped it, or the player's seat. Because the
+ * element is keyed by card + player it is never re-created when the server
+ * confirms the play, so it never disappears and reappears.
+ */
+const FlyInCard: React.FC<{
+  cardId: string;
+  side: 'bottom' | 'top' | 'left' | 'right';
+  rotation: number;
+  fromRect: DOMRect | null;
+  animate: boolean;
+}> = ({ cardId, side, rotation, fromRect, animate }) => {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !animate || typeof el.animate !== 'function') return;
+    const to = el.getBoundingClientRect();
+    if (!to.width) return;
+
+    let from: { x: number; y: number; scale: number; rotate: number };
+    if (fromRect && fromRect.width) {
+      // Your card: start exactly where you released it.
+      from = {
+        x: fromRect.left + fromRect.width / 2 - (to.left + to.width / 2),
+        y: fromRect.top + fromRect.height / 2 - (to.top + to.height / 2),
+        scale: fromRect.width / to.width,
+        rotate: 0,
+      };
+    } else {
+      // Someone else's card: start at their seat.
+      const seat =
+        side === 'bottom'
+          ? document.querySelector('#player-hand') || document.querySelector('[data-seat="bottom"]')
+          : document.querySelector(`[data-seat="${side}"]`);
+      const r = seat?.getBoundingClientRect();
+      const fallback = { bottom: [0, 220], top: [0, -220], left: [-260, 0], right: [260, 0] }[side];
+      from = r
+        ? { x: r.left + r.width / 2 - (to.left + to.width / 2), y: r.top + r.height / 2 - (to.top + to.height / 2), scale: 0.45, rotate: side === 'left' ? -25 : side === 'right' ? 25 : 0 }
+        : { x: fallback[0], y: fallback[1], scale: 0.45, rotate: 0 };
+    }
+
+    el.animate(
+      [
+        { transform: `translate(${from.x}px, ${from.y}px) scale(${from.scale}) rotate(${from.rotate}deg)` },
+        { transform: 'translate(0, 0) scale(1) rotate(0deg)' },
+      ],
+      { duration: FLY_MS, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }
+    );
+    // Animate only on first mount; later renders (server confirmation) keep the card still.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div ref={ref} className="w-full h-full flex items-center justify-center will-change-transform">
+      <PlayingCard cardId={cardId} rotation={rotation} size="table" className="shadow-xl" />
+    </div>
+  );
 };
 
 export const TrickArea: React.FC<TrickAreaProps> = ({
@@ -40,7 +105,13 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
   isTrumpRevealed = false,
   trumpMode = 'suit',
   onTrickWinnerDetermined,
+  pendingOwnCard = null,
 }) => {
+  // Cards already on the table when the view first mounts (e.g. after a refresh) don't fly in.
+  const firstPaintRef = useRef(true);
+  useEffect(() => {
+    firstPaintRef.current = false;
+  }, []);
   // State for freeze-frame and collective 4-card win animation
   const [frozenCards, setFrozenCards] = useState<PlayedCard[] | null>(null);
   const [isCollecting, setIsCollecting] = useState<boolean>(false);
@@ -92,14 +163,17 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
 
   // Play placement sound when new card arrives on felt
   useEffect(() => {
-    playedCards.forEach((pc) => {
+    const withPending = pendingOwnCard && !playedCards.some((pc) => pc.cardId === pendingOwnCard.cardId)
+      ? [...playedCards, { cardId: pendingOwnCard.cardId, playerIndex: myPosition }]
+      : playedCards;
+    withPending.forEach((pc) => {
       const key = `${pc.cardId}_${pc.playerIndex}`;
       if (!playedCardKeysRef.current.has(key)) {
         playedCardKeysRef.current.add(key);
         soundManager.playEventOnce(`card_placed_${currentTrickKey}_${key}`, 'place');
       }
     });
-  }, [playedCards, currentTrickKey]);
+  }, [playedCards, currentTrickKey, pendingOwnCard, myPosition]);
 
   // Check if a 4-card trick is present
   const isFourCards = playedCards.length === 4;
@@ -220,7 +294,17 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
   // Cards to render:
   // If this trick has finished collection (retired), render nothing so cards NEVER pop back onto the felt!
   const isRetired = currentTrickKey === retiredTrickKey;
-  const cardsToRender = isRetired ? [] : (frozenCards || playedCards);
+  const baseCards = isRetired ? [] : (frozenCards || playedCards);
+  // Show your own card the moment you drop it; the server-confirmed card later
+  // renders with the same key, so the very same element stays on the table.
+  const showPendingOwn =
+    pendingOwnCard &&
+    !isRetired &&
+    !frozenCards &&
+    !baseCards.some((pc) => pc.playerIndex === myPosition || pc.cardId === pendingOwnCard.cardId);
+  const cardsToRender: PlayedCard[] = showPendingOwn
+    ? [...baseCards, { cardId: pendingOwnCard!.cardId, playerIndex: myPosition }]
+    : baseCards;
 
   // Group cards by their relative slot
   const cardsBySlot: Record<'bottom' | 'top' | 'left' | 'right', PlayedCard | null> = {
@@ -262,17 +346,14 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
           className="absolute bottom-1 left-1/2 -translate-x-1/2 w-[4.5rem] h-[6.3rem] sm:w-[5.25rem] sm:h-[7.35rem] md:w-[6rem] md:h-[8.4rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
         >
           {cardsBySlot.bottom && (
-            <div
+            <FlyInCard
               key={`${cardsBySlot.bottom.cardId}_${cardsBySlot.bottom.playerIndex}`}
-              className="w-full h-full flex items-center justify-center animate-card-land-bottom"
-            >
-              <PlayingCard
-                cardId={cardsBySlot.bottom.cardId}
-                rotation={SLOT_ROTATIONS.bottom}
-                size="table"
-                className="shadow-xl"
-              />
-            </div>
+              cardId={cardsBySlot.bottom.cardId}
+              side="bottom"
+              rotation={SLOT_ROTATIONS.bottom}
+              fromRect={pendingOwnCard?.cardId === cardsBySlot.bottom.cardId ? pendingOwnCard.fromRect : null}
+              animate={!firstPaintRef.current}
+            />
           )}
         </div>
 
@@ -283,17 +364,14 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
           className="absolute top-1 left-1/2 -translate-x-1/2 w-[4.5rem] h-[6.3rem] sm:w-[5.25rem] sm:h-[7.35rem] md:w-[6rem] md:h-[8.4rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
         >
           {cardsBySlot.top && (
-            <div
+            <FlyInCard
               key={`${cardsBySlot.top.cardId}_${cardsBySlot.top.playerIndex}`}
-              className="w-full h-full flex items-center justify-center animate-card-land-top"
-            >
-              <PlayingCard
-                cardId={cardsBySlot.top.cardId}
-                rotation={SLOT_ROTATIONS.top}
-                size="table"
-                className="shadow-xl"
-              />
-            </div>
+              cardId={cardsBySlot.top.cardId}
+              side="top"
+              rotation={SLOT_ROTATIONS.top}
+              fromRect={null}
+              animate={!firstPaintRef.current}
+            />
           )}
         </div>
 
@@ -304,17 +382,14 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
           className="absolute left-2 top-1/2 -translate-y-1/2 w-[4.5rem] h-[6.3rem] sm:w-[5.25rem] sm:h-[7.35rem] md:w-[6rem] md:h-[8.4rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
         >
           {cardsBySlot.left && (
-            <div
+            <FlyInCard
               key={`${cardsBySlot.left.cardId}_${cardsBySlot.left.playerIndex}`}
-              className="w-full h-full flex items-center justify-center animate-card-land-left"
-            >
-              <PlayingCard
-                cardId={cardsBySlot.left.cardId}
-                rotation={SLOT_ROTATIONS.left}
-                size="table"
-                className="shadow-xl"
-              />
-            </div>
+              cardId={cardsBySlot.left.cardId}
+              side="left"
+              rotation={SLOT_ROTATIONS.left}
+              fromRect={null}
+              animate={!firstPaintRef.current}
+            />
           )}
         </div>
 
@@ -325,17 +400,14 @@ export const TrickArea: React.FC<TrickAreaProps> = ({
           className="absolute right-2 top-1/2 -translate-y-1/2 w-[4.5rem] h-[6.3rem] sm:w-[5.25rem] sm:h-[7.35rem] md:w-[6rem] md:h-[8.4rem] aspect-[5/7] flex items-center justify-center pointer-events-none"
         >
           {cardsBySlot.right && (
-            <div
+            <FlyInCard
               key={`${cardsBySlot.right.cardId}_${cardsBySlot.right.playerIndex}`}
-              className="w-full h-full flex items-center justify-center animate-card-land-right"
-            >
-              <PlayingCard
-                cardId={cardsBySlot.right.cardId}
-                rotation={SLOT_ROTATIONS.right}
-                size="table"
-                className="shadow-xl"
-              />
-            </div>
+              cardId={cardsBySlot.right.cardId}
+              side="right"
+              rotation={SLOT_ROTATIONS.right}
+              fromRect={null}
+              animate={!firstPaintRef.current}
+            />
           )}
         </div>
       </div>

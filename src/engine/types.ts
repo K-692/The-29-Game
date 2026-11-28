@@ -114,6 +114,8 @@ export interface RoundSummary {
   doubleStatus: DoubleStatus;
   gamePointsDelta: { team0: number; team1: number };
   matchScore: { team0: number; team1: number };
+  /** One side took every point of the deal (counted double). */
+  sweep?: 'BIDDING' | 'DEFENDING' | null;
 }
 
 export type TrumpMode = 'suit' | 'no-trump' | 'seventh-card';

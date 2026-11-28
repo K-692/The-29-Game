@@ -23,7 +23,7 @@ export const isLegalBid = (
     if (isForcedDealerBid) {
       return { 
         legal: false, 
-        reason: 'Dealer is required to make the minimum opening bid (16) when the first three players pass' 
+        reason: 'Everyone else passed — you must open the bidding' 
       };
     }
     return { legal: true };
@@ -68,9 +68,21 @@ export const getLegalBidOptions = (
 };
 
 /**
- * Evaluate single-round bidding history.
- * Bidding travels around the table exactly once:
- * Dealer's left -> Next -> Next -> Dealer (4 turns total).
+ * True when `pos` is the only player who hasn't passed and nobody has bid yet:
+ * with the forced-opening rule they must open at the minimum bid.
+ */
+export const isForcedOpening = (bids: BidEntry[], pos: PlayerPosition, rules: GameRulesConfig): boolean => {
+  if (!rules.forcedDealerBid) return false;
+  if (bids.some((b) => b.bid !== 'PASS')) return false;
+  const passed = new Set(bids.filter((b) => b.bid === 'PASS').map((b) => b.playerIndex));
+  return passed.size === 3 && !passed.has(pos);
+};
+
+/**
+ * Evaluate an open auction.
+ * Bidding goes clockwise from the dealer's left. On each turn a player raises
+ * or passes; a player who passes is out of the auction. Turns keep going round
+ * among the players still in until only the high bidder is left.
  */
 export const evaluateBiddingState = (
   bids: BidEntry[],
@@ -91,52 +103,31 @@ export const evaluateBiddingState = (
     }
   }
 
-  const turnIndex = bids.length;
+  const active = order.filter((p) => !passedPlayers.has(p));
+  void rules;
 
-  // Single-round complete: all 4 scheduled turns executed
-  if (turnIndex >= 4) {
-    // If all 4 players passed without a bid
-    if (highestBid === 0) {
-      if (rules.forcedDealerBid) {
-        return {
-          isComplete: true,
-          highestBid: rules.minBid,
-          highestBidder: dealerIndex,
-          nextTurn: dealerIndex,
-          biddingTurnIndex: 4,
-          passedPlayers,
-        };
-      } else {
-        return {
-          isComplete: true,
-          highestBid: 0,
-          highestBidder: null,
-          nextTurn: order[0],
-          biddingTurnIndex: 4,
-          passedPlayers,
-        };
-      }
-    }
-
-    return {
-      isComplete: true,
-      highestBid,
-      highestBidder,
-      nextTurn: highestBidder ?? dealerIndex,
-      biddingTurnIndex: 4,
-      passedPlayers,
-    };
+  // Everyone passed without a bid (only possible without the forced opening): redeal.
+  if (active.length === 0) {
+    return { isComplete: true, highestBid: 0, highestBidder: null, nextTurn: order[0], biddingTurnIndex: bids.length, passedPlayers };
   }
 
-  // Next player in single-round sequence
-  const nextPlayer = order[turnIndex];
+  // Only the high bidder is left: they win the auction.
+  if (active.length === 1 && highestBidder !== null && active[0] === highestBidder) {
+    return { isComplete: true, highestBid, highestBidder, nextTurn: highestBidder, biddingTurnIndex: bids.length, passedPlayers };
+  }
 
-  return {
-    isComplete: false,
-    highestBid,
-    highestBidder,
-    nextTurn: nextPlayer,
-    biddingTurnIndex: turnIndex,
-    passedPlayers,
-  };
+  // Next player clockwise (from the last caller) who is still in the auction.
+  let nextTurn = order[0];
+  if (bids.length > 0) {
+    const last = bids[bids.length - 1].playerIndex;
+    for (let step = 1; step <= 4; step++) {
+      const candidate = ((last + step) % 4) as PlayerPosition;
+      if (!passedPlayers.has(candidate)) {
+        nextTurn = candidate;
+        break;
+      }
+    }
+  }
+
+  return { isComplete: false, highestBid, highestBidder, nextTurn, biddingTurnIndex: bids.length, passedPlayers };
 };
