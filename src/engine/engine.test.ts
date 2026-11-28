@@ -343,7 +343,7 @@ describe('Computer Player Names', () => {
   });
 });
 
-describe('Open Auction & Forced Opening', () => {
+describe('Pairwise Auction & Forced Opening', () => {
   const dummyPlayers: PlayerInfo[] = [
     { id: 'p0', name: 'Player 0', position: 0, team: 0, isHost: true, isReady: true, connected: true },
     { id: 'p1', name: 'Player 1', position: 1, team: 1, isHost: false, isReady: true, connected: true },
@@ -351,45 +351,64 @@ describe('Open Auction & Forced Opening', () => {
     { id: 'p3', name: 'Player 3', position: 3, team: 1, isHost: false, isReady: true, connected: true },
   ];
 
-  it('keeps going round until only the high bidder is left (players can raise again)', () => {
-    let state = createInitialGame('AUCTION_OPEN', dummyPlayers);
-    state = startNewRound(state, 0); // Dealer = 0, order = [1, 2, 3, 0]
-    expect(state.currentTurn).toBe(1);
+  it('bids in pairs: A vs B, the winner vs C, the winner vs D', () => {
+    let state = createInitialGame('AUCTION_PAIRS', dummyPlayers);
+    state = startNewRound(state, 0); // Dealer = 0 → A=1, B=2, C=3, D=0
     const bid = (p: PlayerPosition, b: number | 'PASS') => {
+      expect(state.currentTurn).toBe(p);
       const r = applyBid(state, p, b);
       expect(r.success).toBe(true);
       state = r.state;
     };
+    // A vs B: they keep raising until one passes; C must wait
     bid(1, 16);
     bid(2, 17);
-    bid(3, 'PASS');
-    bid(0, 18);
-    // Second time round: P1 raises again, P2 answers, P3 (passed) is skipped
-    expect(state.currentTurn).toBe(1);
-    bid(1, 19);
-    expect(state.currentTurn).toBe(2);
-    bid(2, 20);
-    expect(state.currentTurn).toBe(0);
-    bid(0, 'PASS');
-    expect(state.currentTurn).toBe(1);
-    expect(state.phase).toBe('BIDDING');
-    bid(1, 'PASS');
-    // Only P2 is left → wins at 20
+    bid(1, 18);
+    bid(2, 19);
+    bid(1, 'PASS'); // A is out; B survives
+    // B vs C: C (the challenger) speaks first and must beat 19
+    bid(3, 20);
+    bid(2, 21);
+    bid(3, 'PASS'); // C is out
+    // B vs D
+    bid(0, 22);
+    bid(2, 'PASS'); // B is out → D wins
     expect(state.phase).toBe('TRUMP_SELECTION');
-    expect(state.highestBidder).toBe(2);
-    expect(state.highestBid).toBe(20);
+    expect(state.highestBidder).toBe(0);
+    expect(state.highestBid).toBe(22);
+  });
+
+  it('a player who passes never bids again, and C waits for A and B to finish', () => {
+    let state = createInitialGame('AUCTION_WAIT', dummyPlayers);
+    state = startNewRound(state, 0);
+    state = applyBid(state, 1, 16).state;
+    expect(state.currentTurn).toBe(2); // B answers A, not C
+    expect(applyBid(state, 3, 17).success).toBe(false);
+    state = applyBid(state, 2, 'PASS').state; // B out, A survives
+    expect(state.currentTurn).toBe(3); // C challenges A
+    state = applyBid(state, 3, 'PASS').state;
+    expect(state.currentTurn).toBe(0); // D challenges A
+    state = applyBid(state, 0, 'PASS').state;
+    expect(state.phase).toBe('TRUMP_SELECTION');
+    expect(state.highestBidder).toBe(1);
+    expect(state.highestBid).toBe(16);
+  });
+
+  it('if A passes without bidding, B opens against C', () => {
+    let state = createInitialGame('AUCTION_A_PASS', dummyPlayers);
+    state = startNewRound(state, 0);
+    state = applyBid(state, 1, 'PASS').state;
+    expect(state.currentTurn).toBe(2); // B (survivor, nobody has bid) speaks first
+    state = applyBid(state, 2, 16).state;
+    expect(state.currentTurn).toBe(3); // C answers B
   });
 
   it('rejects out-of-turn bids and bids from players who already passed', () => {
     let state = createInitialGame('AUCTION_RULES', dummyPlayers);
     state = startNewRound(state, 0);
-    expect(applyBid(state, 2, 16).success).toBe(false);
+    expect(applyBid(state, 2, 16).success).toBe(false); // A opens, not B
     state = applyBid(state, 1, 'PASS').state;
-    state = applyBid(state, 2, 16).state;
-    state = applyBid(state, 3, 17).state;
-    state = applyBid(state, 0, 'PASS').state;
-    expect(state.currentTurn).toBe(2); // P1 passed and is skipped
-    expect(applyBid(state, 1, 18).success).toBe(false);
+    expect(applyBid(state, 1, 16).success).toBe(false); // A passed: out for good
   });
 
   it('forces the dealer to open at 16 when the first three pass', () => {

@@ -529,6 +529,7 @@ export const GameTable: React.FC<GameTableProps> = ({
               onPlaceBid={onBid}
               bids={publicState.bids}
               biddingOrder={publicState.biddingOrder}
+              dealerIndex={publicState.dealerIndex}
             />
           </div>
         )}

@@ -15,7 +15,7 @@ export const RulesContent: React.FC = () => (
       <p>Rank in every suit: <b className="text-cream-50">J &gt; 9 &gt; A &gt; 10 &gt; K &gt; Q &gt; 8 &gt; 7</b>. Points: J 3 · 9 2 · A 1 · 10 1 (28) + 1 for the last trick = 29.</p>
     </Section>
     <Section title="Bidding">
-      <p>Four cards each, then an open auction from 16 to 29, starting left of the dealer. On your turn raise or pass — once you pass you're out. Bidding keeps going round, so players can raise again and again, until only one bidder is left. If the first three pass without a bid, the last player must open at 16.</p>
+      <p>Four cards each, then bidding from 16 to 29 in pairs. The player left of the dealer (A) bids against the next player (B); they keep raising until one passes. The survivor then bids against C, and the survivor of that against D. A player who passes is out for the deal. The last one standing wins the bid. If A, B and C all pass without a bid, D must open at 16.</p>
       <p>Bubbles on each seat show every call, so you can always see who holds the high bid and whether they're your partner or an opponent.</p>
     </Section>
     <Section title="Trump">

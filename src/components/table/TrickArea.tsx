@@ -74,13 +74,29 @@ const FlyInCard: React.FC<{
         : { x: fallback[0], y: fallback[1], scale: 0.45, rotate: 0 };
     }
 
-    el.animate(
-      [
-        { transform: `translate(${from.x}px, ${from.y}px) scale(${from.scale}) rotate(${from.rotate}deg)` },
-        { transform: 'translate(0, 0) scale(1) rotate(0deg)' },
-      ],
-      { duration: FLY_MS, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }
-    );
+    const fly = () =>
+      el.animate(
+        [
+          { transform: `translate(${from.x}px, ${from.y}px) scale(${from.scale}) rotate(${from.rotate}deg)` },
+          { transform: 'translate(0, 0) scale(1) rotate(0deg)' },
+        ],
+        { duration: FLY_MS, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }
+      );
+
+    // Never fly an empty frame: if the face isn't ready yet, keep the card
+    // hidden at its starting point until the image can be drawn.
+    const img = el.querySelector('img');
+    if (img && !img.complete) {
+      el.style.visibility = 'hidden';
+      const go = () => {
+        el.style.visibility = '';
+        fly();
+      };
+      img.addEventListener('load', go, { once: true });
+      img.addEventListener('error', go, { once: true });
+    } else {
+      fly();
+    }
     // Animate only on first mount; later renders (server confirmation) keep the card still.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

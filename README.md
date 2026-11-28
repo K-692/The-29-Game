@@ -52,7 +52,7 @@ Refreshing the page puts you straight back in your seat.
 ## Features
 
 - **Full 29 rules** — 32-card deck, J > 9 > A > 10 > K > Q > 8 > 7, 28 card points + 1 for the last trick.
-- **Bidding (16–29)** with a forced dealer opening; seat bubbles and the bidding panel always show who holds the high bid and whether they're your partner or an opponent.
+- **Bidding (16–29) in pairs** — A vs B until one passes, the survivor vs C, then vs D; a player who passes is out. Forced opening if the first three pass; seat bubbles and the bidding panel always show who holds the high bid and whether they're your partner or an opponent.
 - **Six trump choices** — any suit, **Joker** (no trump) or the **7th card**.
 - **Trump always wins**: a trump beats every other card and the highest trump wins an over-trump. Playing a trump when you can't follow suit reveals it.
 - **Double (2×) & Re-double (4×)** with 10-second team decision windows.

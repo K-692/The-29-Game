@@ -8,6 +8,8 @@ export interface BiddingStatus {
   nextTurn: PlayerPosition;
   biddingTurnIndex: number;
   passedPlayers: Set<PlayerPosition>;
+  /** The two players currently bidding against each other (challenger null when nobody is left to challenge). */
+  duel: { holder: PlayerPosition; challenger: PlayerPosition | null };
 }
 
 /**
@@ -79,10 +81,17 @@ export const isForcedOpening = (bids: BidEntry[], pos: PlayerPosition, rules: Ga
 };
 
 /**
- * Evaluate an open auction.
- * Bidding goes clockwise from the dealer's left. On each turn a player raises
- * or passes; a player who passes is out of the auction. Turns keep going round
- * among the players still in until only the high bidder is left.
+ * Evaluate a head-to-head auction (traditional 29).
+ *
+ * Bidding goes in pairs, starting with the dealer's left (A) against the next
+ * player (B). They take turns raising until one passes. The survivor then
+ * faces C, and the survivor of that faces D. A player who passes is out for
+ * the rest of the deal. The last survivor wins at the highest bid.
+ *
+ * Who speaks first: A opens the first pair. When a new challenger joins, the
+ * challenger speaks first (they must beat the current bid) — unless nobody has
+ * bid yet, in which case the surviving player speaks first.
+ * If A, B and C all pass without a bid, D must open (forced opening rule).
  */
 export const evaluateBiddingState = (
   bids: BidEntry[],
@@ -94,40 +103,53 @@ export const evaluateBiddingState = (
   let highestBid = 0;
   let highestBidder: PlayerPosition | null = null;
 
+  let holder: PlayerPosition = order[0];
+  let challenger: PlayerPosition | null = order[1];
+  let nextIdx = 2;
+  let turn: PlayerPosition | null = order[0];
+
   for (const entry of bids) {
+    const p = entry.playerIndex;
     if (entry.bid === 'PASS') {
-      passedPlayers.add(entry.playerIndex);
+      passedPlayers.add(p);
+      if (p === holder && challenger !== null) {
+        holder = challenger; // challenger survives
+      }
+      // Bring in the next challenger, if any.
+      challenger = nextIdx < 4 ? order[nextIdx++] : null;
+      if (challenger !== null) {
+        turn = highestBid > 0 ? challenger : holder;
+      } else {
+        turn = passedPlayers.has(holder) ? null : holder;
+      }
     } else {
       highestBid = entry.bid;
-      highestBidder = entry.playerIndex;
+      highestBidder = p;
+      // The other player in the pair must answer.
+      turn = p === holder ? challenger : holder;
     }
   }
 
-  const active = order.filter((p) => !passedPlayers.has(p));
   void rules;
+  const duel = { holder, challenger };
 
-  // Everyone passed without a bid (only possible without the forced opening): redeal.
-  if (active.length === 0) {
-    return { isComplete: true, highestBid: 0, highestBidder: null, nextTurn: order[0], biddingTurnIndex: bids.length, passedPlayers };
+  // Everyone passed (only possible without the forced opening): redeal.
+  if (passedPlayers.size === 4) {
+    return { isComplete: true, highestBid: 0, highestBidder: null, nextTurn: order[0], biddingTurnIndex: bids.length, passedPlayers, duel };
   }
 
-  // Only the high bidder is left: they win the auction.
-  if (active.length === 1 && highestBidder !== null && active[0] === highestBidder) {
-    return { isComplete: true, highestBid, highestBidder, nextTurn: highestBidder, biddingTurnIndex: bids.length, passedPlayers };
+  // Nobody left to challenge and the survivor holds the bid: they win.
+  if (challenger === null && highestBidder !== null && highestBidder === holder) {
+    return { isComplete: true, highestBid, highestBidder, nextTurn: highestBidder, biddingTurnIndex: bids.length, passedPlayers, duel };
   }
 
-  // Next player clockwise (from the last caller) who is still in the auction.
-  let nextTurn = order[0];
-  if (bids.length > 0) {
-    const last = bids[bids.length - 1].playerIndex;
-    for (let step = 1; step <= 4; step++) {
-      const candidate = ((last + step) % 4) as PlayerPosition;
-      if (!passedPlayers.has(candidate)) {
-        nextTurn = candidate;
-        break;
-      }
-    }
-  }
-
-  return { isComplete: false, highestBid, highestBidder, nextTurn, biddingTurnIndex: bids.length, passedPlayers };
+  return {
+    isComplete: false,
+    highestBid,
+    highestBidder,
+    nextTurn: turn ?? holder,
+    biddingTurnIndex: bids.length,
+    passedPlayers,
+    duel,
+  };
 };

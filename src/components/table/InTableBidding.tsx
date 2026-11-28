@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BidEntry, GameRulesConfig, PlayerInfo, PlayerPosition } from '../../engine/types';
-import { getLegalBidOptions } from '../../engine/bidding';
+import { evaluateBiddingState, getLegalBidOptions } from '../../engine/bidding';
 
 interface InTableBiddingProps {
   currentHighestBid: number;
@@ -15,6 +15,7 @@ interface InTableBiddingProps {
   onPlaceBid: (bid: number | 'PASS') => void;
   bids?: BidEntry[];
   biddingOrder?: PlayerPosition[];
+  dealerIndex?: PlayerPosition;
 }
 
 /**
@@ -35,6 +36,7 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
   onPlaceBid,
   bids = [],
   biddingOrder = [],
+  dealerIndex,
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   useEffect(() => setIsSubmitting(false), [activeBidder, isMyTurn]);
@@ -56,6 +58,10 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
   };
 
   const order = biddingOrder.length === 4 ? biddingOrder : ([0, 1, 2, 3] as PlayerPosition[]);
+  // The pair currently bidding against each other (A vs B, then winner vs C, then vs D).
+  const status = evaluateBiddingState(bids, dealerIndex ?? order[3], rules);
+  const inDuel = (pos: PlayerPosition) => pos === status.duel.holder || pos === status.duel.challenger;
+  const waiting = order.filter((p) => !status.passedPlayers.has(p) && !inDuel(p));
   // Latest call per player (players can raise several times in the auction).
   const callOf = (pos: PlayerPosition) => [...bids].reverse().find((b) => b.playerIndex === pos)?.bid;
 
@@ -96,24 +102,41 @@ export const InTableBidding: React.FC<InTableBiddingProps> = ({
         )}
       </div>
 
+      {/* Current pair */}
+      <div className="flex items-center justify-center gap-2 text-sm">
+        <span className={relationOf(status.duel.holder) === 'opponent' ? 'text-[#e36a56]' : 'text-felt-400'}>{nameOf(status.duel.holder)}</span>
+        {status.duel.challenger !== null ? (
+          <>
+            <span className="text-cream-300/60 text-xs">vs</span>
+            <span className={relationOf(status.duel.challenger) === 'opponent' ? 'text-[#e36a56]' : 'text-felt-400'}>{nameOf(status.duel.challenger)}</span>
+          </>
+        ) : (
+          <span className="text-cream-300/60 text-xs">must open</span>
+        )}
+        {waiting.length > 0 && (
+          <span className="text-[11px] text-cream-300/60 ml-1">· next: {waiting.map(nameOf).join(', ')}</span>
+        )}
+      </div>
+
       {/* Calls so far, in bidding order */}
       <div className="grid grid-cols-4 gap-1.5">
         {order.map((pos) => {
           const call = callOf(pos);
           const rel = relationOf(pos);
           const isActive = pos === activeBidder;
+          const isOut = status.passedPlayers.has(pos);
           return (
             <div
               key={pos}
               className={`rounded-lg px-1.5 py-1 text-center border transition-colors ${
-                isActive ? 'border-cream-100/60 bg-cream-100/10' : 'border-cream-100/10'
+                isActive ? 'border-cream-100/60 bg-cream-100/10' : inDuel(pos) && !isOut ? 'border-cream-100/25' : 'border-cream-100/10 opacity-60'
               }`}
             >
               <div className={`text-[10px] truncate ${rel === 'opponent' ? 'text-[#e36a56]' : 'text-felt-400'}`}>
                 {nameOf(pos)}
               </div>
               <div className="text-sm tabular-nums text-cream-50">
-                {call === undefined ? (isActive ? '…' : '–') : call === 'PASS' ? <span className="text-cream-300/70">Pass</span> : call}
+                {isOut ? <span className="text-cream-300/70">Out</span> : call === undefined ? (isActive ? '…' : inDuel(pos) ? '–' : 'waits') : call}
               </div>
             </div>
           );
